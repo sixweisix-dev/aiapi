@@ -1,38 +1,36 @@
 <template>
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#e5e7eb;padding:16px;">
-    <div style="width:100%;max-width:380px;background:white;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);padding:32px;">
-      <h2 class="text-2xl font-semibold text-center text-gray-800 mb-2">找回密码</h2>
-      <p class="text-center text-sm text-gray-400 mb-6">输入注册邮箱，我们将发送重置链接</p>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-logo">📮</div>
+      <h1 class="auth-brand">找回密码</h1>
+      <p class="auth-tagline">输入注册邮箱，我们将发送重置链接</p>
 
       <div v-if="!sent">
-        <el-form ref="formRef" :model="form" :rules="rules">
+        <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
           <el-form-item prop="email">
-            <el-input v-model="form.email" placeholder="注册邮箱" size="large"
-              style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
+            <el-input v-model="form.email" placeholder="📧 注册邮箱" size="large" />
           </el-form-item>
           <el-form-item prop="captcha">
-            <div class="flex gap-2 w-full">
-              <el-input v-model="form.captcha" placeholder="图片验证码" size="large" class="flex-1"
-                style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
-              <img :src="captchaUrl" @click="refreshCaptcha" class="h-10 rounded-lg cursor-pointer" style="min-width:110px;object-fit:cover" />
+            <div style="display:flex;gap:8px;width:100%">
+              <el-input v-model="form.captcha" placeholder="🛡️ 验证码" size="large" style="flex:1" />
+              <img :src="captchaUrl" @click="refreshCaptcha"
+                style="height:40px;border-radius:8px;cursor:pointer;min-width:110px;object-fit:cover" />
             </div>
           </el-form-item>
-          <el-form-item>
-            <el-button type="primary" size="large" round style="width:100%" :loading="loading" @click="handleSubmit">
-              发送重置链接
-            </el-button>
-          </el-form-item>
+          <button class="auth-btn" :disabled="loading" @click="handleSubmit">
+            {{ loading ? '发送中...' : '发送重置链接' }}
+          </button>
         </el-form>
       </div>
 
-      <div v-else class="text-center py-6">
-        <div class="text-5xl mb-4">✉️</div>
-        <p class="text-gray-700 mb-1">重置链接已发送</p>
-        <p class="text-sm text-gray-400">请检查收件箱（包括垃圾邮件）</p>
+      <div v-else class="success-block">
+        <div class="success-emoji">✉️</div>
+        <div class="success-title">重置链接已发送</div>
+        <div class="success-sub">请检查收件箱（包括垃圾邮件）</div>
       </div>
 
-      <div class="text-center text-sm text-gray-400 mt-4">
-        <router-link to="/login" class="hover:text-gray-600">返回登录</router-link>
+      <div class="auth-links">
+        <router-link to="/login" class="auth-link">返回登录</router-link>
       </div>
     </div>
   </div>
@@ -58,7 +56,6 @@ async function refreshCaptcha() {
   captchaId.value = res.captcha_id
   captchaUrl.value = res.captcha_url
 }
-
 onMounted(refreshCaptcha)
 
 async function handleSubmit() {
@@ -71,3 +68,50 @@ async function handleSubmit() {
   } catch { refreshCaptcha(); form.captcha = '' } finally { loading.value = false }
 }
 </script>
+
+<style scoped>
+.auth-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative; overflow: hidden;
+}
+.auth-page::before {
+  content: ''; position: absolute; top: -100px; right: -100px;
+  width: 300px; height: 300px; background: rgba(255,255,255,0.08); border-radius: 50%;
+}
+.auth-page::after {
+  content: ''; position: absolute; bottom: -80px; left: -80px;
+  width: 240px; height: 240px; background: rgba(255,255,255,0.06); border-radius: 50%;
+}
+.auth-card {
+  width: 100%; max-width: 380px;
+  background: #fff; border-radius: 24px; padding: 36px 26px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  position: relative; z-index: 1;
+}
+.auth-logo { font-size: 44px; text-align: center; }
+.auth-brand {
+  font-size: 24px; font-weight: 800; text-align: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin: 4px 0 0;
+}
+.auth-tagline { text-align: center; color: #9ca3af; font-size: 13px; margin: 6px 0 24px; }
+.auth-form { margin-bottom: 16px; }
+.auth-btn {
+  width: 100%; height: 48px; border: none; border-radius: 14px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(102,126,234,0.35);
+}
+.auth-btn:active { transform: scale(0.98); }
+.auth-btn:disabled { opacity: 0.6; }
+.auth-links { text-align: center; font-size: 13px; color: #9ca3af; margin-top: 8px; }
+.auth-link { color: #667eea; text-decoration: none; font-weight: 600; }
+
+.success-block { text-align: center; padding: 24px 0 16px; }
+.success-emoji { font-size: 56px; margin-bottom: 12px; }
+.success-title { font-size: 16px; color: #1f2937; font-weight: 600; margin-bottom: 4px; }
+.success-sub { font-size: 13px; color: #9ca3af; }
+</style>

@@ -851,3 +851,122 @@ func testProviderConnection(ch models.UpstreamChannel) bool {
 	return resp.StatusCode == 200
 }
 
+
+// ---- Profit Dashboard ----
+// ProfitStats 返回平台收入、成本、毛利统计。
+// 假设倍率 1.5x（成本 = 用户扣费 / 1.5），如果以后调整倍率需要同步修改。
+// query 参数: range = today | month | year（默认 month）
+func (h *AdminHandler) ProfitStats(c *gin.Context) {
+	rangeType := c.DefaultQuery("range", "month")
+	now := time.Now()
+	var startTime time.Time
+	switch rangeType {
+	case "today":
+		startTime = now.Truncate(24 * time.Hour)
+	case "year":
+		startTime = time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	default: // month
+		startTime = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	}
+
+	const multiplier = 1.5
+
+	type Summary struct {
+		Revenue      float64 `json:"revenue"`        // 平台收入(CNY)
+		Cost         float64 `json:"cost"`           // 平台成本(CNY)
+		Profit       float64 `json:"profit"`         // 毛利(CNY)
+		ProfitMargin float64 `json:"profit_margin"`  // 毛利率(%)
+		RequestCount int64   `json:"request_count"`  // 请求数
+		PromptTokens int64   `json:"prompt_tokens"`
+		OutputTokens int64   `json:"output_tokens"`
+	}
+
+	var s Summary
+	h.db.Model(&models.Request{}).
+		Where("status_code = 200 AND created_at >= ?", startTime).
+		Select(`
+			COALESCE(SUM(cost), 0) AS revenue,
+			COUNT(*) AS request_count,
+			COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
+			COALESCE(SUM(completion_tokens), 0) AS output_tokens
+		`).
+		Scan(&s)
+	s.Cost = s.Revenue / multiplier
+	s.Profit = s.Revenue - s.Cost
+	if s.Revenue > 0 {
+		s.ProfitMargin = (s.Profit / s.Revenue) * 100
+	}
+
+	// 分模型统计
+	type ModelBreakdown struct {
+		ModelName    string  `json:"model_name"`
+		RequestCount int64   `json:"request_count"`
+		Revenue      float64 `json:"revenue"`
+		Cost         float64 `json:"cost"`
+		Profit       float64 `json:"profit"`
+		Share        float64 `json:"share"` // 占总收入百分比
+	}
+	var byModel []ModelBreakdown
+	h.db.Table("requests r").
+		Select(`m.name AS model_name, COUNT(*) AS request_count, COALESCE(SUM(r.cost),0) AS revenue`).
+		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Where("r.status_code = 200 AND r.created_at >= ?", startTime).
+		Group("m.name").
+		Order("revenue DESC").
+		Scan(&byModel)
+	for i := range byModel {
+		byModel[i].Cost = byModel[i].Revenue / multiplier
+		byModel[i].Profit = byModel[i].Revenue - byModel[i].Cost
+		if s.Revenue > 0 {
+			byModel[i].Share = byModel[i].Revenue / s.Revenue * 100
+		}
+	}
+
+	// TOP 10 消费用户
+	type TopUser struct {
+		Email        string  `json:"email"`
+		RequestCount int64   `json:"request_count"`
+		Revenue      float64 `json:"revenue"`
+	}
+	var topUsers []TopUser
+	h.db.Table("requests r").
+		Select(`u.email, COUNT(*) AS request_count, COALESCE(SUM(r.cost),0) AS revenue`).
+		Joins("LEFT JOIN users u ON u.id = r.user_id").
+		Where("r.status_code = 200 AND r.created_at >= ?", startTime).
+		Group("u.email").
+		Order("revenue DESC").
+		Limit(10).
+		Scan(&topUsers)
+
+	// 最近 30 天每日趋势（无论 range 如何，趋势图固定 30 天）
+	type DailyPoint struct {
+		Date    string  `json:"date"`
+		Revenue float64 `json:"revenue"`
+		Cost    float64 `json:"cost"`
+		Profit  float64 `json:"profit"`
+	}
+	var trend []DailyPoint
+	thirtyDaysAgo := now.AddDate(0, 0, -29).Truncate(24 * time.Hour)
+	h.db.Raw(`
+		SELECT TO_CHAR(date_trunc('day', created_at), 'YYYY-MM-DD') AS date,
+			COALESCE(SUM(cost), 0) AS revenue
+		FROM requests
+		WHERE status_code = 200 AND created_at >= ?
+		GROUP BY date
+		ORDER BY date ASC
+	`, thirtyDaysAgo).Scan(&trend)
+	for i := range trend {
+		trend[i].Cost = trend[i].Revenue / multiplier
+		trend[i].Profit = trend[i].Revenue - trend[i].Cost
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"range":      rangeType,
+		"start_time": startTime,
+		"multiplier": multiplier,
+		"summary":    s,
+		"by_model":   byModel,
+		"top_users":  topUsers,
+		"trend_30d":  trend,
+	})
+}

@@ -1,35 +1,34 @@
 <template>
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#e5e7eb;padding:16px;">
-    <div style="width:100%;max-width:380px;background:white;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);padding:32px;">
-      <h2 class="text-2xl font-semibold text-center text-gray-800 mb-6">创建账号</h2>
-      <el-form ref="formRef" :model="form" :rules="rules">
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-logo">⚡</div>
+      <h1 class="auth-brand">创建账号</h1>
+      <p class="auth-tagline">几秒钟完成注册，立即开始</p>
+
+      <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
         <el-form-item prop="email">
-          <el-input v-model="form.email" placeholder="邮箱" size="large"
-            style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
+          <el-input v-model="form.email" placeholder="📧 邮箱" size="large" />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码（8位以上含大小写和数字）" size="large" show-password
-            style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
+          <el-input v-model="form.password" type="password" placeholder="🔒 密码（8位+大小写+数字）" size="large" show-password />
         </el-form-item>
         <el-form-item prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" type="password" placeholder="确认密码" size="large" show-password
-            style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
+          <el-input v-model="form.confirmPassword" type="password" placeholder="🔒 确认密码" size="large" show-password />
         </el-form-item>
         <el-form-item prop="captcha">
-          <div class="flex gap-2 w-full">
-            <el-input v-model="form.captcha" placeholder="图片验证码" size="large" class="flex-1"
-              style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
-            <img :src="captchaUrl" @click="refreshCaptcha" class="h-10 rounded-lg cursor-pointer" style="min-width:110px;object-fit:cover" />
+          <div style="display:flex;gap:8px;width:100%">
+            <el-input v-model="form.captcha" placeholder="🛡️ 验证码" size="large" style="flex:1" />
+            <img :src="captchaUrl" @click="refreshCaptcha"
+              style="height:40px;border-radius:8px;cursor:pointer;min-width:110px;object-fit:cover" />
           </div>
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="large" round style="width:100%" :loading="loading" @click="handleRegister">
-            注册
-          </el-button>
-        </el-form-item>
+        <button class="auth-btn" :disabled="loading" @click="handleRegister">
+          {{ loading ? '注册中...' : '注 册' }}
+        </button>
       </el-form>
-      <div class="text-center text-sm text-gray-400 mt-2">
-        <router-link to="/login" class="hover:text-gray-600">返回登录</router-link>
+
+      <div class="auth-links">
+        已有账号？<router-link to="/login" class="auth-link">立即登录</router-link>
       </div>
     </div>
   </div>
@@ -76,7 +75,6 @@ async function refreshCaptcha() {
   captchaId.value = res.captcha_id
   captchaUrl.value = res.captcha_url
 }
-
 onMounted(refreshCaptcha)
 
 async function handleRegister() {
@@ -90,3 +88,56 @@ async function handleRegister() {
   } catch { refreshCaptcha() } finally { loading.value = false }
 }
 </script>
+
+<style scoped>
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow: hidden;
+}
+.auth-page::before {
+  content: ''; position: absolute; top: -100px; right: -100px;
+  width: 300px; height: 300px;
+  background: rgba(255, 255, 255, 0.08); border-radius: 50%;
+}
+.auth-page::after {
+  content: ''; position: absolute; bottom: -80px; left: -80px;
+  width: 240px; height: 240px;
+  background: rgba(255, 255, 255, 0.06); border-radius: 50%;
+}
+.auth-card {
+  width: 100%; max-width: 400px;
+  background: #fff; border-radius: 24px;
+  padding: 32px 26px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  position: relative; z-index: 1;
+}
+.auth-logo { font-size: 44px; text-align: center; margin-bottom: 6px; }
+.auth-brand {
+  font-size: 24px; font-weight: 800; text-align: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin: 0;
+}
+.auth-tagline {
+  text-align: center; color: #9ca3af;
+  font-size: 13px; margin: 6px 0 20px;
+}
+.auth-form { margin-bottom: 14px; }
+.auth-btn {
+  width: 100%; height: 48px; border: none; border-radius: 14px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; font-size: 16px; font-weight: 700; cursor: pointer;
+  margin-top: 4px;
+  box-shadow: 0 6px 16px rgba(102,126,234,0.35);
+}
+.auth-btn:active { transform: scale(0.98); }
+.auth-btn:disabled { opacity: 0.6; }
+.auth-links { text-align: center; font-size: 13px; color: #9ca3af; }
+.auth-link { color: #667eea; text-decoration: none; font-weight: 600; margin-left: 4px; }
+</style>

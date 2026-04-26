@@ -105,10 +105,10 @@ import { ref } from 'vue'
 const sdkTab = ref('python')
 
 const models = [
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'Anthropic', input: '$0.015/1K', output: '$0.075/1K' },
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'Anthropic', input: '$0.015/1K', output: '$0.075/1K' },
-  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', input: '$0.003/1K', output: '$0.015/1K' },
-  { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', provider: 'Anthropic', input: '$0.0008/1K', output: '$0.004/1K' },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'Anthropic', input: '¥0.054/1K', output: '¥0.27/1K' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'Anthropic', input: '¥0.054/1K', output: '¥0.27/1K' },
+  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', input: '¥0.0324/1K', output: '¥0.162/1K' },
+  { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', provider: 'Anthropic', input: '¥0.0108/1K', output: '¥0.054/1K' },
 ]
 
 const chatExample = JSON.stringify({

@@ -20,6 +20,7 @@ const routes = [
       { path: 'logs', name: 'Logs', component: () => import('@/views/Logs.vue') },
       { path: 'recharge', name: 'RechargeOrders', component: () => import('@/views/RechargeOrders.vue') },
       { path: 'audit-logs', name: 'AuditLogs', component: () => import('@/views/AuditLogs.vue') },
+      { path: 'profit', name: 'Profit', component: () => import('@/views/Profit.vue') },
     ],
   },
 ]

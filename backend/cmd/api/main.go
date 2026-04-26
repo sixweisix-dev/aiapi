@@ -166,6 +166,7 @@ func main() {
 	{
 		// Dashboard
 		admin.GET("/dashboard", adminHandler.DashboardStats)
+		admin.GET("/profit", adminHandler.ProfitStats)
 
 		// Users
 		admin.GET("/users", adminHandler.ListUsers)

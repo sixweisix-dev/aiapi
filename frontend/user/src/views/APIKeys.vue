@@ -1,86 +1,74 @@
 <template>
-  <div>
-    <!-- Create Key -->
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">创建 API Key</span>
-      </template>
-      <el-form :inline="true" :model="createForm">
-        <el-form-item label="名称">
-          <el-input v-model="createForm.name" placeholder="例如: 开发环境" />
-        </el-form-item>
-        <el-form-item label="RPM 限制">
-          <el-input-number v-model="createForm.rpm_limit" :min="0" :max="10000" placeholder="每分钟请求数" />
-        </el-form-item>
-        <el-form-item label="TPM 限制">
-          <el-input-number v-model="createForm.tpm_limit" :min="0" :max="1000000" placeholder="每分钟 Token 数" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="creating" @click="handleCreate">
-            <el-icon><Plus /></el-icon>创建
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+  <div class="page">
+    <!-- 创建表单 -->
+    <div class="data-card">
+      <div class="card-header">
+        <span class="card-title">🔑 创建 API Key</span>
+      </div>
+      <div class="form-body">
+        <div class="form-row">
+          <label class="form-label">名称</label>
+          <el-input v-model="createForm.name" placeholder="例如: 开发环境" size="large" />
+        </div>
+        <div class="form-row form-grid-2">
+          <div>
+            <label class="form-label">RPM (每分钟请求)</label>
+            <el-input-number v-model="createForm.rpm_limit" :min="0" :max="10000" size="large" :controls="false" style="width:100%" />
+          </div>
+          <div>
+            <label class="form-label">TPM (每分钟 Token)</label>
+            <el-input-number v-model="createForm.tpm_limit" :min="0" :max="1000000" size="large" :controls="false" style="width:100%" />
+          </div>
+        </div>
+        <button class="primary-btn" :disabled="creating" @click="handleCreate">
+          <span v-if="creating">创建中...</span>
+          <span v-else>＋ 创建 API Key</span>
+        </button>
+        <div class="form-tip">RPM/TPM 设为 0 表示不限制</div>
+      </div>
+    </div>
 
-    <!-- Key List -->
-    <el-card shadow="hover">
-      <template #header>
-        <span class="font-medium">我的 API Key ({{ total }})</span>
-      </template>
-      <el-table :data="keys" v-loading="loading" empty-text="暂无 API Key">
-        <el-table-column prop="name" label="名称" width="120" />
-        <el-table-column prop="prefix" label="前缀" width="120">
-          <template #default="{ row }">
-            <code class="bg-gray-100 px-2 py-1 rounded text-sm">sk-{{ row.prefix }}...</code>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'danger'" size="small">
-              {{ row.is_active ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="total_used" label="使用次数" width="90" />
-        <el-table-column label="最近使用" width="160">
-          <template #default="{ row }">
-            <span class="text-xs text-gray-400">
-              {{ row.last_used_at ? dayjs(row.last_used_at).format('YYYY-MM-DD HH:mm') : '从未使用' }}
+    <!-- Key 列表 -->
+    <div class="data-card">
+      <div class="card-header">
+        <span class="card-title">📦 我的 API Key</span>
+        <span class="card-tag">{{ total }} 个</span>
+      </div>
+      <div v-if="loading" class="empty-tip">加载中...</div>
+      <div v-else-if="keys.length === 0" class="empty-tip">暂无 API Key，请先创建</div>
+      <div v-else class="key-list">
+        <div v-for="k in keys" :key="k.id" class="key-item">
+          <div class="key-top">
+            <div class="key-name">{{ k.name }}</div>
+            <span class="key-status" :class="k.is_active ? 'active' : 'inactive'">
+              {{ k.is_active ? '启用' : '禁用' }}
             </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="160">
-          <template #default="{ row }">
-            <span class="text-xs text-gray-400">{{ dayjs(row.created_at).format('YYYY-MM-DD HH:mm') }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
-          <template #default="{ row }">
-            <el-button text size="small" :type="row.is_active ? 'warning' : 'success'" @click="handleToggle(row)">
-              {{ row.is_active ? '禁用' : '启用' }}
-            </el-button>
-            <el-popconfirm title="确定删除这个 API Key？" @confirm="handleDelete(row.id)">
+          </div>
+          <div class="key-prefix">sk-{{ k.prefix }}••••••••</div>
+          <div class="key-meta">
+            <span>📊 使用 {{ k.total_used || 0 }} 次</span>
+            <span>·</span>
+            <span>{{ k.last_used_at ? dayjs(k.last_used_at).format('MM-DD HH:mm') : '从未使用' }}</span>
+          </div>
+          <div class="key-actions">
+            <button class="action-btn" :class="k.is_active ? 'btn-warn' : 'btn-success'" @click="handleToggle(k)">
+              {{ k.is_active ? '禁用' : '启用' }}
+            </button>
+            <el-popconfirm title="确定删除此 Key？" @confirm="handleDelete(k.id)">
               <template #reference>
-                <el-button text size="small" type="danger">删除</el-button>
+                <button class="action-btn btn-danger">删除</button>
               </template>
             </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <!-- New Key Dialog -->
-    <el-dialog v-model="showNewKey" title="API Key 创建成功" width="500px">
-      <el-alert type="warning" :closable="false" class="mb-4">
-        <template #title>
-          请立即复制并安全保存此 Key，关闭后将无法再次查看完整 Key！
-        </template>
-      </el-alert>
-      <el-input v-model="newKeyValue" type="textarea" :rows="3" readonly />
-      <div class="mt-2">
-        <el-button type="primary" @click="copyKey">复制 Key</el-button>
+          </div>
+        </div>
       </div>
+    </div>
+
+    <!-- 新 Key 弹窗 -->
+    <el-dialog v-model="showNewKey" title="🎉 创建成功" width="92%" style="max-width:480px">
+      <div class="warn-box">⚠️ 请立即复制并妥善保存！关闭后将无法再次查看完整 Key。</div>
+      <el-input v-model="newKeyValue" type="textarea" :rows="3" readonly style="margin-top:12px" />
+      <button class="primary-btn" style="margin-top:14px" @click="copyKey">📋 一键复制</button>
     </el-dialog>
   </div>
 </template>
@@ -97,12 +85,7 @@ const keys = ref([])
 const total = ref(0)
 const showNewKey = ref(false)
 const newKeyValue = ref('')
-
-const createForm = ref({
-  name: '',
-  rpm_limit: 0,
-  tpm_limit: 0,
-})
+const createForm = ref({ name: '', rpm_limit: 0, tpm_limit: 0 })
 
 onMounted(fetchKeys)
 
@@ -112,18 +95,11 @@ async function fetchKeys() {
     const data = await apiKeysAPI.list()
     keys.value = data
     total.value = data.length
-  } catch {
-    // handled
-  } finally {
-    loading.value = false
-  }
+  } catch {} finally { loading.value = false }
 }
 
 async function handleCreate() {
-  if (!createForm.value.name) {
-    ElMessage.warning('请输入名称')
-    return
-  }
+  if (!createForm.value.name) return ElMessage.warning('请输入名称')
   creating.value = true
   try {
     const data = await apiKeysAPI.create({
@@ -136,36 +112,117 @@ async function handleCreate() {
     createForm.value.name = ''
     ElMessage.success('创建成功')
     await fetchKeys()
-  } catch {
-    // handled
-  } finally {
-    creating.value = false
-  }
+  } catch {} finally { creating.value = false }
 }
 
 async function handleToggle(row) {
-  try {
-    await apiKeysAPI.toggle(row.id)
-    ElMessage.success(row.is_active ? '已禁用' : '已启用')
-    await fetchKeys()
-  } catch {
-    // handled
-  }
+  try { await apiKeysAPI.toggle(row.id); ElMessage.success(row.is_active ? '已禁用' : '已启用'); await fetchKeys() } catch {}
 }
-
 async function handleDelete(id) {
-  try {
-    await apiKeysAPI.delete(id)
-    ElMessage.success('已删除')
-    await fetchKeys()
-  } catch {
-    // handled
-  }
+  try { await apiKeysAPI.delete(id); ElMessage.success('已删除'); await fetchKeys() } catch {}
 }
-
 function copyKey() {
-  navigator.clipboard.writeText(newKeyValue.value).then(() => {
-    ElMessage.success('已复制')
-  })
+  navigator.clipboard.writeText(newKeyValue.value).then(() => ElMessage.success('已复制'))
 }
 </script>
+
+<style scoped>
+.page { padding-bottom: 20px; }
+.data-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.card-title { font-size: 15px; font-weight: 600; color: #1f2937; }
+.card-tag {
+  background: #eef2ff;
+  color: #6366f1;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.empty-tip { text-align: center; color: #9ca3af; padding: 30px 0; font-size: 13px; }
+
+.form-body { display: flex; flex-direction: column; gap: 14px; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid-2 > div { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; color: #4b5563; font-weight: 500; }
+.form-tip { font-size: 11px; color: #9ca3af; text-align: center; }
+
+.primary-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+  transition: transform 0.15s;
+}
+.primary-btn:active { transform: scale(0.98); }
+.primary-btn:disabled { opacity: 0.6; }
+
+/* Key 列表 */
+.key-list { display: flex; flex-direction: column; gap: 10px; }
+.key-item {
+  border: 1px solid #f3f4f6;
+  border-radius: 12px;
+  padding: 14px;
+  background: #fafbfc;
+}
+.key-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.key-name { font-size: 15px; font-weight: 600; color: #1f2937; }
+.key-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.key-status.active { background: #d1fae5; color: #065f46; }
+.key-status.inactive { background: #fee2e2; color: #991b1b; }
+.key-prefix {
+  font-family: 'SF Mono', Menlo, monospace;
+  background: #fff;
+  border: 1px dashed #d1d5db;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+.key-meta { display: flex; gap: 6px; font-size: 11px; color: #9ca3af; margin-bottom: 10px; flex-wrap: wrap; }
+.key-actions { display: flex; gap: 8px; }
+.action-btn {
+  flex: 1;
+  border: none;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.action-btn:active { opacity: 0.7; }
+.btn-warn { background: #fef3c7; color: #92400e; }
+.btn-success { background: #d1fae5; color: #065f46; }
+.btn-danger { background: #fee2e2; color: #991b1b; }
+
+.warn-box {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+</style>

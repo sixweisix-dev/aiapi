@@ -1,26 +1,27 @@
 <template>
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#e5e7eb;padding:16px;">
-    <div style="width:100%;max-width:380px;background:white;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1);padding:32px;">
-      <h2 class="text-2xl font-semibold text-center text-gray-800 mb-6">TransitAI</h2>
-      <el-form ref="formRef" :model="form" :rules="rules">
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-logo">⚡</div>
+      <h1 class="auth-brand">TransitAI</h1>
+      <p class="auth-tagline">欢迎回来，请登录账号</p>
+
+      <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
         <el-form-item prop="email">
-          <el-input v-model="form.email" placeholder="邮箱" size="large"
-            class="rounded-lg bg-gray-100 border-0" style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent" />
+          <el-input v-model="form.email" placeholder="📧 邮箱" size="large" />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password
-            class="rounded-lg" style="--el-input-bg-color:#f3f4f6;--el-input-border-color:transparent"
+          <el-input v-model="form.password" type="password" placeholder="🔒 密码" size="large" show-password
             @keyup.enter="handleLogin" />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" size="large" round style="width:100%;font-size:16px;" :loading="loading" @click="handleLogin">
-            登录
-          </el-button>
-        </el-form-item>
+        <button class="auth-btn" :disabled="loading" @click="handleLogin">
+          {{ loading ? '登录中...' : '登 录' }}
+        </button>
       </el-form>
-      <div style="display:flex;justify-content:space-between;font-size:14px;color:#9ca3af;margin-top:8px;">
-        <router-link to="/register" class="hover:text-gray-600">注册</router-link>
-        <router-link to="/forgot-password" class="hover:text-gray-600">忘记密码</router-link>
+
+      <div class="auth-links">
+        <router-link to="/register" class="auth-link">注册账号</router-link>
+        <span class="link-divider">·</span>
+        <router-link to="/forgot-password" class="auth-link">忘记密码</router-link>
       </div>
     </div>
   </div>
@@ -48,8 +49,99 @@ async function handleLogin() {
   try {
     await auth.login(form.email, form.password)
     router.push('/dashboard')
-  } catch {} finally {
-    loading.value = false
-  }
+  } catch {} finally { loading.value = false }
 }
 </script>
+
+<style scoped>
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow: hidden;
+}
+.auth-page::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 300px;
+  height: 300px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+.auth-page::after {
+  content: '';
+  position: absolute;
+  bottom: -80px;
+  left: -80px;
+  width: 240px;
+  height: 240px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+}
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 36px 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  position: relative;
+  z-index: 1;
+}
+.auth-logo {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.auth-brand {
+  font-size: 28px;
+  font-weight: 800;
+  text-align: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+.auth-tagline {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+  margin: 6px 0 24px;
+}
+.auth-form { margin-bottom: 16px; }
+.auth-btn {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+  box-shadow: 0 6px 16px rgba(102,126,234,0.35);
+  transition: transform 0.15s;
+}
+.auth-btn:active { transform: scale(0.98); }
+.auth-btn:disabled { opacity: 0.6; }
+.auth-links {
+  text-align: center;
+  font-size: 13px;
+  color: #9ca3af;
+}
+.auth-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
+.auth-link:active { color: #4f46e5; }
+.link-divider { margin: 0 10px; }
+</style>

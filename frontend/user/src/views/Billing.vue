@@ -1,75 +1,72 @@
 <template>
-  <div>
-    <!-- Filters -->
-    <el-card shadow="hover" class="mb-6">
-      <el-form :inline="true" :model="filters">
-        <el-form-item label="类型">
-          <el-select v-model="filters.type" clearable placeholder="全部" style="width: 140px">
+  <div class="page">
+    <!-- 筛选 -->
+    <div class="data-card">
+      <div class="card-header">
+        <span class="card-title">🔍 筛选</span>
+        <button class="export-btn" @click="handleExport">📥 导出 CSV</button>
+      </div>
+      <div class="filter-grid">
+        <div class="filter-row">
+          <label class="form-label">类型</label>
+          <el-select v-model="filters.type" placeholder="全部类型" size="large" style="width:100%" clearable>
             <el-option label="全部" value="" />
             <el-option label="消费" value="chat_completion" />
             <el-option label="充值" value="recharge" />
             <el-option label="调整" value="adjustment" />
             <el-option label="退款" value="refund" />
           </el-select>
-        </el-form-item>
-        <el-form-item label="开始时间">
-          <el-date-picker v-model="filters.start" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" />
-        </el-form-item>
-        <el-form-item label="结束时间">
-          <el-date-picker v-model="filters.end" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="fetchData">查询</el-button>
-          <el-button @click="handleExport">导出 CSV</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </div>
+        <div class="filter-row-2">
+          <div>
+            <label class="form-label">开始日期</label>
+            <el-date-picker v-model="filters.start" type="date" placeholder="开始" value-format="YYYY-MM-DD" size="large" style="width:100%" />
+          </div>
+          <div>
+            <label class="form-label">结束日期</label>
+            <el-date-picker v-model="filters.end" type="date" placeholder="结束" value-format="YYYY-MM-DD" size="large" style="width:100%" />
+          </div>
+        </div>
+        <button class="primary-btn" @click="fetchData">🔎 查询</button>
+      </div>
+    </div>
 
-    <!-- Billing Table -->
-    <el-card shadow="hover">
-      <el-table :data="items" v-loading="loading" empty-text="暂无账单记录">
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.type === 'recharge' ? 'success' : row.type === 'chat_completion' ? 'warning' : 'info'" size="small">
-              {{ typeLabel(row.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="amount" label="金额" width="120">
-          <template #default="{ row }">
-            <span :class="row.amount > 0 ? 'text-green-600' : 'text-red-600'" class="font-medium">
-              {{ row.amount > 0 ? '+' : '' }}{{ row.amount?.toFixed(6) }}
+    <!-- 列表 -->
+    <div class="data-card">
+      <div class="card-header">
+        <span class="card-title">📋 账单明细</span>
+        <span class="card-tag">{{ total }} 条</span>
+      </div>
+      <div v-if="loading" class="empty-tip">加载中...</div>
+      <div v-else-if="items.length === 0" class="empty-tip">暂无账单记录</div>
+      <div v-else class="bill-list">
+        <div v-for="(b, i) in items" :key="i" class="bill-item">
+          <div class="bill-row">
+            <span class="bill-tag" :class="tagCls(b.type)">{{ typeLabel(b.type) }}</span>
+            <span class="bill-amount" :class="b.amount > 0 ? 'income' : 'outcome'">
+              {{ b.amount > 0 ? '+' : '' }}¥{{ Number(b.amount || 0).toFixed(6) }}
             </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="balance_before" label="余额(前)" width="120">
-          <template #default="{ row }">
-            {{ row.balance_before?.toFixed(4) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="balance_after" label="余额(后)" width="120">
-          <template #default="{ row }">
-            {{ row.balance_after?.toFixed(4) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="时间" width="160">
-          <template #default="{ row }">
-            <span class="text-xs text-gray-400">{{ dayjs(row.created_at).format('YYYY-MM-DD HH:mm') }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+          <div class="bill-desc">{{ b.description || '-' }}</div>
+          <div class="bill-meta">
+            <span>余额: ¥{{ Number(b.balance_after || 0).toFixed(4) }}</span>
+            <span>·</span>
+            <span>{{ dayjs(b.created_at).format('YYYY-MM-DD HH:mm') }}</span>
+          </div>
+        </div>
+      </div>
 
-      <div class="flex justify-center mt-4">
+      <div v-if="total > pageSize" class="pagination-wrap">
         <el-pagination
           v-model:current-page="page"
           :page-size="pageSize"
           :total="total"
           layout="prev, pager, next"
+          small
           @current-change="fetchData"
         />
       </div>
-    </el-card>
+    </div>
   </div>
 </template>
 
@@ -84,12 +81,7 @@ const items = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
-
-const filters = reactive({
-  type: '',
-  start: '',
-  end: '',
-})
+const filters = reactive({ type: '', start: '', end: '' })
 
 onMounted(fetchData)
 
@@ -105,11 +97,7 @@ async function fetchData() {
     })
     items.value = data.items || []
     total.value = data.total || 0
-  } catch {
-    // handled
-  } finally {
-    loading.value = false
-  }
+  } catch {} finally { loading.value = false }
 }
 
 async function handleExport() {
@@ -123,13 +111,117 @@ async function handleExport() {
     a.click()
     URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
-  } catch {
-    ElMessage.error('导出失败')
-  }
+  } catch { ElMessage.error('导出失败') }
 }
 
 function typeLabel(t) {
   const map = { chat_completion: '消费', recharge: '充值', adjustment: '调整', refund: '退款' }
   return map[t] || t
 }
+function tagCls(t) {
+  return t === 'recharge' ? 'tag-in' : t === 'chat_completion' ? 'tag-out' : 'tag-other'
+}
 </script>
+
+<style scoped>
+.page { padding-bottom: 20px; }
+.data-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.card-title { font-size: 15px; font-weight: 600; color: #1f2937; }
+.card-tag {
+  background: #eef2ff;
+  color: #6366f1;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.export-btn {
+  background: #eef2ff;
+  color: #6366f1;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.export-btn:active { background: #e0e7ff; }
+
+.filter-grid { display: flex; flex-direction: column; gap: 12px; }
+.filter-row { display: flex; flex-direction: column; gap: 6px; }
+.filter-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filter-row-2 > div { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; color: #4b5563; font-weight: 500; }
+
+.primary-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.primary-btn:active { opacity: 0.9; }
+
+.empty-tip { text-align: center; color: #9ca3af; padding: 30px 0; font-size: 13px; }
+
+.bill-list { display: flex; flex-direction: column; }
+.bill-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.bill-item:last-child { border-bottom: none; }
+.bill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.bill-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+.tag-in { background: #d1fae5; color: #065f46; }
+.tag-out { background: #fef3c7; color: #92400e; }
+.tag-other { background: #e0e7ff; color: #3730a3; }
+.bill-amount {
+  font-size: 15px;
+  font-weight: 700;
+}
+.bill-amount.income { color: #10b981; }
+.bill-amount.outcome { color: #ef4444; }
+.bill-desc {
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bill-meta { display: flex; gap: 6px; font-size: 11px; color: #9ca3af; }
+
+.pagination-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #f3f4f6;
+}
+</style>
