@@ -69,8 +69,14 @@ func main() {
 	monitor := monitoring.NewMonitor(db, alerter, monitorInterval)
 	monitor.Start(ctx)
 
+	// Content filter (敏感词过滤)
+	contentFilter := middleware.NewContentFilter(db)
+
+	// Rate limiter (Redis)
+	rateLimiter := middleware.NewRateLimiter(redisClient)
+
 	// Handlers
-	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter)
+	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter)
 	modelsHandler := handlers.NewModelsHandler(db)
 	mailCfg := handlers.MailConfig{
         Host:     cfg.SMTPHost,
@@ -143,7 +149,7 @@ func main() {
 	v1 := r.Group("/v1")
 	v1.Use(middleware.APIKeyAuth(db))
 	{
-		v1.POST("/chat/completions", chatHandler.Handle)
+		v1.POST("/chat/completions", middleware.APIKeyRateLimit(rateLimiter), chatHandler.Handle)
 		v1.GET("/models", modelsHandler.List)
 	}
 

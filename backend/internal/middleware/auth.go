@@ -80,15 +80,19 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 		keyHash := hashKey(apiKey)
 
 		type result struct {
-			UserID      string `gorm:"column:user_id"`
-			UserRole    string `gorm:"column:user_role"`
-			IsActive    bool   `gorm:"column:is_active"`
-			UserActive  bool   `gorm:"column:user_active"`
+			UserID          string  `gorm:"column:user_id"`
+			UserRole        string  `gorm:"column:user_role"`
+			IsActive        bool    `gorm:"column:is_active"`
+			UserActive      bool    `gorm:"column:user_active"`
+			APIKeyID        string  `gorm:"column:api_key_id"`
+			RPMLimit        *int64  `gorm:"column:rpm_limit"`
+			TPMLimit        *int64  `gorm:"column:tpm_limit"`
+			BlacklistReason *string `gorm:"column:blacklist_reason"`
 		}
 
 		var row result
 		err := db.Table("api_keys").
-			Select("api_keys.user_id, users.role AS user_role, api_keys.is_active, users.is_active AS user_active").
+			Select("api_keys.user_id, users.role AS user_role, api_keys.is_active, users.is_active AS user_active, api_keys.id AS api_key_id, api_keys.rpm_limit, api_keys.tpm_limit, users.blacklist_reason").
 			Joins("JOIN users ON users.id = api_keys.user_id").
 			Where("api_keys.key_hash = ?", keyHash).
 			First(&row).Error
@@ -114,10 +118,14 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		if !row.UserActive {
+			msg := "account is disabled"
+			if row.BlacklistReason != nil && *row.BlacklistReason != "" {
+				msg = "account suspended: " + *row.BlacklistReason
+			}
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error": gin.H{
-					"message": "account is disabled",
-					"type":    "auth_error",
+					"message": msg,
+					"type":    "account_suspended",
 				},
 			})
 			return
@@ -128,6 +136,9 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 		c.Set("role", row.UserRole)
 		c.Set("auth_method", "api_key")
 		c.Set("api_key_hash", keyHash)
+		c.Set("api_key_id", row.APIKeyID)
+		c.Set("api_key_rpm", row.RPMLimit)
+		c.Set("api_key_tpm", row.TPMLimit)
 		c.Next()
 	}
 }

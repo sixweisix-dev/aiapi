@@ -12,6 +12,7 @@ import (
 
 	"ai-api-gateway/internal/adapter"
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/middleware"
 	"ai-api-gateway/internal/monitoring"
 	"ai-api-gateway/internal/models"
 	"ai-api-gateway/internal/upstream"
@@ -25,10 +26,11 @@ type ChatHandler struct {
 	pool          *upstream.Pool
 	billingEngine *billing.Engine
 	alerter       *monitoring.TelegramAlerter
+	contentFilter *middleware.ContentFilter
 }
 
-func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter) *ChatHandler {
-	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter}
+func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter, cf *middleware.ContentFilter) *ChatHandler {
+	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter, contentFilter: cf}
 }
 
 func (h *ChatHandler) Handle(c *gin.Context) {
@@ -45,6 +47,55 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": gin.H{"message": "invalid request: " + err.Error(), "type": "invalid_request_error"}})
 		return
+	}
+
+	// === 内容过滤检查 ===
+	if h.contentFilter != nil {
+		var checkText strings.Builder
+		for _, m := range req.Messages {
+			if m.Content != "" {
+				checkText.WriteString(m.Content)
+				checkText.WriteString(" ")
+			}
+		}
+		result := h.contentFilter.Check(checkText.String())
+		if result.Blocked {
+			parsedUserID, _ := uuid.Parse(userIDStr)
+			var apiKeyUUIDPtr *uuid.UUID
+			if v, ok := c.Get("api_key_id"); ok {
+				if s, ok2 := v.(string); ok2 && s != "" {
+					if u, err := uuid.Parse(s); err == nil {
+						apiKeyUUIDPtr = &u
+					}
+				}
+			}
+			snippet := checkText.String()
+			if len(snippet) > 200 {
+				snippet = snippet[:200] + "..."
+			}
+			h.contentFilter.LogViolation(parsedUserID, apiKeyUUIDPtr, result.Category, result.MatchedKeyword, snippet, c.ClientIP())
+
+			if result.ShouldBlacklist {
+				reason := fmt.Sprintf("[%s] 高危关键词: %s", result.Category, result.MatchedKeyword)
+				h.contentFilter.MarkBlacklist(parsedUserID, reason)
+				if h.alerter != nil {
+					go h.alerter.Send(fmt.Sprintf("⛔ <b>用户已被自动拉黑</b>\n\n<b>UserID:</b> <code>%s</code>\n<b>类别:</b> %s\n<b>关键词:</b> <code>%s</code>\n<b>IP:</b> %s",
+						userIDStr, result.Category, result.MatchedKeyword, c.ClientIP()))
+				}
+			} else {
+				count, blacklisted := h.contentFilter.IncrementViolation(parsedUserID, result.Category)
+				if blacklisted && h.alerter != nil {
+					go h.alerter.Send(fmt.Sprintf("⛔ <b>用户累计违规被拉黑</b>\n\n<b>UserID:</b> <code>%s</code>\n<b>累计次数:</b> %d\n<b>最近类别:</b> %s",
+						userIDStr, count, result.Category))
+				}
+			}
+
+			c.JSON(400, gin.H{"error": gin.H{
+				"message": "content policy violation: request contains prohibited content",
+				"type":    "content_policy_violation",
+			}})
+			return
+		}
 	}
 
 	// Look up model in DB
