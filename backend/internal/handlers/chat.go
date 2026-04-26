@@ -151,6 +151,34 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 		return
 	}
 
+	// Pre-check API key 月度预算（防止超额消费）
+	if apiKeyIDVal, ok := c.Get("api_key_id"); ok {
+		if apiKeyIDStr, ok2 := apiKeyIDVal.(string); ok2 && apiKeyIDStr != "" {
+			var budgetRow struct {
+				MonthlyBudget *float64
+				BudgetUsed    float64
+			}
+			h.db.Raw("SELECT monthly_budget, budget_used FROM api_keys WHERE id = ?", apiKeyIDStr).Scan(&budgetRow)
+			if budgetRow.MonthlyBudget != nil {
+				remaining := *budgetRow.MonthlyBudget - budgetRow.BudgetUsed
+				if remaining <= 0 {
+					c.JSON(429, gin.H{"error": gin.H{
+						"message": fmt.Sprintf("API key monthly budget exhausted: ¥%.2f / ¥%.2f", budgetRow.BudgetUsed, *budgetRow.MonthlyBudget),
+						"type":    "budget_exceeded",
+					}})
+					return
+				}
+				if estimatedCost > remaining {
+					c.JSON(429, gin.H{"error": gin.H{
+						"message": fmt.Sprintf("estimated cost ¥%.4f exceeds remaining budget ¥%.4f", estimatedCost, remaining),
+						"type":    "budget_exceeded",
+					}})
+					return
+				}
+			}
+		}
+	}
+
 	// Convert request to provider format
 	upstreamReq, err := chatAdapter.ConvertReq(&req)
 	if err != nil {
@@ -372,7 +400,15 @@ func (h *ChatHandler) postProcess(userID, modelID string, ch *upstream.Channel, 
 
 	// Update API key usage
 	if apiKeyHash != "" {
-		h.db.Exec("UPDATE api_keys SET total_used = total_used + 1, last_used_at = NOW() WHERE key_hash = ?", apiKeyHash)
+		// 累加 total_used + budget_used（CNY 计费）
+		h.db.Exec(`UPDATE api_keys 
+			SET total_used = total_used + 1, 
+			    last_used_at = NOW(),
+			    budget_used = budget_used + ?
+			WHERE key_hash = ?`, cost, apiKeyHash)
+
+		// 检查是否触发预算告警（异步，避免阻塞）
+		go h.checkBudgetAlert(apiKeyHash)
 	}
 
 	// Update channel stats
@@ -543,5 +579,60 @@ func (sr *SSEReader) ReadEvent() ([]byte, error) {
 			return nil, err
 		}
 		sr.writePos += n
+	}
+}
+
+// checkBudgetAlert 检查 API key 是否达到预算告警阈值，触发 Telegram 告警。
+// 同时如果 budget_used >= monthly_budget 直接禁用 key（防止超额消费）。
+func (h *ChatHandler) checkBudgetAlert(apiKeyHash string) {
+	var row struct {
+		ID             string
+		Name           string
+		ProjectName    *string
+		UserID         string
+		Email          string
+		MonthlyBudget  *float64
+		BudgetUsed     float64
+		BudgetAlertPct int
+		BudgetAlerted  bool
+	}
+	err := h.db.Raw(`
+		SELECT k.id, k.name, k.project_name, k.user_id, u.email,
+		       k.monthly_budget, k.budget_used, k.budget_alert_pct, k.budget_alerted
+		FROM api_keys k JOIN users u ON u.id = k.user_id
+		WHERE k.key_hash = ? AND k.monthly_budget IS NOT NULL`, apiKeyHash).Scan(&row).Error
+	if err != nil || row.MonthlyBudget == nil {
+		return
+	}
+
+	budget := *row.MonthlyBudget
+	used := row.BudgetUsed
+	pct := used / budget * 100
+
+	// 100% 超额 → 直接禁用 key
+	if used >= budget {
+		h.db.Exec("UPDATE api_keys SET is_active = false WHERE id = ?", row.ID)
+		if h.alerter != nil {
+			projName := ""
+			if row.ProjectName != nil {
+				projName = *row.ProjectName
+			}
+			go h.alerter.Send(fmt.Sprintf("⛔ <b>API Key 预算超额已禁用</b>\n\n<b>用户:</b> %s\n<b>项目:</b> %s\n<b>Key:</b> %s\n<b>预算:</b> ¥%.2f\n<b>已用:</b> ¥%.2f (%.1f%%)",
+				row.Email, projName, row.Name, budget, used, pct))
+		}
+		return
+	}
+
+	// 达到告警阈值且尚未发过告警 → 发一次告警
+	if int(pct) >= row.BudgetAlertPct && !row.BudgetAlerted {
+		h.db.Exec("UPDATE api_keys SET budget_alerted = true WHERE id = ?", row.ID)
+		if h.alerter != nil {
+			projName := ""
+			if row.ProjectName != nil {
+				projName = *row.ProjectName
+			}
+			go h.alerter.Send(fmt.Sprintf("⚠️ <b>API Key 预算告警</b>\n\n<b>用户:</b> %s\n<b>项目:</b> %s\n<b>Key:</b> %s\n<b>预算:</b> ¥%.2f\n<b>已用:</b> ¥%.2f (%.1f%%)\n<b>告警阈值:</b> %d%%",
+				row.Email, projName, row.Name, budget, used, pct, row.BudgetAlertPct))
+		}
 	}
 }

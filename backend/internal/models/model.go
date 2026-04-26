@@ -46,6 +46,13 @@ type APIKey struct {
 	TPMLimit   *int
 	IsActive   bool      `gorm:"not null;default:true"`
 	ExpiresAt  *time.Time
+	// 项目级管理（B 端能力）
+	ProjectName       *string    `gorm:"type:varchar(100)"`
+	MonthlyBudget     *float64   `gorm:"type:decimal(20,8)"`
+	BudgetAlertPct    int        `gorm:"not null;default:80"`
+	BudgetUsed        float64    `gorm:"type:decimal(20,8);not null;default:0"`
+	BudgetPeriodStart *time.Time `gorm:"type:timestamp with time zone"`
+	BudgetAlerted     bool       `gorm:"not null;default:false"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeletedAt  gorm.DeletedAt `gorm:"index"`

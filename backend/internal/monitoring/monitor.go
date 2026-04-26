@@ -56,6 +56,24 @@ func (m *Monitor) Start(ctx context.Context) {
 }
 
 func (m *Monitor) runCheck() {
+	// 月度预算重置：把上月以前的 period_start 全部刷成本月，恢复因超额禁用的 key
+	result := m.db.Exec(`
+		UPDATE api_keys
+		SET budget_used = 0,
+		    budget_alerted = false,
+		    budget_period_start = date_trunc('month', NOW()),
+		    is_active = CASE 
+		      WHEN is_active = false AND monthly_budget IS NOT NULL AND budget_used >= monthly_budget 
+		      THEN true ELSE is_active END
+		WHERE budget_period_start < date_trunc('month', NOW())
+		  AND monthly_budget IS NOT NULL`)
+	if result.RowsAffected > 0 {
+		log.Printf("[monitor] reset budget for %d API keys (new month)", result.RowsAffected)
+		if m.alerter != nil {
+			m.alerter.Send(fmt.Sprintf("📅 <b>月度预算重置</b>\n\n已重置 %d 个 API Key 的预算计数和告警状态", result.RowsAffected))
+		}
+	}
+
 	alerts := m.collectAlerts()
 	if len(alerts) > 0 {
 		msg := "<b>🔔 AI Gateway 告警</b>\n"

@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -38,6 +40,28 @@ func JWTAuth(secret string) gin.HandlerFunc {
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
+		}
+
+		// === 滑动续期：剩余 < 7 天时自动签发新 token ===
+		if claims.ExpiresAt != nil {
+			remaining := time.Until(claims.ExpiresAt.Time)
+			if remaining < 7*24*time.Hour && remaining > 0 {
+				newClaims := &Claims{
+					UserID: claims.UserID,
+					Email:  claims.Email,
+					Role:   claims.Role,
+					RegisteredClaims: jwt.RegisteredClaims{
+						ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						ID:        uuid.New().String(),
+					},
+				}
+				newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, newClaims)
+				if signed, err := newToken.SignedString([]byte(secret)); err == nil {
+					c.Header("X-Refresh-Token", signed)
+					c.Header("Access-Control-Expose-Headers", "X-Refresh-Token")
+				}
+			}
 		}
 
 		// Set user info in context

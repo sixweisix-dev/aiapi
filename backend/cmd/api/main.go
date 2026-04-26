@@ -143,6 +143,7 @@ func main() {
 		apiKeys.GET("", apiKeyHandler.List)
 		apiKeys.DELETE("/:id", apiKeyHandler.Delete)
 		apiKeys.PATCH("/:id/toggle", apiKeyHandler.Toggle)
+		apiKeys.PATCH("/:id", apiKeyHandler.Update)
 	}
 
 	// === OpenAI-compatible API (API Key required) ===

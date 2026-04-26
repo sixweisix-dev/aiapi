@@ -16,7 +16,14 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // 滑动续期：后端检测到 token 临近过期会在响应 header 返回新 token
+    const newToken = response.headers?.['x-refresh-token']
+    if (newToken) {
+      localStorage.setItem('user_token', newToken)
+    }
+    return response.data
+  },
   (error) => {
     const status = error.response?.status
     const msg = error.response?.data?.error || error.message

@@ -18,7 +18,14 @@ api.interceptors.request.use((config) => {
 
 // Response interceptor: handle errors globally
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    // 滑动续期
+    const newToken = response.headers?.['x-refresh-token']
+    if (newToken) {
+      localStorage.setItem('admin_token', newToken)
+    }
+    return response.data
+  },
   (error) => {
     const status = error.response?.status
     const msg = error.response?.data?.error || error.message
