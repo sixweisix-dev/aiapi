@@ -13,6 +13,15 @@
           <el-input v-model="form.password" type="password" placeholder="🔒 密码" size="large" show-password
             @keyup.enter="handleLogin" />
         </el-form-item>
+        <div class="agree-row">
+          <el-checkbox v-model="agreed" />
+          <span class="agree-text">
+            登录即代表已阅读并同意
+            <router-link to="/terms" class="agree-link">《用户协议》</router-link>
+            和
+            <router-link to="/privacy" class="agree-link">《隐私政策》</router-link>
+          </span>
+        </div>
         <button class="auth-btn" :disabled="loading" @click="handleLogin">
           {{ loading ? '登录中...' : '登 录' }}
         </button>
@@ -36,6 +45,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const formRef = ref(null)
 const loading = ref(false)
+const agreed = ref(false)
 const form = reactive({ email: '', password: '' })
 const rules = {
   email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }],
@@ -45,6 +55,10 @@ const rules = {
 async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  if (!agreed.value) {
+    const { ElMessage } = await import('element-plus')
+    return ElMessage.warning('请先阅读并同意用户协议和隐私政策')
+  }
   loading.value = true
   try {
     await auth.login(form.email, form.password)
@@ -144,4 +158,22 @@ async function handleLogin() {
 }
 .auth-link:active { color: #4f46e5; }
 .link-divider { margin: 0 10px; }
+.agree-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0 14px;
+  padding: 0 4px;
+}
+.agree-text {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+  flex: 1;
+}
+.agree-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
 </style>

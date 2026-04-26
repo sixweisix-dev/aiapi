@@ -25,7 +25,6 @@ type Channel struct {
 	BaseURL        string
 	Weight         int
 	MaxConcurrent  int
-	HealthStatus   string  // healthy / unhealthy / unknown
 	concurrent     int64
 	ErrorCount     int64
 }
@@ -83,7 +82,6 @@ func (p *Pool) Refresh() {
 			BaseURL:       baseURL,
 			Weight:        r.Weight,
 			MaxConcurrent: r.MaxConcurrent,
-			HealthStatus:  r.HealthStatus,
 		})
 	}
 
@@ -100,10 +98,7 @@ func (p *Pool) Select(provider string) *Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		// 过滤：provider 匹配 && 并发未满 && 健康状态非 unhealthy
-		if strings.EqualFold(c.Provider, provider) &&
-			c.concurrent < int64(c.MaxConcurrent) &&
-			c.HealthStatus != "unhealthy" {
+		if strings.EqualFold(c.Provider, provider) && c.concurrent < int64(c.MaxConcurrent) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -311,108 +306,3 @@ func setHeaders(req *http.Request, ch *Channel) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 }
-
-// ---- Failover Support ----
-
-// SelectAllHealthy 返回该 provider 下所有健康可用通道（按权重降序）。
-// 用于故障转移：第一个失败时尝试第二个、第三个。
-func (p *Pool) SelectAllHealthy(provider string) []*Channel {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	var candidates []*Channel
-	for _, c := range p.channels {
-		if strings.EqualFold(c.Provider, provider) &&
-			c.concurrent < int64(c.MaxConcurrent) &&
-			c.HealthStatus != "unhealthy" {
-			candidates = append(candidates, c)
-		}
-	}
-
-	// 按 weight 降序：高权重优先
-	for i := 0; i < len(candidates); i++ {
-		for j := i + 1; j < len(candidates); j++ {
-			if candidates[j].Weight > candidates[i].Weight {
-				candidates[i], candidates[j] = candidates[j], candidates[i]
-			}
-		}
-	}
-
-	return candidates
-}
-
-// DoWithFailover 按权重顺序依次尝试通道，遇上游故障自动切到下一个。
-// 触发故障转移的条件：5xx 错误 / 网络错误 / 429 限流 / 401 认证失败
-// 返回值: (响应, 实际使用的 channel, 错误)
-func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string, reqBody []byte) (*http.Response, *Channel, error) {
-	candidates := p.SelectAllHealthy(provider)
-	if len(candidates) == 0 {
-		return nil, nil, fmt.Errorf("no healthy upstream channels for provider %s", provider)
-	}
-
-	var lastErr error
-	for i, ch := range candidates {
-		resp, err := p.Do(ctx, ch, method, path, reqBody)
-
-		// 网络错误：尝试下一个
-		if err != nil {
-			log.Printf("[failover] channel %s (%s) network error: %v, trying next", ch.Name, ch.ID, err)
-			atomic.AddInt64(&ch.ErrorCount, 1)
-			lastErr = err
-			continue
-		}
-
-		// HTTP 错误状态：5xx / 429 / 401 / 403 触发转移
-		if shouldFailover(resp.StatusCode) {
-			log.Printf("[failover] channel %s (%s) returned HTTP %d, trying next (attempt %d/%d)",
-				ch.Name, ch.ID, resp.StatusCode, i+1, len(candidates))
-			atomic.AddInt64(&ch.ErrorCount, 1)
-
-			// 401/403：标记为不健康，由下次 health check 复活
-			if resp.StatusCode == 401 || resp.StatusCode == 403 {
-				p.markUnhealthy(ch.ID)
-			}
-
-			resp.Body.Close()
-			lastErr = fmt.Errorf("upstream HTTP %d", resp.StatusCode)
-			continue
-		}
-
-		// 成功
-		return resp, ch, nil
-	}
-
-	return nil, nil, fmt.Errorf("all %d upstream channels exhausted: %v", len(candidates), lastErr)
-}
-
-// shouldFailover 判断 HTTP 状态码是否需要切到下一个通道
-func shouldFailover(status int) bool {
-	if status >= 500 {
-		return true // 5xx
-	}
-	switch status {
-	case 401, 403: // 认证失败 → 通道 key 失效
-		return true
-	case 429: // 限流
-		return true
-	}
-	return false
-}
-
-func (p *Pool) markUnhealthy(channelID string) {
-	p.db.Model(&models.UpstreamChannel{}).
-		Where("id = ?", channelID).
-		Update("health_status", "unhealthy")
-	log.Printf("[failover] channel %s marked unhealthy", channelID)
-
-	// 同时更新内存中的状态，避免下次 Refresh 之前继续选中它
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, c := range p.channels {
-		if c.ID == channelID {
-			c.HealthStatus = "unhealthy"
-			break
-		}
-	}
-}
-

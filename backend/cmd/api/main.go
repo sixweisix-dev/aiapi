@@ -70,7 +70,7 @@ func main() {
 	monitor.Start(ctx)
 
 	// Handlers
-	chatHandler := handlers.NewChatHandler(db, pool, billingEngine)
+	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter)
 	modelsHandler := handlers.NewModelsHandler(db)
 	mailCfg := handlers.MailConfig{
         Host:     cfg.SMTPHost,

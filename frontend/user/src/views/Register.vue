@@ -22,6 +22,15 @@
               style="height:40px;border-radius:8px;cursor:pointer;min-width:110px;object-fit:cover" />
           </div>
         </el-form-item>
+        <div class="agree-row">
+          <el-checkbox v-model="agreed" />
+          <span class="agree-text">
+            我已阅读并同意
+            <router-link to="/terms" class="agree-link">《用户协议》</router-link>
+            和
+            <router-link to="/privacy" class="agree-link">《隐私政策》</router-link>
+          </span>
+        </div>
         <button class="auth-btn" :disabled="loading" @click="handleRegister">
           {{ loading ? '注册中...' : '注 册' }}
         </button>
@@ -47,6 +56,7 @@ const formRef = ref(null)
 const loading = ref(false)
 const captchaId = ref('')
 const captchaUrl = ref('')
+const agreed = ref(false)
 const form = reactive({ email: '', password: '', confirmPassword: '', captcha: '' })
 
 const passwordStrength = (v) => {
@@ -80,6 +90,9 @@ onMounted(refreshCaptcha)
 async function handleRegister() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  if (!agreed.value) {
+    return ElMessage.warning('请先阅读并同意用户协议和隐私政策')
+  }
   loading.value = true
   try {
     await auth.register(form.email, form.password, undefined, captchaId.value, form.captcha)
@@ -140,4 +153,22 @@ async function handleRegister() {
 .auth-btn:disabled { opacity: 0.6; }
 .auth-links { text-align: center; font-size: 13px; color: #9ca3af; }
 .auth-link { color: #667eea; text-decoration: none; font-weight: 600; margin-left: 4px; }
+.agree-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding: 0 4px;
+}
+.agree-text {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+  flex: 1;
+}
+.agree-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 500;
+}
 </style>

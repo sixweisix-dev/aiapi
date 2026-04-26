@@ -3,6 +3,18 @@ import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/Terms.vue'),
+    meta: { noAuth: true },
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/Privacy.vue'),
+    meta: { noAuth: true },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),

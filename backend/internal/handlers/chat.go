@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"ai-api-gateway/internal/adapter"
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/monitoring"
 	"ai-api-gateway/internal/models"
 	"ai-api-gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
@@ -19,13 +21,14 @@ import (
 )
 
 type ChatHandler struct {
-	db           *gorm.DB
-	pool         *upstream.Pool
+	db            *gorm.DB
+	pool          *upstream.Pool
 	billingEngine *billing.Engine
+	alerter       *monitoring.TelegramAlerter
 }
 
-func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine) *ChatHandler {
-	return &ChatHandler{db: db, pool: pool, billingEngine: be}
+func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter) *ChatHandler {
+	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter}
 }
 
 func (h *ChatHandler) Handle(c *gin.Context) {
@@ -75,12 +78,13 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// Select upstream channel
-	ch := h.pool.Select(provider)
-	if ch == nil {
+	// Pre-check: ensure at least one healthy upstream exists for this provider
+	if healthy := h.pool.SelectAllHealthy(provider); len(healthy) == 0 {
 		c.JSON(503, gin.H{"error": gin.H{"message": "no available upstream channel for " + provider, "type": "service_unavailable"}})
 		return
 	}
+	// 占位通道：handleStream/handleNonStream 内部用 DoWithFailover 真正选通道
+	var ch *upstream.Channel = nil
 
 	// Estimate max tokens for balance pre-check
 	estPromptTokens := estimatePromptTokens(&req)
@@ -119,13 +123,18 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
 	defer cancel()
 
-	resp, err := h.pool.DoWithRetry(ctx, ch, "POST", upstreamPath, upstreamReq)
+	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
 	if err != nil {
-		log.Printf("Upstream request failed: provider=%s model=%s err=%v", provider, req.Model, err)
-		h.logRequest(c, userID, nil, modelID, ch, req, 502, 0, 0, 0, 0, startTime, "upstream request failed")
-		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "upstream_error"}})
+		log.Printf("[failover] all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
+		h.logRequest(c, userID, nil, modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
+		if h.alerter != nil {
+			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
+				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
+		}
+		c.JSON(502, gin.H{"error": gin.H{"message": "all upstream channels failed: " + err.Error(), "type": "upstream_error"}})
 		return
 	}
+	ch = usedCh
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
@@ -172,13 +181,18 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
 	defer cancel()
 
-	resp, err := h.pool.DoWithRetry(ctx, ch, "POST", upstreamPath, upstreamReq)
+	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
 	if err != nil {
-		log.Printf("Upstream stream request failed: provider=%s model=%s err=%v", provider, req.Model, err)
-		h.logRequest(c, userID, nil, modelID, ch, req, 502, 0, 0, 0, 0, startTime, "upstream request failed")
-		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "upstream_error"}})
+		log.Printf("[failover] stream all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
+		h.logRequest(c, userID, nil, modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
+		if h.alerter != nil {
+			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败 (流式)</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
+				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
+		}
+		c.JSON(502, gin.H{"error": gin.H{"message": "all upstream channels failed: " + err.Error(), "type": "upstream_error"}})
 		return
 	}
+	ch = usedCh
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
@@ -261,6 +275,10 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 
 // postProcess handles billing deduction, request logging, and stats update after a request completes.
 func (h *ChatHandler) postProcess(userID, modelID string, ch *upstream.Channel, modelName, provider, apiKeyHash string, promptTokens, completionTokens, totalTokens int, cost float64, errMsg *string, startTime time.Time, statusCode int) {
+	if ch == nil {
+		log.Printf("[postProcess] called with nil channel, skipping")
+		return
+	}
 	durationMs := time.Since(startTime).Milliseconds()
 
 	// Deduct balance
@@ -356,10 +374,16 @@ func (h *ChatHandler) logRequest(c *gin.Context, userID string, apiKeyID *string
 	parsedUserID, _ := uuid.Parse(userID)
 	errMsgPtr := &errMsg
 
+	// nil 保护：故障转移耗尽时 ch 为 nil
+	var channelIDPtr *uuid.UUID
+	if ch != nil {
+		channelIDPtr = parseUUIDPtr(ch.ID)
+	}
+
 	reqLog := &models.Request{
 		UserID:           parsedUserID,
 		ModelID:          parseUUID(modelID),
-		UpstreamChannelID: parseUUIDPtr(ch.ID),
+		UpstreamChannelID: channelIDPtr,
 		Path:             c.Request.URL.Path,
 		Method:           c.Request.Method,
 		StatusCode:       statusCode,

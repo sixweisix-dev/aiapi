@@ -174,7 +174,7 @@ const loadData = async () => {
   loading.value = true
   try {
     const res = await api.get('/admin/profit', { params: { range: range.value } })
-    data.value = res.data
+    data.value = res
   } catch (e) {
     console.error(e)
   } finally {
