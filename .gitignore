@@ -4,3 +4,4 @@ frontend/admin/node_modules/
 frontend/user/dist/
 frontend/admin/dist/
 *.log
+*.bak
