@@ -1,0 +1,28 @@
+transitai.cloud {
+    tls sixweisix@gmail.com
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    handle /v1/* {
+        request_body max_size 10mb
+        reverse_proxy backend:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    handle /admin* {
+        reverse_proxy frontend_admin:80
+    }
+
+    handle {
+        reverse_proxy frontend_user:80
+    }
+}

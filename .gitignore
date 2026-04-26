@@ -1,0 +1,6 @@
+.env
+frontend/user/node_modules/
+frontend/admin/node_modules/
+frontend/user/dist/
+frontend/admin/dist/
+*.log
