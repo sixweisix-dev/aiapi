@@ -74,6 +74,20 @@ func (m *Monitor) runCheck() {
 		}
 	}
 
+	// 会员到期自动降级回 free
+	expired := m.db.Exec(`
+		UPDATE users 
+		SET membership_tier = 'free' 
+		WHERE membership_tier != 'free' 
+		  AND membership_expires_at IS NOT NULL 
+		  AND membership_expires_at < NOW()`)
+	if expired.RowsAffected > 0 {
+		log.Printf("[monitor] downgraded %d expired memberships to free", expired.RowsAffected)
+		if m.alerter != nil {
+			m.alerter.Send(fmt.Sprintf("⏰ <b>会员到期降级</b>\n\n%d 个会员已到期，自动降级为免费版", expired.RowsAffected))
+		}
+	}
+
 	alerts := m.collectAlerts()
 	if len(alerts) > 0 {
 		msg := "<b>🔔 AI Gateway 告警</b>\n"

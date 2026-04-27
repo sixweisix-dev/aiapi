@@ -19,6 +19,10 @@ type User struct {
 	TotalSpent    float64   `gorm:"type:decimal(20,8);not null;default:0"`
 	RequestCount  int       `gorm:"not null;default:0"`
 	IsActive      bool      `gorm:"not null;default:true"`
+	// 会员等级
+	MembershipTier      string     `gorm:"type:varchar(20);not null;default:'free'"`
+	MembershipExpiresAt *time.Time `gorm:"type:timestamp with time zone"`
+	MembershipStartedAt *time.Time `gorm:"type:timestamp with time zone"`
 	EmailVerified bool      `gorm:"not null;default:false"`
 	LastLoginAt   *time.Time
 	CreatedAt     time.Time

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ai-api-gateway/internal/membership"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -111,12 +112,14 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 			APIKeyID        string  `gorm:"column:api_key_id"`
 			RPMLimit        *int64  `gorm:"column:rpm_limit"`
 			TPMLimit        *int64  `gorm:"column:tpm_limit"`
-			BlacklistReason *string `gorm:"column:blacklist_reason"`
+			BlacklistReason     *string    `gorm:"column:blacklist_reason"`
+			MembershipTier      string     `gorm:"column:membership_tier"`
+			MembershipExpiresAt *time.Time `gorm:"column:membership_expires_at"`
 		}
 
 		var row result
 		err := db.Table("api_keys").
-			Select("api_keys.user_id, users.role AS user_role, api_keys.is_active, users.is_active AS user_active, api_keys.id AS api_key_id, api_keys.rpm_limit, api_keys.tpm_limit, users.blacklist_reason").
+			Select("api_keys.user_id, users.role AS user_role, api_keys.is_active, users.is_active AS user_active, api_keys.id AS api_key_id, api_keys.rpm_limit, api_keys.tpm_limit, users.blacklist_reason, users.membership_tier, users.membership_expires_at").
 			Joins("JOIN users ON users.id = api_keys.user_id").
 			Where("api_keys.key_hash = ?", keyHash).
 			First(&row).Error
@@ -155,14 +158,33 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 计算会员等级有效限制：取 API Key 自定义和会员等级的较小值
+		effectiveTier := membership.EffectiveTier(membership.Tier(row.MembershipTier), row.MembershipExpiresAt)
+		tierLimits := membership.TierLimits[effectiveTier]
+		finalRPM := row.RPMLimit
+		finalTPM := row.TPMLimit
+		if tierLimits.RPM > 0 {
+			rpmCap := int64(tierLimits.RPM)
+			if finalRPM == nil || *finalRPM == 0 || *finalRPM > rpmCap {
+				finalRPM = &rpmCap
+			}
+		}
+		if tierLimits.TPM > 0 {
+			tpmCap := int64(tierLimits.TPM)
+			if finalTPM == nil || *finalTPM == 0 || *finalTPM > tpmCap {
+				finalTPM = &tpmCap
+			}
+		}
+
 		// Set user info in context
 		c.Set("user_id", row.UserID)
 		c.Set("role", row.UserRole)
 		c.Set("auth_method", "api_key")
 		c.Set("api_key_hash", keyHash)
 		c.Set("api_key_id", row.APIKeyID)
-		c.Set("api_key_rpm", row.RPMLimit)
-		c.Set("api_key_tpm", row.TPMLimit)
+		c.Set("api_key_rpm", finalRPM)
+		c.Set("api_key_tpm", finalTPM)
+		c.Set("membership_tier", string(effectiveTier))
 		c.Next()
 	}
 }

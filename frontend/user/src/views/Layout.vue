@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { dashboardAPI } from '@/utils/api'
@@ -117,6 +117,10 @@ async function fetchBalance() {
     balance.value = data.balance || 0
   } catch {}
 }
+
+// 锁视口：避免登录后页面出现双滚动条
+onMounted(() => document.body.classList.add('locked-viewport'))
+onUnmounted(() => document.body.classList.remove('locked-viewport'))
 
 fetchBalance()
 

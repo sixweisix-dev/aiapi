@@ -12,6 +12,7 @@ import (
 	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
 
+	"ai-api-gateway/internal/membership"
 	"ai-api-gateway/internal/models"
 )
 
@@ -272,25 +273,64 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 			return fmt.Errorf("failed to update order: %w", err)
 		}
 
-		// Atomic balance increment (prevents race conditions from concurrent recharges)
+		// 计算实际到账金额（含赠送）+ 是否升级会员
+		actualAmount, upgradeTier, durationDays := membership.CalculateBonus(order.Amount)
+
+		// Atomic balance increment（基于实际到账金额，包含赠送部分）
 		var balanceBefore float64
 		if err := tx.Model(&models.User{}).Select("balance").
 			Where("id = ?", order.UserID).Scan(&balanceBefore).Error; err != nil {
 			return fmt.Errorf("failed to read balance: %w", err)
 		}
 
-		newBalance := balanceBefore + order.Amount
-		if err := tx.Model(&models.User{}).Where("id = ?", order.UserID).
-			Update("balance", gorm.Expr("balance + ?", order.Amount)).Error; err != nil {
-			return fmt.Errorf("failed to update balance: %w", err)
+		newBalance := balanceBefore + actualAmount
+		userUpdates := map[string]interface{}{
+			"balance": gorm.Expr("balance + ?", actualAmount),
+		}
+		// 如果是会员套餐充值（¥99 / ¥499），同时升级会员
+		if upgradeTier != "" && durationDays > 0 {
+			now := time.Now()
+			// 如果已有未过期会员，叠加时间；否则从现在开始
+			var existingUser models.User
+			tx.Select("membership_tier, membership_expires_at").Where("id = ?", order.UserID).First(&existingUser)
+			startTime := now
+			if existingUser.MembershipExpiresAt != nil && existingUser.MembershipExpiresAt.After(now) && existingUser.MembershipTier == string(upgradeTier) {
+				startTime = *existingUser.MembershipExpiresAt
+			}
+			newExpiry := startTime.Add(time.Duration(durationDays) * 24 * time.Hour)
+			userUpdates["membership_tier"] = string(upgradeTier)
+			userUpdates["membership_expires_at"] = newExpiry
+			if existingUser.MembershipStartedAt == nil {
+				userUpdates["membership_started_at"] = now
+			}
 		}
 
+		if err := tx.Model(&models.User{}).Where("id = ?", order.UserID).
+			Updates(userUpdates).Error; err != nil {
+			return fmt.Errorf("failed to update balance/membership: %w", err)
+		}
+
+		// 更新订单的升级标记（审计 / 退款追溯）
+		orderMeta := map[string]interface{}{
+			"bonus_amount": actualAmount - order.Amount,
+		}
+		if upgradeTier != "" {
+			orderMeta["upgrades_to_tier"] = string(upgradeTier)
+		}
+		tx.Model(&order).Updates(orderMeta)
+
 		// Record billing record for the recharge
-		desc := fmt.Sprintf("支付宝充值 ¥%.2f", order.Amount)
+		var desc string
+		if upgradeTier != "" {
+			limits := membership.TierLimits[upgradeTier]
+			desc = fmt.Sprintf("支付宝充值 ¥%.2f（升级%s，到账 ¥%.2f）", order.Amount, limits.DisplayName, actualAmount)
+		} else {
+			desc = fmt.Sprintf("支付宝充值 ¥%.2f", actualAmount)
+		}
 		billingRecord := &models.BillingRecord{
 			UserID:        order.UserID,
 			Type:          "recharge",
-			Amount:        order.Amount,
+			Amount:        actualAmount,
 			BalanceBefore: balanceBefore,
 			BalanceAfter:  newBalance,
 			Description:   &desc,

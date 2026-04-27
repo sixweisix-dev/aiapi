@@ -39,6 +39,18 @@ const routes = [
     meta: { noAuth: true },
   },
   {
+    path: '/landing',
+    name: 'Landing',
+    component: () => import('@/views/Landing.vue'),
+    meta: { noAuth: true },
+  },
+  {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('@/views/Landing.vue'),
+    meta: { noAuth: true },
+  },
+  {
     path: '/',
     component: () => import('@/views/Layout.vue'),
     redirect: '/dashboard',
@@ -61,9 +73,22 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  if (to.meta.noAuth) return next()
   const store = useAuthStore()
-  if (!store.isLoggedIn) return next('/login')
+
+  // 公开页：未登录可访问
+  if (to.meta.noAuth) {
+    // 已登录访问 /landing 或 /pricing 也可以正常看，这里不强跳
+    return next()
+  }
+
+  // 受保护页：未登录跳到 Landing（首次访客看公开介绍页）
+  if (!store.isLoggedIn) {
+    // 如果是访问 / 或 /dashboard，去 Landing；其他敏感页跳 Login
+    if (to.path === '/' || to.path === '/dashboard') {
+      return next('/landing')
+    }
+    return next('/login')
+  }
   next()
 })
 

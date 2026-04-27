@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"ai-api-gateway/internal/membership"
 	"ai-api-gateway/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +37,7 @@ func (h *UserHandler) Dashboard(c *gin.Context) {
 
 	// Current balance
 	var user models.User
-	h.db.Select("balance, total_spent, request_count").First(&user, "id = ?", parsedID)
+	h.db.Select("balance, total_spent, request_count, membership_tier, membership_expires_at, membership_started_at").First(&user, "id = ?", parsedID)
 
 	// This month stats
 	monthStart := time.Now().Truncate(24 * time.Hour).AddDate(0, 0, -time.Now().Day()+1)
@@ -88,6 +89,9 @@ func (h *UserHandler) Dashboard(c *gin.Context) {
 		Limit(5).
 		Scan(&recentBills)
 
+	effectiveTier := membership.EffectiveTier(membership.Tier(user.MembershipTier), user.MembershipExpiresAt)
+	tierLimits := membership.TierLimits[effectiveTier]
+
 	c.JSON(http.StatusOK, gin.H{
 		"balance":         user.Balance,
 		"total_spent":     user.TotalSpent,
@@ -97,6 +101,14 @@ func (h *UserHandler) Dashboard(c *gin.Context) {
 		"month_spent":     monthSpent,
 		"recent_requests": recentReqs,
 		"recent_billing":  recentBills,
+		"membership": gin.H{
+			"tier":         user.MembershipTier,
+			"effective":    string(effectiveTier),
+			"display_name": tierLimits.DisplayName,
+			"expires_at":   user.MembershipExpiresAt,
+			"started_at":   user.MembershipStartedAt,
+			"limits":       tierLimits,
+		},
 	})
 }
 

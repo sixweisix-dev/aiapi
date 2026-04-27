@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"ai-api-gateway/internal/membership"
 	"ai-api-gateway/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -62,6 +63,22 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 检查会员等级的 API Key 数量上限
+	var user models.User
+	if err := h.db.Select("membership_tier, membership_expires_at").
+		Where("id = ?", userID).First(&user).Error; err == nil {
+		effective := membership.EffectiveTier(membership.Tier(user.MembershipTier), user.MembershipExpiresAt)
+		limits := membership.TierLimits[effective]
+		if limits.MaxAPIKeys > 0 {
+			var currentCount int64
+			h.db.Model(&models.APIKey{}).Where("user_id = ? AND deleted_at IS NULL", userID).Count(&currentCount)
+			if currentCount >= int64(limits.MaxAPIKeys) {
+				c.JSON(http.StatusForbidden, gin.H{"error": fmt.Sprintf("您当前的%s套餐最多支持 %d 个 API Key，请升级到更高套餐", limits.DisplayName, limits.MaxAPIKeys)})
+				return
+			}
+		}
 	}
 
 	// Generate sk-xxx API key

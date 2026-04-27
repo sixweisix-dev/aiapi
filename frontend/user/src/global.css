@@ -1,0 +1,20 @@
+/* Global resets */
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* 默认允许 body 滚（公开页 Landing 友好）*/
+body {
+  overflow: auto;
+}
+
+/* 给已登录布局加一个 class 锁高度，避免双滚动条 */
+body.locked-viewport {
+  height: 100vh;
+  overflow: hidden;
+}
+body.locked-viewport #app {
+  height: 100%;
+  overflow: hidden;
+}
