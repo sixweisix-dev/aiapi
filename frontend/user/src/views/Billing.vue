@@ -102,16 +102,27 @@ async function fetchData() {
 
 async function handleExport() {
   try {
-    const data = await billingAPI.exportCSV()
+    const params = {
+      start_date: filters.start || undefined,
+      end_date: filters.end || undefined,
+    }
+    const data = await billingAPI.exportCSV(params)
+    // 后端可能返回 string 或 ArrayBuffer
     const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `billing_${dayjs().format('YYYY-MM-DD')}.csv`
+    const range = filters.start && filters.end
+      ? `${filters.start}_${filters.end}`
+      : dayjs().format('YYYY-MM')
+    a.download = `账单明细_${range}.csv`
     a.click()
     URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
-  } catch { ElMessage.error('导出失败') }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('导出失败')
+  }
 }
 
 function typeLabel(t) {

@@ -205,7 +205,7 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
 	if err != nil {
 		log.Printf("[failover] all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
-		h.logRequest(c, userID, nil, modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
 		if h.alerter != nil {
 			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
 				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
@@ -218,14 +218,14 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		h.logRequest(c, userID, nil, modelID, ch, req, 502, 0, 0, 0, 0, startTime, "failed to read response")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, ch, req, 502, 0, 0, 0, 0, startTime, "failed to read response")
 		c.JSON(502, gin.H{"error": gin.H{"message": "failed to read upstream response", "type": "upstream_error"}})
 		return
 	}
 
 	if resp.StatusCode >= 400 {
 		log.Printf("Upstream error: provider=%s status=%d body=%s", provider, resp.StatusCode, string(body))
-		h.logRequest(c, userID, nil, modelID, ch, req, resp.StatusCode, 0, 0, 0, 0, startTime, "upstream error")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, ch, req, resp.StatusCode, 0, 0, 0, 0, startTime, "upstream error")
 		c.JSON(resp.StatusCode, gin.H{
 			"error": gin.H{
 				"message": "upstream returned error",
@@ -238,7 +238,7 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 
 	openAIResp, err := chatAdapter.ConvertResp(body, req.Model)
 	if err != nil {
-		h.logRequest(c, userID, nil, modelID, ch, req, 502, 0, 0, 0, 0, startTime, "response conversion failed")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, ch, req, 502, 0, 0, 0, 0, startTime, "response conversion failed")
 		c.JSON(502, gin.H{"error": gin.H{"message": "response conversion failed", "type": "upstream_error"}})
 		return
 	}
@@ -250,7 +250,13 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 		totalTokens := openAIResp.Usage.TotalTokens
 		cost := billing.CalculateCost(promptTokens, completionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier)
 
-		go h.postProcess(userID, modelID, ch, req.Model, provider, apiKeyHash, promptTokens, completionTokens, totalTokens, cost, nil, startTime, resp.StatusCode)
+		apiKeyIDForLog := ""
+		if v, ok := c.Get("api_key_id"); ok {
+			if s, ok2 := v.(string); ok2 {
+				apiKeyIDForLog = s
+			}
+		}
+		go h.postProcess(userID, modelID, apiKeyIDForLog, ch, req.Model, provider, apiKeyHash, promptTokens, completionTokens, totalTokens, cost, nil, startTime, resp.StatusCode)
 	}
 
 	c.JSON(200, openAIResp)
@@ -263,7 +269,7 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
 	if err != nil {
 		log.Printf("[failover] stream all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
-		h.logRequest(c, userID, nil, modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
 		if h.alerter != nil {
 			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败 (流式)</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
 				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
@@ -277,7 +283,7 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("Upstream stream error: provider=%s status=%d body=%s", provider, resp.StatusCode, string(body))
-		h.logRequest(c, userID, nil, modelID, ch, req, resp.StatusCode, 0, 0, 0, 0, startTime, "upstream stream error")
+		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, ch, req, resp.StatusCode, 0, 0, 0, 0, startTime, "upstream stream error")
 		c.JSON(resp.StatusCode, gin.H{"error": gin.H{"message": "upstream error", "type": "upstream_error"}})
 		return
 	}
@@ -349,11 +355,17 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 	// Post-process: billing + logging after stream ends
 	totalTokens := totalPromptTokens + totalCompletionTokens
 	cost := billing.CalculateCost(totalPromptTokens, totalCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier)
-	go h.postProcess(userID, modelID, ch, req.Model, provider, apiKeyHash, totalPromptTokens, totalCompletionTokens, totalTokens, cost, nil, startTime, http.StatusOK)
+	apiKeyIDForLog := ""
+	if v, ok := c.Get("api_key_id"); ok {
+		if s, ok2 := v.(string); ok2 {
+			apiKeyIDForLog = s
+		}
+	}
+	go h.postProcess(userID, modelID, apiKeyIDForLog, ch, req.Model, provider, apiKeyHash, totalPromptTokens, totalCompletionTokens, totalTokens, cost, nil, startTime, http.StatusOK)
 }
 
 // postProcess handles billing deduction, request logging, and stats update after a request completes.
-func (h *ChatHandler) postProcess(userID, modelID string, ch *upstream.Channel, modelName, provider, apiKeyHash string, promptTokens, completionTokens, totalTokens int, cost float64, errMsg *string, startTime time.Time, statusCode int) {
+func (h *ChatHandler) postProcess(userID, modelID, apiKeyID string, ch *upstream.Channel, modelName, provider, apiKeyHash string, promptTokens, completionTokens, totalTokens int, cost float64, errMsg *string, startTime time.Time, statusCode int) {
 	if ch == nil {
 		log.Printf("[postProcess] called with nil channel, skipping")
 		return
@@ -369,9 +381,18 @@ func (h *ChatHandler) postProcess(userID, modelID string, ch *upstream.Channel, 
 
 	parsedUserID, _ := uuid.Parse(userID)
 
+	// 解析 api_key_id 为 *uuid.UUID
+	var apiKeyUUIDPtr *uuid.UUID
+	if apiKeyID != "" {
+		if u, err := uuid.Parse(apiKeyID); err == nil {
+			apiKeyUUIDPtr = &u
+		}
+	}
+
 	// Build request log entry
 	reqLog := &models.Request{
 		UserID:           parsedUserID,
+		APIKeyID:         apiKeyUUIDPtr,
 		ModelID:          parseUUID(modelID),
 		UpstreamChannelID: parseUUIDPtr(ch.ID),
 		Path:             "/v1/chat/completions",
@@ -467,8 +488,16 @@ func (h *ChatHandler) logRequest(c *gin.Context, userID string, apiKeyID *string
 		channelIDPtr = parseUUIDPtr(ch.ID)
 	}
 
+	var apiKeyUUIDPtr2 *uuid.UUID
+	if apiKeyID != nil && *apiKeyID != "" {
+		if u, err := uuid.Parse(*apiKeyID); err == nil {
+			apiKeyUUIDPtr2 = &u
+		}
+	}
+
 	reqLog := &models.Request{
 		UserID:           parsedUserID,
+		APIKeyID:         apiKeyUUIDPtr2,
 		ModelID:          parseUUID(modelID),
 		UpstreamChannelID: channelIDPtr,
 		Path:             c.Request.URL.Path,
@@ -635,4 +664,14 @@ func (h *ChatHandler) checkBudgetAlert(apiKeyHash string) {
 				row.Email, projName, row.Name, budget, used, pct, row.BudgetAlertPct))
 		}
 	}
+}
+
+// getAPIKeyIDPtr 从 gin context 提取 api_key_id，返回 *string 供 logRequest 使用。
+func getAPIKeyIDPtr(c *gin.Context) *string {
+	if v, ok := c.Get("api_key_id"); ok {
+		if s, ok2 := v.(string); ok2 && s != "" {
+			return &s
+		}
+	}
+	return nil
 }

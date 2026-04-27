@@ -80,6 +80,9 @@ export const apiKeysAPI = {
   delete(id) {
     return api.delete(`/api-keys/${id}`)
   },
+  update(id, data) {
+    return api.patch(`/api-keys/${id}`, data)
+  },
   toggle(id) {
     return api.patch(`/api-keys/${id}/toggle`)
   },
@@ -100,8 +103,8 @@ export const billingAPI = {
   list(params) {
     return api.get('/user/billing', { params })
   },
-  exportCSV() {
-    return api.get('/user/billing/export', { responseType: 'blob' })
+  exportCSV(params = {}) {
+    return api.get('/user/billing/export', { params, responseType: 'blob' })
   },
 }
 

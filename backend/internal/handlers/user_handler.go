@@ -177,46 +177,103 @@ func (h *UserHandler) ListBilling(c *gin.Context) {
 	})
 }
 
-// ExportBilling returns billing records as CSV.
+// ExportBilling returns request-level billing details as CSV.
+// 支持时间范围 / API key 筛选，输出 Excel 兼容的 UTF-8 BOM CSV。
 func (h *UserHandler) ExportBilling(c *gin.Context) {
 	userIDRaw, exists := c.Get("user_id")
-        if !exists {
-                c.JSON(401, gin.H{"error": "unauthorized"})
-                return
-        }
+	if !exists {
+		c.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
 	userID := userIDRaw.(string)
-
 	parsedID, _ := uuid.Parse(userID)
 
-	var records []models.BillingRecord
-	h.db.Where("user_id = ?", parsedID).Order("created_at DESC").Limit(1000).Find(&records)
+	startStr := c.Query("start_date")
+	endStr := c.Query("end_date")
+	apiKeyID := c.Query("api_key_id")
 
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	end := now
+	if startStr != "" {
+		if t, err := time.Parse("2006-01-02", startStr); err == nil {
+			start = t
+		}
+	}
+	if endStr != "" {
+		if t, err := time.Parse("2006-01-02", endStr); err == nil {
+			end = t.Add(24*time.Hour - time.Second)
+		}
+	}
+
+	type row struct {
+		CreatedAt        time.Time
+		APIKeyName       string
+		ProjectName      *string
+		ModelName        string
+		Provider         string
+		PromptTokens     int
+		CompletionTokens int
+		TotalTokens      int
+		Cost             float64
+		StatusCode       int
+		DurationMs       int
+		IPAddress        *string
+	}
+
+	var rows []row
+	query := h.db.Table("requests AS r").
+		Select("r.created_at, COALESCE(k.name, '-') AS api_key_name, k.project_name, COALESCE(m.name, '-') AS model_name, COALESCE(m.provider, '-') AS provider, r.prompt_tokens, r.completion_tokens, r.total_tokens, r.cost, r.status_code, r.duration_ms, r.ip_address").
+		Joins("LEFT JOIN api_keys k ON k.id = r.api_key_id").
+		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Where("r.user_id = ? AND r.created_at BETWEEN ? AND ?", parsedID, start, end).
+		Order("r.created_at DESC").
+		Limit(50000)
+
+	if apiKeyID != "" {
+		query = query.Where("r.api_key_id = ?", apiKeyID)
+	}
+	query.Scan(&rows)
+
+	filename := fmt.Sprintf("billing_%s_to_%s.csv", start.Format("2006-01-02"), end.Format("2006-01-02"))
 	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=billing_%s.csv", time.Now().Format("2006-01-02")))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 
-	// Write BOM for Excel compatibility
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
-
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"ID", "类型", "金额", "余额前", "余额后", "描述", "时间"})
+	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (CNY)", "状态码", "耗时(ms)", "IP"})
 
-	for _, r := range records {
-		desc := ""
-		if r.Description != nil {
-			desc = *r.Description
+	var totalCost float64
+	var totalTokens int
+	for _, r := range rows {
+		proj := "-"
+		if r.ProjectName != nil && *r.ProjectName != "" {
+			proj = *r.ProjectName
+		}
+		ip := "-"
+		if r.IPAddress != nil {
+			ip = *r.IPAddress
 		}
 		writer.Write([]string{
-			r.ID.String(),
-			r.Type,
-			fmt.Sprintf("%.8f", r.Amount),
-			fmt.Sprintf("%.8f", r.BalanceBefore),
-			fmt.Sprintf("%.8f", r.BalanceAfter),
-			desc,
-			r.CreatedAt.Format(time.RFC3339),
+			r.CreatedAt.Format("2006-01-02 15:04:05"),
+			proj, r.APIKeyName, r.ModelName, r.Provider,
+			fmt.Sprintf("%d", r.PromptTokens),
+			fmt.Sprintf("%d", r.CompletionTokens),
+			fmt.Sprintf("%d", r.TotalTokens),
+			fmt.Sprintf("%.4f", r.Cost),
+			fmt.Sprintf("%d", r.StatusCode),
+			fmt.Sprintf("%d", r.DurationMs),
+			ip,
 		})
+		totalCost += r.Cost
+		totalTokens += r.TotalTokens
 	}
+
+	writer.Write([]string{})
+	writer.Write([]string{"汇总", fmt.Sprintf("共 %d 条记录", len(rows)), "", "", "", "", "", fmt.Sprintf("%d", totalTokens), fmt.Sprintf("%.4f", totalCost), "", "", ""})
 	writer.Flush()
 }
+
 
 // ---- Public Models with Pricing ----
 
