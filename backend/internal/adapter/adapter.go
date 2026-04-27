@@ -41,12 +41,18 @@ func parseSSELine(data []byte) ([]byte, bool) {
 	if len(trimmed) == 0 {
 		return nil, false
 	}
-	if bytes.HasPrefix(trimmed, []byte("data: ")) {
-		body := bytes.TrimPrefix(trimmed, []byte("data: "))
-		if string(body) == "[DONE]" {
-			return nil, true
+	// Multi-line SSE event: skip 'event: xxx' lines, find 'data: ...'
+	// Anthropic streams come as: "event: content_block_delta\ndata: {...}"
+	lines := bytes.Split(trimmed, []byte("\n"))
+	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if bytes.HasPrefix(line, []byte("data: ")) {
+			body := bytes.TrimPrefix(line, []byte("data: "))
+			if string(body) == "[DONE]" {
+				return nil, true
+			}
+			return body, false
 		}
-		return body, false
 	}
 	return nil, false
 }

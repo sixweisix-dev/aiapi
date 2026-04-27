@@ -114,7 +114,7 @@ async function handleSend() {
     const token = localStorage.getItem('user_token')
 
     if (streamMode.value) {
-      const res = await fetch('/v1/chat/completions', {
+      const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ model: selectedModel.value, messages, stream: true, max_tokens: 2048 })
@@ -147,7 +147,7 @@ async function handleSend() {
       }
       statusText.value = '完成'
     } else {
-      const res = await fetch('/v1/chat/completions', {
+      const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ model: selectedModel.value, messages, max_tokens: 2048 })

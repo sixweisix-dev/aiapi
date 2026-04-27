@@ -324,8 +324,8 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 
 		for _, chunk := range chunks {
 			// Extract usage metadata from special marker
-			if len(chunk.Choices) > 0 && strings.Contains(chunk.Choices[0].Delta.Content, "%%USAGE%%") {
-				usageStr := strings.TrimPrefix(chunk.Choices[0].Delta.Content, "%%USAGE%%:")
+			if len(chunk.Choices) > 0 && strings.Contains(chunk.Choices[0].Delta.Content, "%USAGE%") {
+				usageStr := strings.TrimPrefix(strings.TrimPrefix(chunk.Choices[0].Delta.Content, "\n"), "%USAGE%:")
 				var usageMeta struct {
 					PromptTokens int `json:"prompt_tokens"`
 				}

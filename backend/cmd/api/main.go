@@ -77,6 +77,7 @@ func main() {
 
 	// Handlers
 	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter)
+	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler)
 	modelsHandler := handlers.NewModelsHandler(db)
 	mailCfg := handlers.MailConfig{
         Host:     cfg.SMTPHost,
@@ -213,6 +214,7 @@ func main() {
 		user.GET("/billing/export", userHandler.ExportBilling)
 		user.GET("/models", userHandler.ListPublicModels)
 		user.GET("/usage", userHandler.UsageStats)
+		user.POST("/playground/chat", playgroundHandler.PlaygroundChat)
 	}
 
 	// Start
