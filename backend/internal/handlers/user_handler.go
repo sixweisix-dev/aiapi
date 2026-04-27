@@ -219,13 +219,15 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 		StatusCode       int
 		DurationMs       int
 		IPAddress        *string
+		BalanceAfter     *float64
 	}
 
 	var rows []row
 	query := h.db.Table("requests AS r").
-		Select("r.created_at, COALESCE(k.name, '-') AS api_key_name, k.project_name, COALESCE(m.name, '-') AS model_name, COALESCE(m.provider, '-') AS provider, r.prompt_tokens, r.completion_tokens, r.total_tokens, r.cost, r.status_code, r.duration_ms, r.ip_address").
+		Select("r.created_at, COALESCE(k.name, '-') AS api_key_name, k.project_name, COALESCE(m.name, '-') AS model_name, COALESCE(m.provider, '-') AS provider, r.prompt_tokens, r.completion_tokens, r.total_tokens, r.cost, r.status_code, r.duration_ms, r.ip_address, br.balance_after").
 		Joins("LEFT JOIN api_keys k ON k.id = r.api_key_id").
 		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Joins("LEFT JOIN billing_records br ON br.request_id = r.id").
 		Where("r.user_id = ? AND r.created_at BETWEEN ? AND ?", parsedID, start, end).
 		Order("r.created_at DESC").
 		Limit(50000)
@@ -241,7 +243,7 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (CNY)", "状态码", "耗时(ms)", "IP"})
+	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (CNY)", "扣费后余额 (CNY)", "状态码", "耗时(ms)", "IP"})
 
 	var totalCost float64
 	var totalTokens int
@@ -254,6 +256,10 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 		if r.IPAddress != nil {
 			ip = *r.IPAddress
 		}
+		balanceStr := "-"
+		if r.BalanceAfter != nil {
+			balanceStr = fmt.Sprintf("%.4f", *r.BalanceAfter)
+		}
 		writer.Write([]string{
 			r.CreatedAt.Format("2006-01-02 15:04:05"),
 			proj, r.APIKeyName, r.ModelName, r.Provider,
@@ -261,6 +267,7 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 			fmt.Sprintf("%d", r.CompletionTokens),
 			fmt.Sprintf("%d", r.TotalTokens),
 			fmt.Sprintf("%.4f", r.Cost),
+			balanceStr,
 			fmt.Sprintf("%d", r.StatusCode),
 			fmt.Sprintf("%d", r.DurationMs),
 			ip,
@@ -270,7 +277,7 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 	}
 
 	writer.Write([]string{})
-	writer.Write([]string{"汇总", fmt.Sprintf("共 %d 条记录", len(rows)), "", "", "", "", "", fmt.Sprintf("%d", totalTokens), fmt.Sprintf("%.4f", totalCost), "", "", ""})
+	writer.Write([]string{"汇总", fmt.Sprintf("共 %d 条记录", len(rows)), "", "", "", "", "", fmt.Sprintf("%d", totalTokens), fmt.Sprintf("%.4f", totalCost), "", "", "", ""})
 	writer.Flush()
 }
 

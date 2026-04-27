@@ -102,6 +102,24 @@ func (e *Engine) DeductBalance(userID string, amount float64) (float64, error) {
 	}
 
 	if e.redis != nil {
+		// SETNX 保护：如果 Redis key 不存在，从 DB 同步余额过去（避免从 0 起扣）
+		parsedID2, err := uuid.Parse(userID)
+		if err != nil {
+			return 0, fmt.Errorf("invalid user ID: %w", err)
+		}
+		var dbUser models.User
+		if err := e.db.Select("balance").First(&dbUser, "id = ?", parsedID2).Error; err != nil {
+			return 0, fmt.Errorf("user not found: %w", err)
+		}
+		// SetNX：only 设置如果 key 不存在；已存在则保留当前 Redis 余额
+		e.redis.SetNX(context.Background(), balanceKey(userID), dbUser.Balance, 0)
+
+		// 余额预检查：如果余额小于扣款额，直接拒绝（不要让 IncrByFloat 扣到负数）
+		currentBalance, _ := e.redis.Get(context.Background(), balanceKey(userID)).Float64()
+		if currentBalance < amount {
+			return 0, fmt.Errorf("insufficient balance: have %.8f, need %.8f", currentBalance, amount)
+		}
+
 		// Atomic Redis deduction
 		newBalance, err := e.redis.IncrByFloat(context.Background(), balanceKey(userID), -amount).Result()
 		if err != nil {
@@ -112,6 +130,18 @@ func (e *Engine) DeductBalance(userID string, amount float64) (float64, error) {
 			e.redis.IncrByFloat(context.Background(), balanceKey(userID), amount)
 			return 0, fmt.Errorf("insufficient balance after deduction")
 		}
+		// 异步把 Redis 余额回写到数据库（防止 Redis 数据丢失导致金额回滚）
+		go func() {
+			parsedID, err := uuid.Parse(userID)
+			if err != nil {
+				return
+			}
+			if err := e.db.Model(&models.User{}).Where("id = ?", parsedID).
+				Update("balance", newBalance).Error; err != nil {
+				// 失败容忍：下次请求会重新写。日志告警避免悄无声息丢钱
+				fmt.Printf("[billing] WARN: failed to persist balance to DB for user %s: %v\n", userID, err)
+			}
+		}()
 		return newBalance, nil
 	}
 

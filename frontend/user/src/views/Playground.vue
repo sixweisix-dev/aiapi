@@ -146,6 +146,7 @@ async function handleSend() {
         }
       }
       statusText.value = '完成'
+      window.dispatchEvent(new Event('balance-changed'))
     } else {
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
@@ -160,6 +161,7 @@ async function handleSend() {
       response.value = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2)
       tokenCount.value = data.usage?.total_tokens || 0
       statusText.value = '完成'
+      window.dispatchEvent(new Event('balance-changed'))
     }
   } catch (err) {
     response.value = `Error: ${err.message}`

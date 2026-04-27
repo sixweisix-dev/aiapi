@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { dashboardAPI } from '@/utils/api'
@@ -119,6 +119,12 @@ async function fetchBalance() {
 }
 
 fetchBalance()
+
+// 全局事件：任何页面 dispatch 'balance-changed' 都会触发右上角余额刷新
+const balanceListener = () => fetchBalance()
+window.addEventListener('balance-changed', balanceListener)
+onUnmounted(() => window.removeEventListener('balance-changed', balanceListener))
+
 watch(() => route.path, () => {
   if (route.path === '/dashboard') fetchBalance()
 })
