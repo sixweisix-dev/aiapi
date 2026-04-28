@@ -90,8 +90,8 @@ export const apiKeysAPI = {
 
 // ---- Recharge ----
 export const rechargeAPI = {
-  createOrder(amount) {
-    return api.post('/recharge/orders', { amount, payment_method: 'alipay' })
+  createOrder(amount, intent) {
+    return api.post('/recharge/orders', { amount, payment_method: 'alipay', intent: intent || 'balance' })
   },
   listOrders() {
     return api.get('/recharge/orders')

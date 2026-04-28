@@ -89,6 +89,7 @@ const menuItems = [
   { path: '/dashboard',       emoji: '🏠', label: '首页' },
   { path: '/api-keys',        emoji: '🔑', label: 'API Key 管理' },
   { path: '/recharge',        emoji: '💳', label: '充值' },
+  { path: '/membership',      emoji: '⭐', label: '会员中心' },
   { path: '/billing',         emoji: '📋', label: '消费明细' },
   { path: '/models',          emoji: '🤖', label: '模型与价格' },
   { path: '/playground',      emoji: '🎮', label: 'Playground' },

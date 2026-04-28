@@ -33,6 +33,7 @@ type AlipayConfig struct {
 type CreateOrderRequest struct {
 	Amount        float64 `json:"amount" binding:"required,min=0.01"`
 	PaymentMethod string  `json:"payment_method" binding:"required,oneof=alipay"`
+	Intent        string  `json:"intent" binding:"omitempty,oneof=balance membership_pro membership_enterprise"`
 }
 
 type OrderResponse struct {
@@ -91,6 +92,22 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 	// Round amount to 2 decimal places (Alipay only supports up to 2)
 	amount := math.Round(req.Amount*100) / 100
 
+	// 默认 intent = balance
+	intent := req.Intent
+	if intent == "" {
+		intent = "balance"
+	}
+
+	// 会员套餐金额必须固定
+	if intent == "membership_pro" && math.Abs(amount-99) > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "专业版套餐金额必须为 ¥99"})
+		return
+	}
+	if intent == "membership_enterprise" && math.Abs(amount-499) > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "企业版套餐金额必须为 ¥499"})
+		return
+	}
+
 	// Generate order number: timestamp + 8 random hex digits
 	orderNo := fmt.Sprintf("RECHARGE%d%s", time.Now().UnixMilli(), uuid.New().String()[:8])
 
@@ -102,6 +119,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		Amount:        amount,
 		PaymentMethod: "alipay",
 		PaymentStatus: "pending",
+		Intent:        intent,
 	}
 	if err := h.db.Create(order).Error; err != nil {
 		log.Printf("Create order error: %v", err)
@@ -113,7 +131,14 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 	p := alipay.TradePagePay{}
 	p.NotifyURL = h.alipayCfg.NotifyURL
 	p.ReturnURL = h.alipayCfg.ReturnURL
-	p.Subject = fmt.Sprintf("API 充值 - ¥%.2f", amount)
+	switch intent {
+	case "membership_pro":
+		p.Subject = fmt.Sprintf("TransitAI 专业版会员 - ¥%.2f", amount)
+	case "membership_enterprise":
+		p.Subject = fmt.Sprintf("TransitAI 企业版会员 - ¥%.2f", amount)
+	default:
+		p.Subject = fmt.Sprintf("TransitAI 余额充值 - ¥%.2f", amount)
+	}
 	p.OutTradeNo = orderNo
 	p.TotalAmount = fmt.Sprintf("%.2f", amount)
 	p.ProductCode = "FAST_INSTANT_TRADE_PAY"
@@ -295,7 +320,7 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 		}
 
 		// 计算实际到账金额（含赠送）+ 是否升级会员
-		actualAmount, upgradeTier, durationDays, tierBonus, firstBonus := membership.CalculateBonus(order.Amount, tiersForCalc, firstForCalc, isFirstRecharge)
+		actualAmount, upgradeTier, durationDays, tierBonus, firstBonus := membership.CalculateBonus(order.Amount, order.Intent, tiersForCalc, firstForCalc, isFirstRecharge)
 		_ = tierBonus
 		_ = firstBonus
 

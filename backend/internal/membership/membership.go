@@ -65,14 +65,14 @@ type RechargeUpgrade struct {
 	DurationDays int
 }
 
-// RechargeRules 充值金额 → 升级规则
-var RechargeRules = map[float64]RechargeUpgrade{
-	99: {
+// RechargeRules 充值意图 → 升级规则
+var RechargeRules = map[string]RechargeUpgrade{
+	"membership_pro": {
 		Tier:         TierPro,
 		BonusAmount:  120,
 		DurationDays: 30,
 	},
-	499: {
+	"membership_enterprise": {
 		Tier:         TierEnterprise,
 		BonusAmount:  600,
 		DurationDays: 30,
@@ -85,17 +85,18 @@ type RechargeTier struct {
 	Bonus float64 `json:"bonus"`
 }
 
-// CalculateBonus 根据充值金额计算实际到账金额 + 是否升级
+// CalculateBonus 根据 intent 计算实际到账金额 + 是否升级
+// intent: balance / membership_pro / membership_enterprise
 // tiersJSON: 来自 settings 表的阶梯规则 JSON 字符串
 // firstRechargeBonus: 首充额外赠送金额(0 表示无)
 // isFirstRecharge: 当前用户是否首次充值
 //
 // 优先级:
-// 1. 命中会员套餐(99/499) → 走会员逻辑, 不叠加阶梯/首充
-// 2. 否则按阶梯找最高匹配档位 + 首充叠加
-func CalculateBonus(amount float64, tiersJSON string, firstRechargeBonus float64, isFirstRecharge bool) (actualAmount float64, upgradeTier Tier, durationDays int, tierBonus float64, firstBonus float64) {
-	// 优先: 会员套餐
-	if rule, ok := RechargeRules[amount]; ok {
+// 1. intent 命中会员套餐 → 走会员逻辑, 不叠加阶梯/首充
+// 2. intent=balance → 按阶梯找最高匹配档位 + 首充叠加
+func CalculateBonus(amount float64, intent string, tiersJSON string, firstRechargeBonus float64, isFirstRecharge bool) (actualAmount float64, upgradeTier Tier, durationDays int, tierBonus float64, firstBonus float64) {
+	// 优先: 会员套餐(按 intent 而非金额)
+	if rule, ok := RechargeRules[intent]; ok {
 		return rule.BonusAmount, rule.Tier, rule.DurationDays, 0, 0
 	}
 

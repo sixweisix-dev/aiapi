@@ -187,6 +187,7 @@ type RechargeOrder struct {
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 	BonusAmount    float64 `gorm:"type:decimal(20,8);not null;default:0" json:"bonus_amount"`
+	Intent         string  `gorm:"type:varchar(50);not null;default:'balance'" json:"intent"`
 	UpgradesToTier *string `gorm:"type:varchar(50)" json:"upgrades_to_tier,omitempty"`
 
 	// Relationships

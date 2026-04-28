@@ -8,30 +8,8 @@
       <div class="hero-sub">支付宝快捷充值，到账秒级</div>
     </div>
 
-    <!-- 会员套餐 -->
-    <div class="data-card">
-      <div class="card-header"><span class="card-title">⭐ 会员套餐</span></div>
-      <div class="plan-grid">
-        <div
-          v-for="p in memberPlans"
-          :key="p.value"
-          class="plan-card"
-          :class="[`plan-${p.tier}`, { active: rechargeForm.amount === p.value }]"
-          @click="rechargeForm.amount = p.value"
-        >
-          <div class="plan-name">{{ p.name }}</div>
-          <div class="plan-price">{{ p.label }}</div>
-          <div class="plan-bonus">到账 ¥{{ p.bonus }}</div>
-          <div class="plan-period">{{ p.period }}</div>
-        </div>
-      </div>
-    </div>
-
     <!-- 充值优惠规则 -->
-    <div v-if="promo.enabled && (promo.tiers.length || promo.firstBonus > 0)" class="data-card promo-card" :class="{ 'promo-disabled': isMembershipAmount }">
-      <div v-if="isMembershipAmount" class="membership-overlay">
-        ⭐ 会员套餐独立计算，享专属套餐福利
-      </div>
+    <div v-if="promo.enabled && (promo.tiers.length || promo.firstBonus > 0)" class="data-card promo-card">
       <div class="card-header">
         <span class="card-title">🎁 充值优惠</span>
         <span v-if="isFirstRecharge" class="first-badge">首充专享</span>
@@ -134,13 +112,8 @@ const isFirstRecharge = computed(() => {
   return !orders.value.some(o => o.payment_status === 'paid')
 })
 
-const isMembershipAmount = computed(() => {
-  return rechargeForm.amount === 99 || rechargeForm.amount === 499
-})
-
 const totalBonus = computed(() => {
   if (!promo.enabled) return 0
-  if (rechargeForm.amount === 99 || rechargeForm.amount === 499) return 0
   let tierBonus = 0
   for (const t of promo.tiers) {
     if (rechargeForm.amount >= t.min && t.bonus > tierBonus) tierBonus = t.bonus
@@ -167,10 +140,6 @@ const presetAmounts = [
   { value: 200, label: '¥200' },
   { value: 500, label: '¥500' },
   { value: 1000, label: '¥1000' },
-]
-const memberPlans = [
-  { value: 99,  label: '¥99',  tier: 'pro',        bonus: 120, name: '专业版', period: '1 个月' },
-  { value: 499, label: '¥499', tier: 'enterprise', bonus: 600, name: '企业版', period: '1 个月' },
 ]
 const rechargeForm = reactive({ amount: 100, method: 'alipay' })
 
