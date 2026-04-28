@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"github.com/redis/go-redis/v9"
 )
 
 type AuthHandler struct {
@@ -24,11 +24,10 @@ type AuthHandler struct {
 }
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-	Username string `json:"username" binding:"omitempty,min=2,max=50"`
-	CaptchaID  string `json:"captcha_id"`
-	CaptchaAns string `json:"captcha_answer"`
+	Email          string `json:"email" binding:"required,email"`
+	Password       string `json:"password" binding:"required,min=6"`
+	Username       string `json:"username" binding:"omitempty,min=2,max=50"`
+	EmailCode      string `json:"email_code" binding:"required,len=6"`
 }
 
 type LoginRequest struct {
@@ -42,9 +41,9 @@ type AuthResponse struct {
 }
 
 type UserBrief struct {
-	ID      string `json:"id"`
-	Email   string `json:"email"`
-	Role    string `json:"role"`
+	ID      string  `json:"id"`
+	Email   string  `json:"email"`
+	Role    string  `json:"role"`
 	Balance float64 `json:"balance"`
 }
 
@@ -59,9 +58,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Verify captcha
-	if req.CaptchaID != "" && !VerifyCaptcha(req.CaptchaID, req.CaptchaAns) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误"})
+	// Verify email code
+	if !VerifyEmailCode(h.rdb, "register", req.Email, req.EmailCode) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证码错误或已过期"})
 		return
 	}
 	// Check if email already exists
@@ -216,17 +215,17 @@ func (h *AuthHandler) generateJWT(userID, email, role string) (string, error) {
 
 // UserModel is a minimal copy used in auth — matches the actual models.User but avoids import cycle.
 type UserModel struct {
-	ID            uuid.UUID  `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
-	Email         string     `gorm:"type:varchar(255);uniqueIndex;not null"`
-	PasswordHash  string     `gorm:"type:varchar(255);not null"`
-	Username      *string    `gorm:"type:varchar(100);uniqueIndex"`
-	AvatarURL     *string    `gorm:"type:text"`
-	Role          string     `gorm:"type:varchar(50);not null;default:'user'"`
-	Balance       float64    `gorm:"type:decimal(20,8);not null;default:0"`
-	TotalSpent    float64    `gorm:"type:decimal(20,8);not null;default:0"`
-	RequestCount  int        `gorm:"not null;default:0"`
-	IsActive      bool       `gorm:"not null;default:true"`
-	EmailVerified bool       `gorm:"not null;default:false"`
+	ID            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
+	Email         string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+	PasswordHash  string    `gorm:"type:varchar(255);not null"`
+	Username      *string   `gorm:"type:varchar(100);uniqueIndex"`
+	AvatarURL     *string   `gorm:"type:text"`
+	Role          string    `gorm:"type:varchar(50);not null;default:'user'"`
+	Balance       float64   `gorm:"type:decimal(20,8);not null;default:0"`
+	TotalSpent    float64   `gorm:"type:decimal(20,8);not null;default:0"`
+	RequestCount  int       `gorm:"not null;default:0"`
+	IsActive      bool      `gorm:"not null;default:true"`
+	EmailVerified bool      `gorm:"not null;default:false"`
 	LastLoginAt   *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -239,158 +238,166 @@ func (UserModel) TableName() string {
 // ---- Change Password ----
 
 type ChangePasswordRequest struct {
-        OldPassword string `json:"old_password" binding:"required"`
-        NewPassword string `json:"new_password" binding:"required,min=6"`
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
-        userIDRaw, exists := c.Get("user_id")
-        if !exists {
-                c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-                return
-        }
-        userID := userIDRaw.(string)
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID := userIDRaw.(string)
 
-        var req ChangePasswordRequest
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-        var user UserModel
-        if err := h.db.First(&user, "id = ?", userID).Error; err != nil {
-                c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-                return
-        }
+	var user UserModel
+	if err := h.db.First(&user, "id = ?", userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
 
-        if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
-                c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
-                return
-        }
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
+		return
+	}
 
-        // Password strength: min 8 chars, upper, lower, digit
-        if len(req.NewPassword) < 8 {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
-                return
-        }
-        hasUpper, hasLower, hasDigit := false, false, false
-        for _, ch := range req.NewPassword {
-                switch {
-                case ch >= 'A' && ch <= 'Z': hasUpper = true
-                case ch >= 'a' && ch <= 'z': hasLower = true
-                case ch >= '0' && ch <= '9': hasDigit = true
-                }
-        }
-        if !hasUpper || !hasLower || !hasDigit {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "password must contain uppercase, lowercase and digit"})
-                return
-        }
+	// Password strength: min 8 chars, upper, lower, digit
+	if len(req.NewPassword) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters"})
+		return
+	}
+	hasUpper, hasLower, hasDigit := false, false, false
+	for _, ch := range req.NewPassword {
+		switch {
+		case ch >= 'A' && ch <= 'Z':
+			hasUpper = true
+		case ch >= 'a' && ch <= 'z':
+			hasLower = true
+		case ch >= '0' && ch <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper || !hasLower || !hasDigit {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must contain uppercase, lowercase and digit"})
+		return
+	}
 
-        hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-                return
-        }
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
 
-        if err := h.db.Model(&user).Update("password_hash", string(hashedBytes)).Error; err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
-                return
-        }
+	if err := h.db.Model(&user).Update("password_hash", string(hashedBytes)).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		return
+	}
 
-        c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
 }
 
 // ---- Forgot Password ----
 
 type ForgotPasswordRequest struct {
-        Email      string `json:"email" binding:"required,email"`
-        CaptchaID  string `json:"captcha_id" binding:"required"`
-        CaptchaAns string `json:"captcha_answer" binding:"required"`
+	Email          string `json:"email" binding:"required,email"`
+	TurnstileToken string `json:"turnstile_token" binding:"required"`
 }
 
 type ResetPasswordRequest struct {
-        Token       string `json:"token" binding:"required"`
-        NewPassword string `json:"new_password" binding:"required,min=8"`
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
-        var req ForgotPasswordRequest
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-        if !VerifyCaptcha(req.CaptchaID, req.CaptchaAns) {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误"})
-                return
-        }
+	if !VerifyTurnstile(req.TurnstileToken, c.ClientIP()) {
 
-        var user UserModel
-        if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-                // 不暴露用户是否存在
-                c.JSON(http.StatusOK, gin.H{"message": "如果邮箱存在，重置链接已发送"})
-                return
-        }
+		c.JSON(http.StatusBadRequest, gin.H{"error": "人机验证失败，请刷新重试"})
 
-        token := uuid.New().String()
-        if h.rdb != nil {
-                StoreEmailToken(h.rdb, req.Email, token)
-        }
+		return
 
-        resetURL := "https://transitai.cloud/reset-password?token=" + token
-        go func() {
-                if err := SendResetEmail(h.mailCfg, req.Email, resetURL); err != nil {
-                        log.Printf("Failed to send reset email to %s: %v", req.Email, err)
-                } else {
-                        log.Printf("Reset email sent to %s", req.Email)
-                }
-        }()
+	}
 
-        c.JSON(http.StatusOK, gin.H{"message": "如果邮箱存在，重置链接已发送"})
+	var user UserModel
+	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		// 不暴露用户是否存在
+		c.JSON(http.StatusOK, gin.H{"message": "如果邮箱存在，重置链接已发送"})
+		return
+	}
+
+	token := uuid.New().String()
+	if h.rdb != nil {
+		StoreEmailToken(h.rdb, req.Email, token)
+	}
+
+	resetURL := "https://transitai.cloud/reset-password?token=" + token
+	go func() {
+		if err := SendResetEmail(h.mailCfg, req.Email, resetURL); err != nil {
+			log.Printf("Failed to send reset email to %s: %v", req.Email, err)
+		} else {
+			log.Printf("Reset email sent to %s", req.Email)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{"message": "如果邮箱存在，重置链接已发送"})
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
-        var req ResetPasswordRequest
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-        }
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-        if h.rdb == nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "service unavailable"})
-                return
-        }
+	if h.rdb == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service unavailable"})
+		return
+	}
 
-        email, err := GetEmailByToken(h.rdb, req.Token)
-        if err != nil {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "重置链接无效或已过期"})
-                return
-        }
+	email, err := GetEmailByToken(h.rdb, req.Token)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "重置链接无效或已过期"})
+		return
+	}
 
-        hasUpper, hasLower, hasDigit := false, false, false
-        for _, ch := range req.NewPassword {
-                switch {
-                case ch >= 'A' && ch <= 'Z': hasUpper = true
-                case ch >= 'a' && ch <= 'z': hasLower = true
-                case ch >= '0' && ch <= '9': hasDigit = true
-                }
-        }
-        if !hasUpper || !hasLower || !hasDigit {
-                c.JSON(http.StatusBadRequest, gin.H{"error": "密码需包含大小写字母和数字"})
-                return
-        }
+	hasUpper, hasLower, hasDigit := false, false, false
+	for _, ch := range req.NewPassword {
+		switch {
+		case ch >= 'A' && ch <= 'Z':
+			hasUpper = true
+		case ch >= 'a' && ch <= 'z':
+			hasLower = true
+		case ch >= '0' && ch <= '9':
+			hasDigit = true
+		}
+	}
+	if !hasUpper || !hasLower || !hasDigit {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码需包含大小写字母和数字"})
+		return
+	}
 
-        hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
-                return
-        }
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
 
-        if err := h.db.Model(&UserModel{}).Where("email = ?", email).Update("password_hash", string(hashedBytes)).Error; err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
-                return
-        }
+	if err := h.db.Model(&UserModel{}).Where("email = ?", email).Update("password_hash", string(hashedBytes)).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		return
+	}
 
-        DeleteToken(h.rdb, req.Token)
-        c.JSON(http.StatusOK, gin.H{"message": "密码重置成功"})
+	DeleteToken(h.rdb, req.Token)
+	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功"})
 }

@@ -51,8 +51,8 @@ export const authAPI = {
   login(email, password) {
     return api.post('/auth/login', { email, password })
   },
-  register(email, password, username, captchaId, captchaAnswer) {
-    return api.post('/auth/register', { email, password, username, captcha_id: captchaId, captcha_answer: captchaAnswer })
+  register(email, password, username, emailCode) {
+    return api.post('/auth/register', { email, password, username, email_code: emailCode })
   },
   me() {
     return api.get('/auth/me')

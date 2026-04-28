@@ -87,6 +87,7 @@ func main() {
         From:     cfg.EmailFrom,
     }
     authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
+	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
 	userHandler := handlers.NewUserHandler(db)
@@ -131,6 +132,8 @@ func main() {
 		captchaHandler := handlers.NewCaptchaHandler(redisClient)
 		auth.GET("/captcha/new", captchaHandler.GenerateCaptcha)
 		auth.GET("/captcha/:id", captchaHandler.ServeCaptchaImage)
+		auth.GET("/config", handlers.GetAuthConfig)
+		auth.POST("/send-code", emailCodeHandler.SendCode)
 		auth.POST("/change-password", middleware.JWTAuth(cfg.JWTSecret), authHandler.ChangePassword)
 		auth.POST("/forgot-password", authHandler.ForgotPassword)
 		auth.POST("/reset-password", authHandler.ResetPassword)
