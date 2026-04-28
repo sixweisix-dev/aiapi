@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"strconv"
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -98,6 +100,25 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		log.Printf("Register create error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
 		return
+	}
+
+	// 注册赠送试用余额(同 IP 当日 1 次)
+	bonusStr := GetSettingValue(h.db, "signup_bonus", "0")
+	if bonusF, perr := strconv.ParseFloat(bonusStr, 64); perr == nil && bonusF > 0 {
+		ip := c.ClientIP()
+		ipKey := "signup_bonus:ip:" + ip
+		ctx := context.Background()
+		if n, _ := h.rdb.Exists(ctx, ipKey).Result(); n == 0 {
+			if err := h.db.Model(&user).Update("balance", gorm.Expr("balance + ?", bonusF)).Error; err == nil {
+				user.Balance += bonusF
+				h.rdb.Set(ctx, ipKey, "1", 24*time.Hour)
+				log.Printf("[SignupBonus] user=%s amount=%.2f ip=%s", user.ID, bonusF, ip)
+			} else {
+				log.Printf("[SignupBonus] update balance failed: %v", err)
+			}
+		} else {
+			log.Printf("[SignupBonus] skip: ip %s already received today", ip)
+		}
 	}
 
 	token, err := h.generateJWT(user.ID.String(), user.Email, user.Role)

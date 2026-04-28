@@ -86,7 +86,8 @@ func main() {
         Password: cfg.SMTPPassword,
         From:     cfg.EmailFrom,
     }
-    authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
+    handlers.SetGlobalDB(db)
+	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
@@ -206,6 +207,7 @@ func main() {
 
 		// Settings
 		admin.GET("/settings", adminHandler.GetSettings)
+		admin.PUT("/settings", adminHandler.UpdateSettings)
 	}
 
 	// === User Dashboard & Frontend API (JWT required) ===

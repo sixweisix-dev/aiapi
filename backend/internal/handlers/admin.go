@@ -735,15 +735,57 @@ type SystemSettings struct {
 	Announcement               string `json:"announcement"`
 }
 
+// settingsDefaults 默认值, 用于初始化或缺失时回退
+var settingsDefaults = map[string]string{
+	"signup_bonus":      "5",
+	"allow_registration": "true",
+	"announcement":       "",
+}
+
+func (h *AdminHandler) loadAllSettings() map[string]string {
+	var rows []models.Setting
+	h.db.Find(&rows)
+	out := make(map[string]string, len(settingsDefaults))
+	for k, v := range settingsDefaults {
+		out[k] = v
+	}
+	for _, r := range rows {
+		out[r.Key] = r.Value
+	}
+	return out
+}
+
 func (h *AdminHandler) GetSettings(c *gin.Context) {
-	// Read settings from environment or a dedicated settings table (for now return defaults)
-	c.JSON(http.StatusOK, SystemSettings{
-		AllowRegistration:        true,
-		RequireEmailVerification: false,
-		DefaultUserQuota:         1000000,
-		MaintenanceMode:          false,
-		Announcement:             "",
-	})
+	c.JSON(http.StatusOK, h.loadAllSettings())
+}
+
+func (h *AdminHandler) UpdateSettings(c *gin.Context) {
+	var req map[string]string
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	for k, v := range req {
+		if _, ok := settingsDefaults[k]; !ok {
+			continue // ignore unknown keys
+		}
+		now := time.Now()
+		row := models.Setting{Key: k, Value: v, UpdatedAt: now}
+		if err := h.db.Save(&row).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, h.loadAllSettings())
+}
+
+// GetSettingValue 全局读取(注册赠送等地方用), 不存在返回 default
+func GetSettingValue(db *gorm.DB, key, defaultValue string) string {
+	var row models.Setting
+	if err := db.Where("key = ?", key).First(&row).Error; err == nil {
+		return row.Value
+	}
+	return defaultValue
 }
 
 // ---- Recharge Orders ----

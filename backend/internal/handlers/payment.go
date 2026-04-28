@@ -273,8 +273,31 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 			return fmt.Errorf("failed to update order: %w", err)
 		}
 
+		// 读取赠送配置 + 判断是否首充
+		tiersJSON := GetSettingValue(h.db, "recharge_tiers", "")
+		firstBonusStr := GetSettingValue(h.db, "first_recharge_bonus", "0")
+		promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
+
+		var firstBonusF float64
+		fmt.Sscanf(firstBonusStr, "%f", &firstBonusF)
+
+		var isFirstRecharge bool
+		var userRow models.User
+		if err := tx.Select("first_recharge_at").Where("id = ?", order.UserID).First(&userRow).Error; err == nil {
+			isFirstRecharge = userRow.FirstRechargeAt == nil
+		}
+
+		var tiersForCalc string
+		var firstForCalc float64
+		if promoEnabled {
+			tiersForCalc = tiersJSON
+			firstForCalc = firstBonusF
+		}
+
 		// 计算实际到账金额（含赠送）+ 是否升级会员
-		actualAmount, upgradeTier, durationDays := membership.CalculateBonus(order.Amount)
+		actualAmount, upgradeTier, durationDays, tierBonus, firstBonus := membership.CalculateBonus(order.Amount, tiersForCalc, firstForCalc, isFirstRecharge)
+		_ = tierBonus
+		_ = firstBonus
 
 		// Atomic balance increment（基于实际到账金额，包含赠送部分）
 		var balanceBefore float64
@@ -286,6 +309,10 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 		newBalance := balanceBefore + actualAmount
 		userUpdates := map[string]interface{}{
 			"balance": gorm.Expr("balance + ?", actualAmount),
+		}
+		if isFirstRecharge {
+			nowFR := time.Now()
+			userUpdates["first_recharge_at"] = &nowFR
 		}
 		// 如果是会员套餐充值（¥99 / ¥499），同时升级会员
 		if upgradeTier != "" && durationDays > 0 {

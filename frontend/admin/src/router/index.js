@@ -21,6 +21,7 @@ const routes = [
       { path: 'recharge', name: 'RechargeOrders', component: () => import('@/views/RechargeOrders.vue') },
       { path: 'audit-logs', name: 'AuditLogs', component: () => import('@/views/AuditLogs.vue') },
       { path: 'profit', name: 'Profit', component: () => import('@/views/Profit.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('@/views/Settings.vue') },
     ],
   },
 ]

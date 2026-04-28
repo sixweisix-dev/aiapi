@@ -10,7 +10,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+var globalDB *gorm.DB
+
+// SetGlobalDB 由 main.go 注入
+func SetGlobalDB(db *gorm.DB) { globalDB = db }
 
 var turnstileClient = &http.Client{Timeout: 5 * time.Second}
 
@@ -57,8 +63,26 @@ func VerifyTurnstile(token, ip string) bool {
 	return result.Success
 }
 
+// AuthConfig 提供给前端的公开配置(含 Turnstile + 充值赠送规则)
+type AuthConfig struct {
+	TurnstileSiteKey      string `json:"turnstile_site_key"`
+	RechargePromoEnabled  bool   `json:"recharge_promo_enabled"`
+	RechargeTiers         string `json:"recharge_tiers"`
+	FirstRechargeBonus    string `json:"first_recharge_bonus"`
+}
+
+// GetAuthConfig 返回前端公开配置
 func GetAuthConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"turnstile_site_key": os.Getenv("TURNSTILE_SITE_KEY"),
-	})
+	cfg := AuthConfig{
+		TurnstileSiteKey:     os.Getenv("TURNSTILE_SITE_KEY"),
+		RechargePromoEnabled: true,
+		RechargeTiers:        "[]",
+		FirstRechargeBonus:   "0",
+	}
+	if globalDB != nil {
+		cfg.RechargePromoEnabled = GetSettingValue(globalDB, "recharge_promo_enabled", "true") == "true"
+		cfg.RechargeTiers = GetSettingValue(globalDB, "recharge_tiers", "[]")
+		cfg.FirstRechargeBonus = GetSettingValue(globalDB, "first_recharge_bonus", "0")
+	}
+	c.JSON(http.StatusOK, cfg)
 }

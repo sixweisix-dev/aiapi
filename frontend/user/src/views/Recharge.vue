@@ -27,6 +27,30 @@
       </div>
     </div>
 
+    <!-- 充值优惠规则 -->
+    <div v-if="promo.enabled && (promo.tiers.length || promo.firstBonus > 0)" class="data-card promo-card" :class="{ 'promo-disabled': isMembershipAmount }">
+      <div v-if="isMembershipAmount" class="membership-overlay">
+        ⭐ 会员套餐独立计算，享专属套餐福利
+      </div>
+      <div class="card-header">
+        <span class="card-title">🎁 充值优惠</span>
+        <span v-if="isFirstRecharge" class="first-badge">首充专享</span>
+      </div>
+      <div v-if="promo.tiers.length" class="promo-tiers">
+        <div v-for="t in promo.tiers" :key="t.min" class="promo-tier" :class="{ active: rechargeForm.amount >= t.min }">
+          <span class="tier-min">充 ¥{{ t.min }}</span>
+          <span class="tier-arrow">→</span>
+          <span class="tier-bonus">额外送 ¥{{ t.bonus }}</span>
+        </div>
+      </div>
+      <div v-if="promo.firstBonus > 0 && isFirstRecharge" class="first-bonus-tip">
+        🎉 新人首充再额外加赠 <b>¥{{ promo.firstBonus }}</b>（仅限第一次）
+      </div>
+      <div v-if="promo.firstBonus > 0 && !isFirstRecharge" class="first-bonus-used">
+        新人首充礼已使用过
+      </div>
+    </div>
+
     <div class="data-card">
       <div class="card-header"><span class="card-title">💰 选择金额</span></div>
       <div class="amount-grid">
@@ -66,6 +90,10 @@
         <span v-if="submitting">处理中...</span>
         <span v-else>立即支付 ¥{{ rechargeForm.amount }}</span>
       </button>
+      <div v-if="totalBonus > 0" class="bonus-preview">
+        ✨ 实际到账 <b>¥{{ (rechargeForm.amount + totalBonus).toFixed(2) }}</b>
+        <span class="bonus-detail">（本金 ¥{{ rechargeForm.amount }} + 赠送 ¥{{ totalBonus.toFixed(2) }}）</span>
+      </div>
       <div class="form-tip">充值金额将立即计入账户余额，由支付宝安全处理</div>
     </div>
 
@@ -91,14 +119,47 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { rechargeAPI } from '@/utils/api'
 import dayjs from 'dayjs'
+import api from '@/utils/api'
 
 const submitting = ref(false)
 const loadingOrders = ref(true)
 const orders = ref([])
+const promo = reactive({ enabled: true, tiers: [], firstBonus: 0 })
+
+const isFirstRecharge = computed(() => {
+  return !orders.value.some(o => o.payment_status === 'paid')
+})
+
+const isMembershipAmount = computed(() => {
+  return rechargeForm.amount === 99 || rechargeForm.amount === 499
+})
+
+const totalBonus = computed(() => {
+  if (!promo.enabled) return 0
+  if (rechargeForm.amount === 99 || rechargeForm.amount === 499) return 0
+  let tierBonus = 0
+  for (const t of promo.tiers) {
+    if (rechargeForm.amount >= t.min && t.bonus > tierBonus) tierBonus = t.bonus
+  }
+  const firstBonus = isFirstRecharge.value ? (promo.firstBonus || 0) : 0
+  return tierBonus + firstBonus
+})
+
+async function loadPromo() {
+  try {
+    const cfg = await api.get('/auth/config')
+    promo.enabled = cfg.recharge_promo_enabled !== false
+    promo.firstBonus = parseFloat(cfg.first_recharge_bonus || '0')
+    try {
+      const arr = JSON.parse(cfg.recharge_tiers || '[]')
+      promo.tiers = Array.isArray(arr) ? arr.map(t => ({ min: Number(t.min), bonus: Number(t.bonus) })).sort((a,b) => a.min - b.min) : []
+    } catch { promo.tiers = [] }
+  } catch {}
+}
 const presetAmounts = [
   { value: 10,  label: '¥10' },
   { value: 50,  label: '¥50' },
@@ -113,7 +174,7 @@ const memberPlans = [
 ]
 const rechargeForm = reactive({ amount: 100, method: 'alipay' })
 
-onMounted(fetchOrders)
+onMounted(() => { fetchOrders(); loadPromo() })
 
 async function fetchOrders() {
   loadingOrders.value = true
@@ -142,6 +203,55 @@ function statusLabel(s) {
 
 <style scoped>
 .page { padding-bottom: 20px; }
+
+.promo-card { background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 1px solid #fed7aa; }
+.promo-tiers { display: grid; gap: 8px; }
+.promo-tier {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.6);
+  font-size: 14px; transition: all 0.2s;
+}
+.promo-tier.active {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff; transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(249,115,22,0.3);
+}
+.tier-min { font-weight: 600; min-width: 70px; }
+.tier-arrow { opacity: 0.5; }
+.tier-bonus { color: inherit; font-weight: 600; }
+.promo-tier.active .tier-bonus { color: #fff; }
+.first-badge {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff; padding: 2px 10px; border-radius: 12px;
+  font-size: 11px; font-weight: 600;
+}
+.first-bonus-tip {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(239,68,68,0.08); color: #b91c1c;
+  border-radius: 10px; font-size: 13px;
+}
+.first-bonus-used {
+  margin-top: 10px; font-size: 12px; color: #9ca3af; text-align: center;
+}
+.bonus-preview {
+  margin-top: 10px; text-align: center; font-size: 13px;
+  color: #059669; padding: 8px;
+  background: rgba(16,185,129,0.08); border-radius: 8px;
+}
+.bonus-preview b { font-size: 15px; }
+.bonus-detail { color: #6b7280; font-size: 12px; margin-left: 4px; }
+.promo-card { position: relative; }
+.promo-card.promo-disabled { filter: saturate(0.3) opacity(0.55); pointer-events: none; }
+.membership-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.55); backdrop-filter: blur(2px);
+  border-radius: 14px;
+  font-size: 14px; font-weight: 600; color: #92400e;
+  z-index: 5; pointer-events: auto;
+  text-align: center; padding: 0 20px;
+}
 .recharge-hero {
   position: relative;
   background: linear-gradient(135deg, #11998e, #38ef7d);
