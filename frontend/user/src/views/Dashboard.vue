@@ -26,6 +26,48 @@
       </div>
     </div>
 
+    <!-- 会员卡片 -->
+    <div v-if="stats.membership" class="member-card" :class="`tier-${stats.membership.effective || 'free'}`">
+      <div class="member-header">
+        <div class="member-info">
+          <span class="member-emoji">
+            {{ stats.membership.effective === 'enterprise' ? '👑' : stats.membership.effective === 'pro' ? '⭐' : '🌱' }}
+          </span>
+          <div class="member-text">
+            <div class="member-tier">{{ stats.membership.display_name || '免费版' }}</div>
+            <div class="member-expires" v-if="stats.membership.expires_at && stats.membership.effective !== 'free'">
+              {{ formatExpiry(stats.membership.expires_at) }}
+            </div>
+            <div class="member-expires" v-else>
+              永久免费 · 充值 ¥99 即升级
+            </div>
+          </div>
+        </div>
+        <button class="member-upgrade-btn" @click="$router.push('/recharge')">
+          {{ stats.membership.effective === 'free' ? '升级' : '续费' }}
+        </button>
+      </div>
+
+      <div class="member-limits" v-if="stats.membership.limits">
+        <div class="limit-item">
+          <div class="limit-label">RPM</div>
+          <div class="limit-value">{{ stats.membership.limits.RPM || '∞' }}</div>
+        </div>
+        <div class="limit-item">
+          <div class="limit-label">TPM</div>
+          <div class="limit-value">{{ formatTPM(stats.membership.limits.TPM) }}</div>
+        </div>
+        <div class="limit-item">
+          <div class="limit-label">最大 Key</div>
+          <div class="limit-value">{{ stats.membership.limits.MaxAPIKeys || '∞' }}</div>
+        </div>
+        <div class="limit-item">
+          <div class="limit-label">发票</div>
+          <div class="limit-value">{{ stats.membership.limits.InvoiceSupport ? '✓' : '✗' }}</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 快捷操作 -->
     <div class="quick-grid">
       <div class="quick-btn quick-key" @click="$router.push('/api-keys')">
@@ -124,6 +166,22 @@ onMounted(async () => {
   try { stats.value = await dashboardAPI.stats() } catch {}
   finally { loading.value = false }
 })
+
+function formatExpiry(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const days = Math.ceil((d - now) / (1000 * 60 * 60 * 24))
+  if (days <= 0) return '已到期'
+  if (days <= 7) return `${days} 天后到期`
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} 到期`
+}
+function formatTPM(tpm) {
+  if (!tpm || tpm === 0) return '∞'
+  if (tpm >= 1000000) return (tpm/1000000).toFixed(1).replace(/\.0$/, '') + 'M'
+  if (tpm >= 1000) return (tpm/1000) + 'k'
+  return tpm
+}
 </script>
 
 <style scoped>
@@ -197,6 +255,7 @@ onMounted(async () => {
 
 /* 快捷操作网格 */
 .quick-grid {
+  margin-top: 14px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -334,4 +393,48 @@ onMounted(async () => {
 }
 .bill-amount.income { color: #10b981; }
 .bill-amount.outcome { color: #ef4444; }
+
+/* 会员卡片 */
+.member-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-top: 14px;
+}
+.member-card.tier-free {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+.member-card.tier-pro {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border-color: #c7d2fe;
+}
+.member-card.tier-enterprise {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-color: #f59e0b;
+}
+.member-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.member-info { display: flex; align-items: center; gap: 12px; }
+.member-emoji { font-size: 28px; }
+.member-tier { font-size: 16px; font-weight: 700; color: #1f2937; }
+.member-expires { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.member-upgrade-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; border: none; padding: 8px 18px;
+  border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.member-upgrade-btn:active { opacity: 0.85; }
+.member-limits {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px; padding-top: 12px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+.limit-item { text-align: center; }
+.limit-label { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+.limit-value { font-size: 14px; font-weight: 600; color: #1f2937; }
+
 </style>

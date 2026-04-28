@@ -8,18 +8,35 @@
       <div class="hero-sub">支付宝快捷充值，到账秒级</div>
     </div>
 
+    <!-- 会员套餐 -->
+    <div class="data-card">
+      <div class="card-header"><span class="card-title">⭐ 会员套餐</span></div>
+      <div class="plan-grid">
+        <div
+          v-for="p in memberPlans"
+          :key="p.value"
+          class="plan-card"
+          :class="[`plan-${p.tier}`, { active: rechargeForm.amount === p.value }]"
+          @click="rechargeForm.amount = p.value"
+        >
+          <div class="plan-name">{{ p.name }}</div>
+          <div class="plan-price">{{ p.label }}</div>
+          <div class="plan-bonus">到账 ¥{{ p.bonus }}</div>
+          <div class="plan-period">{{ p.period }}</div>
+        </div>
+      </div>
+    </div>
+
     <div class="data-card">
       <div class="card-header"><span class="card-title">💰 选择金额</span></div>
       <div class="amount-grid">
         <div
-          v-for="amt in presetAmounts"
-          :key="amt"
+          v-for="item in presetAmounts"
+          :key="item.value"
           class="amount-chip"
-          :class="{ active: rechargeForm.amount === amt }"
-          @click="rechargeForm.amount = amt"
-        >
-          ¥{{ amt }}
-        </div>
+          :class="{ active: rechargeForm.amount === item.value }"
+          @click="rechargeForm.amount = item.value"
+        >{{ item.label }}</div>
       </div>
       <div class="form-row">
         <label class="form-label">自定义金额 (¥)</label>
@@ -82,7 +99,18 @@ import dayjs from 'dayjs'
 const submitting = ref(false)
 const loadingOrders = ref(true)
 const orders = ref([])
-const presetAmounts = [10, 50, 100, 200, 500, 1000]
+const presetAmounts = [
+  { value: 10,  label: '¥10' },
+  { value: 50,  label: '¥50' },
+  { value: 100, label: '¥100' },
+  { value: 200, label: '¥200' },
+  { value: 500, label: '¥500' },
+  { value: 1000, label: '¥1000' },
+]
+const memberPlans = [
+  { value: 99,  label: '¥99',  tier: 'pro',        bonus: 120, name: '专业版', period: '1 个月' },
+  { value: 499, label: '¥499', tier: 'enterprise', bonus: 600, name: '企业版', period: '1 个月' },
+]
 const rechargeForm = reactive({ amount: 100, method: 'alipay' })
 
 onMounted(fetchOrders)
@@ -237,4 +265,63 @@ function statusLabel(s) {
 .order-status.pending { background: #fef3c7; color: #92400e; }
 .order-status.failed { background: #fee2e2; color: #991b1b; }
 .order-status.refunded { background: #e0e7ff; color: #3730a3; }
+
+.amount-chip.chip-pro {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 2px solid #a5b4fc;
+}
+.amount-chip.chip-pro.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border-color: #4f46e5;
+}
+.amount-chip.chip-enterprise {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px solid #f59e0b;
+}
+.amount-chip.chip-enterprise.active {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border-color: #b45309;
+}
+.chip-label { font-size: 16px; font-weight: 700; }
+.chip-bonus {
+  font-size: 11px; margin-top: 2px; opacity: 0.85;
+}
+.chip-tier-tag {
+  font-size: 10px; margin-top: 4px;
+  padding: 1px 6px; border-radius: 4px;
+  background: rgba(0,0,0,0.08);
+  display: inline-block;
+}
+.amount-chip.chip-pro.active .chip-tier-tag,
+.amount-chip.chip-enterprise.active .chip-tier-tag {
+  background: rgba(255,255,255,0.25);
+}
+
+
+.plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.plan-card {
+  border-radius: 14px;
+  padding: 16px 12px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s;
+}
+.plan-card:active { transform: scale(0.97); }
+.plan-pro {
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #4338ca;
+}
+.plan-pro.active { border-color: #6366f1; box-shadow: 0 4px 14px rgba(99,102,241,0.25); }
+.plan-enterprise {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+}
+.plan-enterprise.active { border-color: #f59e0b; box-shadow: 0 4px 14px rgba(245,158,11,0.25); }
+.plan-name { font-size: 13px; font-weight: 600; opacity: 0.85; }
+.plan-price { font-size: 24px; font-weight: 800; margin: 4px 0; letter-spacing: -0.5px; }
+.plan-bonus { font-size: 12px; font-weight: 600; }
+.plan-period { font-size: 11px; opacity: 0.75; margin-top: 2px; }
 </style>

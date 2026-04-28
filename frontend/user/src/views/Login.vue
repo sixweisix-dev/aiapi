@@ -22,7 +22,7 @@
             <router-link to="/privacy" class="agree-link">《隐私政策》</router-link>
           </span>
         </div>
-        <button class="auth-btn" :disabled="loading" @click="handleLogin">
+        <button type="button" class="auth-btn" :disabled="loading" @click="handleLogin">
           {{ loading ? '登录中...' : '登 录' }}
         </button>
       </el-form>
@@ -38,6 +38,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -56,7 +57,6 @@ async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!agreed.value) {
-    const { ElMessage } = await import('element-plus')
     return ElMessage.warning('请先阅读并同意用户协议和隐私政策')
   }
   loading.value = true
