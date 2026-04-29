@@ -311,7 +311,7 @@ type publicModelItem struct {
 func (h *UserHandler) ListPublicModels(c *gin.Context) {
 	var modelsList []models.Model
 	h.db.Where("is_enabled = ? AND is_public = ?", true, true).
-		Order("provider ASC, name ASC").
+		Order("CASE WHEN name LIKE '%sonnet%' THEN 1 WHEN name LIKE '%haiku%' THEN 2 WHEN name LIKE '%opus%' THEN 4 ELSE 3 END, provider ASC, name ASC").
 		Find(&modelsList)
 
 	items := make([]publicModelItem, 0, len(modelsList))

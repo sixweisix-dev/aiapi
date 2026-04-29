@@ -44,15 +44,47 @@ func NewPool(db *gorm.DB) *Pool {
 		client: &http.Client{
 			Timeout: 120 * time.Second,
 			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				IdleConnTimeout:     90 * time.Second,
-				DisableCompression:  false,
+				MaxIdleConns:          200,
+				MaxIdleConnsPerHost:   50,
+				MaxConnsPerHost:       200,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				ForceAttemptHTTP2:     true,
+				DisableCompression:    false,
 			},
 		},
 	}
 	p.Refresh()
+	go p.warmup()
 	go p.periodicRefresh()
 	return p
+}
+
+// warmup 启动时建立到所有 provider 的 TCP+TLS 连接, 避免第一个用户等握手
+func (p *Pool) warmup() {
+	time.Sleep(2 * time.Second)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	seen := map[string]bool{}
+	for _, ch := range p.channels {
+		if ch == nil || ch.HealthStatus != "healthy" {
+			continue
+		}
+		if seen[ch.BaseURL] {
+			continue
+		}
+		seen[ch.BaseURL] = true
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(ch.BaseURL, "/")+"/", nil)
+		if resp, err := p.client.Do(req); err == nil {
+			_ = resp.Body.Close()
+			log.Printf("[Pool] warmup ok: %s", ch.BaseURL)
+		} else {
+			log.Printf("[Pool] warmup err (non-fatal): %s %v", ch.BaseURL, err)
+		}
+		cancel()
+	}
 }
 
 func (p *Pool) periodicRefresh() {
