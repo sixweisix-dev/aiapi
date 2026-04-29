@@ -5,3 +5,7 @@ frontend/user/dist/
 frontend/admin/dist/
 *.log
 *.bak
+
+# Database backups (sensitive)
+backups/*.sql
+backups/*.dump

@@ -78,6 +78,35 @@
         </el-form>
       </div>
 
+      <!-- 成本告警 -->
+      <div class="settings-card">
+        <h2 class="card-title">📧 每日成本告警</h2>
+        <p class="muted" style="margin: -8px 0 14px">每天凌晨 01:00 自动检查上游成本，超阈值发邮件。</p>
+        <el-form label-position="top">
+          <el-form-item>
+            <template #label>
+              <div class="lbl">告警邮箱</div>
+              <div class="lbl-desc">留空则不发邮件（仅记录日志）</div>
+            </template>
+            <el-input v-model="alertEmail" placeholder="admin@example.com" size="large" style="max-width: 360px" />
+          </el-form-item>
+          <el-form-item>
+            <template #label>
+              <div class="lbl">⚠️ 警告阈值（¥）</div>
+              <div class="lbl-desc">昨日上游成本超过此值发普通告警邮件</div>
+            </template>
+            <el-input-number v-model="alertWarn" :min="0" :max="100000" :precision="0" :step="50" size="large" style="width: 240px" />
+          </el-form-item>
+          <el-form-item>
+            <template #label>
+              <div class="lbl">🚨 紧急阈值（¥）</div>
+              <div class="lbl-desc">超过此值邮件标题加 🚨 前缀</div>
+            </template>
+            <el-input-number v-model="alertCritical" :min="0" :max="100000" :precision="0" :step="100" size="large" style="width: 240px" />
+          </el-form-item>
+        </el-form>
+      </div>
+
       <!-- 其他 -->
       <div class="settings-card">
         <h2 class="card-title">🛠 其他</h2>
@@ -115,6 +144,9 @@ const allowRegistration = ref(true)
 const promoEnabled = ref(true)
 const firstRechargeBonus = ref(0)
 const tiers = ref([])
+const alertEmail = ref('')
+const alertWarn = ref(100)
+const alertCritical = ref(500)
 
 function ratio(t) {
   if (!t.min || t.min <= 0) return '-'
@@ -183,6 +215,9 @@ async function load() {
     } catch {
       tiers.value = []
     }
+    alertEmail.value = res.alert_email || ''
+    alertWarn.value = parseFloat(res.alert_warn_threshold || '100')
+    alertCritical.value = parseFloat(res.alert_critical_threshold || '500')
     loaded.value = true
   } catch (e) {}
 }
@@ -208,6 +243,9 @@ async function save() {
       recharge_tiers: JSON.stringify(
         [...tiers.value].sort((a, b) => a.min - b.min).filter(t => t.min > 0)
       ),
+      alert_email: alertEmail.value,
+      alert_warn_threshold: String(alertWarn.value),
+      alert_critical_threshold: String(alertCritical.value),
     })
     ElMessage.success('已保存')
   } finally {
