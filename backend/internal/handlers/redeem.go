@@ -74,6 +74,23 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 			}
 			// 首充标记
 			tx.Exec(`UPDATE users SET first_recharge_at=? WHERE id=? AND first_recharge_at IS NULL`, now, userID)
+
+			// 查余额变化
+			var balBefore, balAfter float64
+			h.db.Raw(`SELECT balance FROM users WHERE id=?`, userID).Scan(&balBefore)
+			balAfter = balBefore + actualAmount
+
+			// 写充值记录
+			orderNo := fmt.Sprintf("REDEEM%d%s", now.UnixMilli(), rc.ID[:8])
+			tx.Exec(`INSERT INTO recharge_orders(user_id,order_no,amount,bonus_amount,payment_method,payment_status,intent,paid_at,created_at,updated_at)
+				VALUES(?,?,?,?,'redeem_code','paid','balance',?,NOW(),NOW())`,
+				userID, orderNo, actualAmount, actualAmount-rc.FaceValue, now)
+
+			// 写消费明细
+			desc := fmt.Sprintf("兑换码充值 %s", code)
+			tx.Exec(`INSERT INTO billing_records(user_id,type,amount,balance_before,balance_after,description,created_at)
+				VALUES(?,'recharge',?,?,?,?,NOW())`,
+				userID, actualAmount, balBefore, balAfter, desc)
 		}
 		if rc.Type == "membership" && rc.MembershipTier != "" && rc.MembershipTier != "free" {
 			var expiresAt time.Time
