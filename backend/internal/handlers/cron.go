@@ -258,3 +258,57 @@ func (h *CronHandler) CodeRestockCheck(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"restocked": len(results), "details": results})
 }
+
+// PromoDateCheck 检查活动日期，自动开关活动
+func (h *CronHandler) PromoDateCheck(c *gin.Context) {
+	if !h.checkToken(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	now := time.Now()
+	start := GetSettingValue(h.db, "promo_start", "")
+	end := GetSettingValue(h.db, "promo_end", "")
+	current := GetSettingValue(h.db, "promo_enabled", "false")
+
+	if start == "" || end == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "未设置活动日期"})
+		return
+	}
+
+	startT, err1 := time.Parse("2006-01-02", start)
+	endT, err2 := time.Parse("2006-01-02", end)
+	if err1 != nil || err2 != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "日期格式错误"})
+		return
+	}
+	endT = endT.Add(24*time.Hour - time.Second) // 结束日期包含当天
+
+	shouldEnable := now.After(startT) && now.Before(endT)
+	newVal := "false"
+	if shouldEnable {
+		newVal = "true"
+	}
+
+	if current == newVal {
+		c.JSON(http.StatusOK, gin.H{"message": "活动状态无需变更", "promo_enabled": shouldEnable})
+		return
+	}
+
+	h.db.Exec(`UPDATE settings SET value=? WHERE key='promo_enabled'`, newVal)
+	log.Printf("[PromoCheck] 活动状态变更: %s -> %s", current, newVal)
+
+	alertEmail := GetSettingValue(h.db, "alert_email", os.Getenv("EMAIL_FROM"))
+	if alertEmail != "" {
+		action := "已开启"
+		if !shouldEnable {
+			action = "已关闭"
+		}
+		sendPlainMail(h.mailCfg, alertEmail,
+			"TransitAI 充值活动状态变更",
+			fmt.Sprintf("充值赠送活动%s\n\n活动时间：%s 至 %s\n当前时间：%s",
+				action, start, end, now.Format("2006-01-02 15:04")))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "活动状态已更新", "promo_enabled": shouldEnable})
+}

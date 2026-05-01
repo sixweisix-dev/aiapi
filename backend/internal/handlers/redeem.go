@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -108,14 +109,37 @@ func (h *RedeemHandler) AdminGenerateCodes(c *gin.Context) {
 		Count          int     `json:"count" binding:"required,min=1,max=1000"`
 		Type           string  `json:"type" binding:"required"`
 		BalanceAmount  float64 `json:"balance_amount"`
+		FaceValue      float64 `json:"face_value"`
 		MembershipTier string  `json:"membership_tier"`
 		MembershipDays int     `json:"membership_days"`
 		ExpiryDays     int     `json:"expiry_days"`
 		Note           string  `json:"note"`
+		AutoCalc       bool    `json:"auto_calc"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// auto_calc=true 时按阶梯规则计算 balance_amount
+	if req.AutoCalc && req.Type == "balance" && req.FaceValue > 0 {
+		tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
+		var tiers []struct {
+			Min   float64 `json:"min"`
+			Bonus float64 `json:"bonus"`
+		}
+		if err := json.Unmarshal([]byte(tiersJSON), &tiers); err == nil {
+			var bonus float64
+			for _, t := range tiers {
+				if req.FaceValue >= t.Min {
+					bonus = t.Bonus
+				}
+			}
+			req.BalanceAmount = req.FaceValue + bonus
+		}
+	}
+	if req.FaceValue == 0 {
+		req.FaceValue = req.BalanceAmount
 	}
 
 	batchID := fmt.Sprintf("batch_%d", time.Now().Unix())
@@ -137,8 +161,8 @@ func (h *RedeemHandler) AdminGenerateCodes(c *gin.Context) {
 		if mtier == "" {
 			mtier = "free"
 		}
-		h.db.Exec(`INSERT INTO redeem_codes(code,type,balance_amount,membership_tier,membership_days,batch_id,note,expires_at) VALUES(?,?,?,?,?,?,?,?)`,
-			formatted, req.Type, req.BalanceAmount, mtier, req.MembershipDays, batchID, req.Note, expiresAt)
+		h.db.Exec(`INSERT INTO redeem_codes(code,type,balance_amount,face_value,membership_tier,membership_days,batch_id,note,expires_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+			formatted, req.Type, req.BalanceAmount, req.FaceValue, mtier, req.MembershipDays, batchID, req.Note, expiresAt)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

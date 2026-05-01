@@ -176,6 +176,7 @@ func main() {
 	r.GET("/v1/admin/redeem-codes", middleware.JWTAuth(cfg.JWTSecret), middleware.AdminRequired(), redeemHandler.AdminListCodes)
 	r.POST("/v1/internal/daily-report", cronHandler.DailyReport)
 	r.POST("/v1/internal/restock-check", cronHandler.CodeRestockCheck)
+	r.POST("/v1/internal/promo-check", cronHandler.PromoDateCheck)
 	r.POST("/v1/recharge/alipay/notify", paymentHandler.AlipayNotify)
 	r.GET("/v1/recharge/alipay/return", paymentHandler.AlipayReturn)
 

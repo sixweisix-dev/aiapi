@@ -35,6 +35,35 @@
 
           <el-form-item>
             <template #label>
+              <div class="lbl">活动时间范围</div>
+              <div class="lbl-desc">设置后每天自动检查，到期自动关闭。留空则手动控制开关。</div>
+            </template>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+              <el-date-picker
+                v-model="promoStart"
+                type="date"
+                placeholder="开始日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width:160px"
+              />
+              <span style="color:#9ca3af">至</span>
+              <el-date-picker
+                v-model="promoEnd"
+                type="date"
+                placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width:160px"
+              />
+              <el-tag v-if="promoStart && promoEnd" :type="promoEnabled ? 'success' : 'info'" size="small">
+                {{ promoEnabled ? '活动进行中' : '活动未开启' }}
+              </el-tag>
+            </div>
+          </el-form-item>
+
+          <el-form-item>
+            <template #label>
               <div class="lbl">阶梯赠送规则</div>
               <div class="lbl-desc">
                 按"充值金额 ≥ 门槛"匹配最高档赠送。会员套餐 ¥99/¥499 不会触发阶梯。
@@ -50,7 +79,7 @@
                 <span></span>
               </div>
               <div v-for="(t, idx) in tiers" :key="idx" class="tier-row">
-                <el-input-number v-model="t.min" :min="1" :precision="0" controls-position="right" />
+                <span class="tier-min-fixed">¥{{ t.min }}</span>
                 <el-input-number v-model="t.bonus" :min="0" :precision="2" controls-position="right" />
                 <span class="ratio" :class="ratioClass(t)">{{ ratio(t) }}</span>
                 <span class="ratio" :class="profitClass(t)">{{ profit(t) }}</span>
@@ -142,6 +171,8 @@ const signupBonus = ref(0)
 const announcement = ref('')
 const allowRegistration = ref(true)
 const promoEnabled = ref(true)
+const promoStart = ref('')
+const promoEnd = ref('')
 const firstRechargeBonus = ref(0)
 const tiers = ref([])
 const alertEmail = ref('')
@@ -208,6 +239,8 @@ async function load() {
     announcement.value = res.announcement || ''
     allowRegistration.value = (res.allow_registration ?? 'true') === 'true'
     promoEnabled.value = (res.recharge_promo_enabled ?? 'true') === 'true'
+    promoStart.value = res.promo_start || ''
+    promoEnd.value = res.promo_end || ''
     firstRechargeBonus.value = parseFloat(res.first_recharge_bonus || '0')
     try {
       const parsed = JSON.parse(res.recharge_tiers || '[]')
@@ -239,6 +272,9 @@ async function save() {
       announcement: announcement.value,
       allow_registration: allowRegistration.value ? 'true' : 'false',
       recharge_promo_enabled: promoEnabled.value ? 'true' : 'false',
+      promo_enabled: promoEnabled.value ? 'true' : 'false',
+      promo_start: promoStart.value || '',
+      promo_end: promoEnd.value || '',
       first_recharge_bonus: String(firstRechargeBonus.value),
       recharge_tiers: JSON.stringify(
         [...tiers.value].sort((a, b) => a.min - b.min).filter(t => t.min > 0)
