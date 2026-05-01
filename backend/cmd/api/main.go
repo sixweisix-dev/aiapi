@@ -76,7 +76,8 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(redisClient)
 
 	// Handlers
-	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter)
+	var chatMailCfg *handlers.MailConfig // set after mailCfg is defined
+	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter, chatMailCfg)
 	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler)
 	modelsHandler := handlers.NewModelsHandler(db)
 	mailCfg := handlers.MailConfig{
@@ -87,6 +88,7 @@ func main() {
         From:     cfg.EmailFrom,
     }
     handlers.SetGlobalDB(db)
+	chatHandler.SetMailCfg(&mailCfg)
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))

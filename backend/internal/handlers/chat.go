@@ -27,11 +27,18 @@ type ChatHandler struct {
 	billingEngine *billing.Engine
 	alerter       *monitoring.TelegramAlerter
 	contentFilter *middleware.ContentFilter
+	mailCfg       *MailConfig
 }
 
-func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter, cf *middleware.ContentFilter) *ChatHandler {
-	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter, contentFilter: cf}
+func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter, cf *middleware.ContentFilter, mailCfg *MailConfig) *ChatHandler {
+	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter, contentFilter: cf, mailCfg: mailCfg}
 }
+
+
+func (h *ChatHandler) SetMailCfg(cfg *MailConfig) {
+	h.mailCfg = cfg
+}
+
 
 func (h *ChatHandler) Handle(c *gin.Context) {
 	// === Auth (set by APIKey middleware) ===
@@ -649,6 +656,11 @@ func (h *ChatHandler) checkBudgetAlert(apiKeyHash string) {
 			go h.alerter.Send(fmt.Sprintf("⛔ <b>API Key 预算超额已禁用</b>\n\n<b>用户:</b> %s\n<b>项目:</b> %s\n<b>Key:</b> %s\n<b>预算:</b> ¥%.2f\n<b>已用:</b> ¥%.2f (%.1f%%)",
 				row.Email, projName, row.Name, budget, used, pct))
 		}
+		if row.Email != "" && h.mailCfg != nil {
+			subject := "⛔ TransitAI API Key 预算超额已自动禁用"
+			body := fmt.Sprintf("您好，\n\n您的 API Key「%s」（项目：%s）已超出月度预算，已自动禁用。\n\n预算：¥%.2f\n已使用：¥%.2f\n\n请登录 transitai.cloud 调整预算后重新启用。\n\nTransitAI 团队", row.Name, func() string { if row.ProjectName != nil { return *row.ProjectName }; return "-" }(), budget, used)
+			go sendPlainMail(*h.mailCfg, row.Email, subject, body)
+		}
 		return
 	}
 
@@ -662,7 +674,12 @@ func (h *ChatHandler) checkBudgetAlert(apiKeyHash string) {
 			}
 			go h.alerter.Send(fmt.Sprintf("⚠️ <b>API Key 预算告警</b>\n\n<b>用户:</b> %s\n<b>项目:</b> %s\n<b>Key:</b> %s\n<b>预算:</b> ¥%.2f\n<b>已用:</b> ¥%.2f (%.1f%%)\n<b>告警阈值:</b> %d%%",
 				row.Email, projName, row.Name, budget, used, pct, row.BudgetAlertPct))
+		if row.Email != "" && h.mailCfg != nil {
+			subject := fmt.Sprintf("⚠️ TransitAI 预算已使用 %.0f%%", pct)
+			body := fmt.Sprintf("您好，\n\n您的 API Key「%s」本月预算已使用 %.1f%%。\n\n预算：¥%.2f\n已使用：¥%.2f\n告警阈值：%d%%\n\n请登录 transitai.cloud 查看详情。\n\nTransitAI 团队", row.Name, pct, budget, used, row.BudgetAlertPct)
+			go sendPlainMail(*h.mailCfg, row.Email, subject, body)
 		}
+	}
 	}
 }
 
