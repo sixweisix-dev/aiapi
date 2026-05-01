@@ -171,9 +171,11 @@ func main() {
 
 	// Alipay notify callback (no auth — Alipay sends the request directly)
 	r.POST("/v1/user/redeem", middleware.JWTAuth(cfg.JWTSecret), redeemHandler.RedeemCode)
+	r.GET("/v1/user/redeem/preview", middleware.JWTAuth(cfg.JWTSecret), redeemHandler.PreviewCode)
 	r.POST("/v1/admin/redeem-codes/generate", middleware.JWTAuth(cfg.JWTSecret), middleware.AdminRequired(), redeemHandler.AdminGenerateCodes)
 	r.GET("/v1/admin/redeem-codes", middleware.JWTAuth(cfg.JWTSecret), middleware.AdminRequired(), redeemHandler.AdminListCodes)
 	r.POST("/v1/internal/daily-report", cronHandler.DailyReport)
+	r.POST("/v1/internal/restock-check", cronHandler.CodeRestockCheck)
 	r.POST("/v1/recharge/alipay/notify", paymentHandler.AlipayNotify)
 	r.GET("/v1/recharge/alipay/return", paymentHandler.AlipayReturn)
 

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	crypto_rand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +10,7 @@ import (
 	"net/smtp"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -166,4 +169,92 @@ func sendPlainMail(cfg MailConfig, to, subject, body string) error {
 		cfg.From, to, subject, body)
 	addr := fmt.Sprintf("%s:%d", cfg.Host, port)
 	return smtp.SendMail(addr, auth, cfg.From, []string{to}, []byte(msg))
+}
+
+// CodeRestockCheck 检查兑换码库存，不足时自动生成并发邮件
+func (h *CronHandler) CodeRestockCheck(c *gin.Context) {
+	if !h.checkToken(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	alertEmail := GetSettingValue(h.db, "alert_email", os.Getenv("EMAIL_FROM"))
+
+	// 各档位配置: type, balance, tier, days, threshold(低于此数补货), generate(每次补多少)
+	type stockCfg struct {
+		Note      string
+		Type      string
+		Balance   float64
+		Tier      string
+		Days      int
+		Threshold int
+		Generate  int
+	}
+
+	configs := []stockCfg{
+		{"闲鱼¥100充值码", "balance", 108, "free", 0, 5, 20},
+		{"闲鱼¥300充值码", "balance", 330, "free", 0, 3, 10},
+		{"闲鱼¥500充值码", "balance", 575, "free", 0, 3, 10},
+		{"闲鱼¥1000充值码", "balance", 1200, "free", 0, 2, 5},
+		{"闲鱼¥3000充值码", "balance", 3750, "free", 0, 1, 3},
+		{"闲鱼专业版30天", "membership", 120, "pro", 30, 3, 10},
+		{"闲鱼企业版30天", "membership", 600, "enterprise", 30, 1, 5},
+	}
+
+	type restockResult struct {
+		Note  string
+		Count int
+		Codes []string
+	}
+
+	var results []restockResult
+	for _, cfg := range configs {
+		// 查未使用数量
+		var unused int64
+		h.db.Raw(`SELECT COUNT(*) FROM redeem_codes WHERE note=? AND status='unused'`, cfg.Note).Scan(&unused)
+		if int(unused) >= cfg.Threshold {
+			continue
+		}
+
+		// 生成新码
+		batchID := fmt.Sprintf("auto_%d", time.Now().Unix())
+		var codes []string
+		for i := 0; i < cfg.Generate; i++ {
+			b := make([]byte, 8)
+			crypto_rand.Read(b)
+			code := strings.ToUpper(hex.EncodeToString(b))
+			formatted := code[:4] + "-" + code[4:8] + "-" + code[8:12] + "-" + code[12:16]
+			codes = append(codes, formatted)
+			expires := time.Now().Add(180 * 24 * time.Hour)
+			mtier := cfg.Tier
+			if mtier == "" {
+				mtier = "free"
+			}
+			h.db.Exec(`INSERT INTO redeem_codes(code,type,balance_amount,membership_tier,membership_days,batch_id,note,expires_at) VALUES(?,?,?,?,?,?,?,?)`,
+				formatted, cfg.Type, cfg.Balance, mtier, cfg.Days, batchID, cfg.Note, expires)
+		}
+		results = append(results, restockResult{cfg.Note, len(codes), codes})
+		log.Printf("[Restock] %s: 库存不足(%d)，已生成 %d 个新码", cfg.Note, unused, len(codes))
+	}
+
+	if len(results) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "库存充足，无需补货"})
+		return
+	}
+
+	// 发邮件通知
+	if alertEmail != "" {
+		body := fmt.Sprintf("TransitAI 兑换码自动补货通知\n\n以下档位已自动生成新码，请及时添加到闲鱼自动发货库存：\n\n")
+		for _, r := range results {
+			body += fmt.Sprintf("【%s】新增 %d 个：\n", r.Note, r.Count)
+			for _, code := range r.Codes {
+				body += code + "\n"
+			}
+			body += "\n"
+		}
+		body += "\n请登录闲鱼，将以上对应的码添加到自动发货库存中。"
+		sendPlainMail(h.mailCfg, alertEmail, "⚠️ TransitAI 兑换码库存补货通知", body)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"restocked": len(results), "details": results})
 }

@@ -29,15 +29,16 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 	code := strings.TrimSpace(strings.ToUpper(req.Code))
 
 	var rc struct {
-		ID            string
-		Type          string
-		BalanceAmount float64
+		ID             string
+		Type           string
+		BalanceAmount  float64
+		FaceValue      float64
 		MembershipTier string
 		MembershipDays int
-		Status        string
-		ExpiresAt     *time.Time
+		Status         string
+		ExpiresAt      *time.Time
 	}
-	if err := h.db.Raw(`SELECT id,type,balance_amount,membership_tier,membership_days,status,expires_at FROM redeem_codes WHERE code=?`, code).Scan(&rc).Error; err != nil || rc.ID == "" {
+	if err := h.db.Raw(`SELECT id,type,balance_amount,face_value,membership_tier,membership_days,status,expires_at FROM redeem_codes WHERE code=?`, code).Scan(&rc).Error; err != nil || rc.ID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "兑换码无效"})
 		return
 	}
@@ -50,6 +51,15 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 		return
 	}
 
+	// 检查活动开关
+	promoEnabled := GetSettingValue(h.db, "promo_enabled", "true") == "true"
+
+	// 计算实际到账金额：活动关闭则用面值
+	actualAmount := rc.BalanceAmount
+	if !promoEnabled && rc.FaceValue > 0 {
+		actualAmount = rc.FaceValue
+	}
+
 	// 事务：标记已用 + 到账
 	err := h.db.Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
@@ -57,8 +67,8 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 			userID, now, rc.ID).Error; err != nil {
 			return err
 		}
-		if rc.Type == "balance" || rc.BalanceAmount > 0 {
-			if err := tx.Exec(`UPDATE users SET balance=balance+? WHERE id=?`, rc.BalanceAmount, userID).Error; err != nil {
+		if rc.Type == "balance" || actualAmount > 0 {
+			if err := tx.Exec(`UPDATE users SET balance=balance+? WHERE id=?`, actualAmount, userID).Error; err != nil {
 				return err
 			}
 		}
@@ -84,10 +94,10 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 	}
 
 	msg := fmt.Sprintf("兑换成功！")
-	if rc.BalanceAmount > 0 {
-		msg = fmt.Sprintf("兑换成功！余额 +¥%.2f", rc.BalanceAmount)
+	if actualAmount > 0 && rc.Type == "balance" {
+		msg = fmt.Sprintf("兑换成功！余额 +¥%.2f", actualAmount)
 	} else if rc.MembershipTier != "free" {
-		msg = fmt.Sprintf("兑换成功！已开通 %s %d 天", rc.MembershipTier, rc.MembershipDays)
+		msg = fmt.Sprintf("兑换成功！已开通 %s %d 天，余额 +¥%.2f", rc.MembershipTier, rc.MembershipDays, actualAmount)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg})
 }
@@ -158,4 +168,68 @@ func (h *RedeemHandler) AdminListCodes(c *gin.Context) {
 	var rows []map[string]interface{}
 	h.db.Raw(query, args...).Scan(&rows)
 	c.JSON(http.StatusOK, gin.H{"codes": rows})
+}
+
+// PreviewCode 预览兑换码权益（不兑换）
+func (h *RedeemHandler) PreviewCode(c *gin.Context) {
+	userID := c.GetString("user_id")
+	code := strings.TrimSpace(strings.ToUpper(c.Query("code")))
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请输入兑换码"})
+		return
+	}
+
+	var rc struct {
+		ID             string
+		Type           string
+		BalanceAmount  float64
+		FaceValue      float64
+		MembershipTier string
+		MembershipDays int
+		Status         string
+		ExpiresAt      *time.Time
+	}
+	if err := h.db.Raw(`SELECT id,type,balance_amount,face_value,membership_tier,membership_days,status,expires_at FROM redeem_codes WHERE code=?`, code).Scan(&rc).Error; err != nil || rc.ID == "" {
+		c.JSON(http.StatusOK, gin.H{"valid": false, "error": "兑换码无效"})
+		return
+	}
+	if rc.Status != "unused" {
+		c.JSON(http.StatusOK, gin.H{"valid": false, "error": "兑换码已被使用"})
+		return
+	}
+	if rc.ExpiresAt != nil && rc.ExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusOK, gin.H{"valid": false, "error": "兑换码已过期"})
+		return
+	}
+
+	// 判断是否首充
+	var firstRechargeCount int64
+	h.db.Raw(`SELECT COUNT(*) FROM users WHERE id=? AND first_recharge_at IS NOT NULL`, userID).Scan(&firstRechargeCount)
+	isFirst := firstRechargeCount == 0
+
+	// 读取首充礼金额
+	var firstBonus float64
+	if isFirst && rc.Type == "balance" {
+		var val string
+		h.db.Raw(`SELECT value FROM settings WHERE key='first_recharge_bonus'`).Scan(&val)
+		fmt.Sscanf(val, "%f", &firstBonus)
+	}
+
+	promoEnabled := GetSettingValue(h.db, "promo_enabled", "true") == "true"
+	actualAmount := rc.BalanceAmount
+	if !promoEnabled && rc.FaceValue > 0 {
+		actualAmount = rc.FaceValue
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":             true,
+		"type":              rc.Type,
+		"balance_amount":    actualAmount,
+		"original_amount":   rc.BalanceAmount,
+		"promo_enabled":     promoEnabled,
+		"membership_tier":   rc.MembershipTier,
+		"membership_days":   rc.MembershipDays,
+		"is_first_recharge": isFirst,
+		"first_bonus":       firstBonus,
+	})
 }

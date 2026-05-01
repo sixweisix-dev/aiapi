@@ -120,6 +120,7 @@ const menuItems = [
   { path: '/recharge',    emoji: '💳', label: '充值记录' },
   { path: '/audit-logs',  emoji: '🔍', label: '操作日志' },
   { path: '/settings',    emoji: '⚙️', label: '系统设置' },
+  { path: '/redeem-codes', emoji: '🎁', label: '兑换码管理' },
 ]
 
 const currentRoute = computed(() => route.path)

@@ -89,7 +89,6 @@ const menuItems = [
   { path: '/dashboard',       emoji: '🏠', label: '首页' },
   { path: '/api-keys',        emoji: '🔑', label: 'API Key 管理' },
   { path: '/recharge',        emoji: '💳', label: '充值' },
-  { path: '/membership',      emoji: '⭐', label: '会员中心' },
   { path: '/billing',         emoji: '📋', label: '消费明细' },
   { path: '/models',          emoji: '🤖', label: '模型与价格' },
   { path: '/playground',      emoji: '🎮', label: 'Playground' },
@@ -150,9 +149,9 @@ watch(() => route.path, () => {
   align-items: center;
   padding: 0 12px;
   gap: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   flex-shrink: 0;
-  z-index: 10;
+  z-index: 100;
 }
 .hamburger {
   background: none;

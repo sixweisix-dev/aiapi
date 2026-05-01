@@ -1,54 +1,114 @@
 <template>
   <div class="page">
-    <!-- 充值卡 -->
+    <!-- 页头 -->
     <div class="recharge-hero">
       <div class="hero-bg-shape"></div>
       <div class="hero-emoji">💳</div>
-      <div class="hero-title">余额充值</div>
-      <div class="hero-sub">充值余额即刻到账，安全可靠</div>
+      <div class="hero-title">充值 & 会员</div>
+      <div class="hero-sub">兑换码直接到账 · 会员解锁更高速率</div>
     </div>
 
-    <!-- 充值优惠规则 -->
-    <div v-if="promo.enabled && (promo.tiers.length || promo.firstBonus > 0)" class="data-card promo-card">
-      <div class="card-header">
-        <span class="card-title">🎁 充值优惠</span>
-        <span v-if="isFirstRecharge" class="first-badge">首充专享</span>
+    <!-- 当前等级 -->
+    <div v-if="me" class="current-card">
+      <div class="current-label">当前等级</div>
+      <div class="current-tier">
+        <span class="tier-badge" :class="me.membership_tier || 'free'">
+          {{ tierLabel(me.membership_tier) }}
+        </span>
       </div>
-      <div v-if="promo.tiers.length" class="promo-tiers">
-        <div v-for="t in promo.tiers" :key="t.min" class="promo-tier" :class="{ active: rechargeForm.amount >= t.min }">
-          <span class="tier-min">充 ¥{{ t.min }}</span>
-          <span class="tier-arrow">→</span>
-          <span class="tier-bonus">额外送 ¥{{ t.bonus }}</span>
+      <div v-if="me.membership_expires_at && me.membership_tier !== 'free'" class="current-expire">
+        到期时间：{{ dayjs(me.membership_expires_at).format('YYYY-MM-DD HH:mm') }}
+      </div>
+    </div>
+
+    <!-- 兑换码（置顶） -->
+    <div class="data-card redeem-top-card">
+      <div class="redeem-header">🎁 兑换码</div>
+      <div class="redeem-sub">输入购买的兑换码，余额或会员权益即刻到账</div>
+      <div class="redeem-row">
+        <el-input
+          v-model="redeemCode"
+          placeholder="XXXX-XXXX-XXXX-XXXX"
+          size="large"
+          :disabled="redeeming"
+          @input="onCodeInput"
+          @change="onCodeInput"
+          @keyup.enter="doRedeem"
+          class="redeem-input"
+        />
+        <el-button
+          type="success"
+          size="large"
+          :loading="redeeming"
+          @click="doRedeem"
+          class="redeem-btn"
+        >立即兑换</el-button>
+      </div>
+      <div class="redeem-status">
+        <span v-if="redeemMsg" :style="{ color: redeemOk ? '#67c23a' : '#f56c6c' }">{{ redeemMsg }}</span>
+        <span v-else-if="previewDisplay" :style="{ color: previewDisplayColor }">{{ previewDisplay }}</span>
+      </div>
+    </div>
+
+    <!-- 套餐卡片 -->
+    <div class="plan-grid">
+      <!-- 专业版 -->
+      <div class="plan-card pro">
+        <div class="plan-badge">最受欢迎</div>
+        <div class="plan-icon">💼</div>
+        <div class="plan-name">专业版</div>
+        <div class="plan-price">
+          <span class="price-num">¥99</span>
+          <span class="price-unit">/ 月</span>
         </div>
+        <div class="plan-bonus">充 ¥99 → 到账 ¥120（送 ¥21）</div>
+        <ul class="plan-features">
+          <li><span class="ok">✓</span> 充值到账 <b>¥120</b></li>
+          <li><span class="ok">✓</span> RPM <b>60</b>（10 倍提速）</li>
+          <li><span class="ok">✓</span> TPM <b>10 万</b></li>
+          <li><span class="ok">✓</span> API Key 数量 <b>5 个</b></li>
+          <li><span class="ok">✓</span> 预算告警</li>
+          <li><span class="ok">✓</span> CSV 账单导出</li>
+          <li><span class="ok">✓</span> 发票支持</li>
+          <li><span class="muted">✗</span> SLA 保障（企业版独享）</li>
+        </ul>
+        <div class="plan-redeem-tip">购买专业版兑换码后在上方输入</div>
       </div>
-      <div v-if="promo.firstBonus > 0 && isFirstRecharge" class="first-bonus-tip">
-        🎉 新人首充再额外加赠 <b>¥{{ promo.firstBonus }}</b>（仅限第一次）
-      </div>
-      <div v-if="promo.firstBonus > 0 && !isFirstRecharge" class="first-bonus-used">
-        新人首充礼已使用过
+
+      <!-- 企业版 -->
+      <div class="plan-card enterprise">
+        <div class="plan-badge premium">尊享旗舰</div>
+        <div class="plan-icon">👑</div>
+        <div class="plan-name">企业版</div>
+        <div class="plan-price">
+          <span class="price-num">¥499</span>
+          <span class="price-unit">/ 月</span>
+        </div>
+        <div class="plan-bonus">充 ¥499 → 到账 ¥600（送 ¥101）</div>
+        <ul class="plan-features">
+          <li><span class="ok">✓</span> 充值到账 <b>¥600</b></li>
+          <li><span class="ok">✓</span> RPM <b>600</b>（100 倍提速）</li>
+          <li><span class="ok">✓</span> TPM <b>100 万</b></li>
+          <li><span class="ok">✓</span> API Key <b>不限数量</b></li>
+          <li><span class="ok">✓</span> 预算告警</li>
+          <li><span class="ok">✓</span> CSV 账单导出</li>
+          <li><span class="ok">✓</span> 发票支持</li>
+          <li><span class="ok">✓</span> <b>SLA 99.5%</b></li>
+          <li><span class="ok">✓</span> 优先技术支持</li>
+        </ul>
+        <div class="plan-redeem-tip">购买企业版兑换码后在上方输入</div>
       </div>
     </div>
 
-    <div class="data-card">
-      <div class="card-header"><span class="card-title">💰 选择金额</span></div>
-      <div class="amount-grid">
-        <div
-          v-for="item in presetAmounts"
-          :key="item.value"
-          class="amount-chip"
-          :class="{ active: rechargeForm.amount === item.value }"
-          @click="rechargeForm.amount = item.value"
-        >{{ item.label }}</div>
-      </div>
-      <div class="form-row">
-        <label class="form-label">自定义金额 (¥)</label>
-        <el-input-number v-model="rechargeForm.amount" :min="1" :max="100000" :step="10" size="large" style="width:100%" />
-      </div>
-      <div v-if="totalBonus > 0" class="bonus-preview">
-        ✨ 兑换后实际到账 <b>¥{{ (rechargeForm.amount + totalBonus).toFixed(2) }}</b>
-        <span class="bonus-detail">（本金 ¥{{ rechargeForm.amount }} + 赠送 ¥{{ totalBonus.toFixed(2) }}）</span>
-      </div>
-      <div class="form-tip">充值余额将立即计入账户，支持兑换码直接到账</div>
+    <!-- 说明 -->
+    <div class="note-card">
+      <div class="note-title">💡 说明</div>
+      <ul class="note-list">
+        <li>会员有效期 30 天，到期后自动恢复免费版速率（已充值余额不受影响）</li>
+        <li>在闲鱼购买兑换码后，输入上方兑换框即可激活会员和余额</li>
+        <li>未到期续费会自动叠加时长，多月连续续费额度叠加</li>
+        <li>企业开票或定制 SLA，请联系：<a href="mailto:sixweisix@gmail.com" class="link">sixweisix@gmail.com</a></li>
+      </ul>
     </div>
 
     <!-- 充值记录 -->
@@ -64,345 +124,282 @@
             <div class="order-no">{{ o.order_no }}</div>
           </div>
           <span class="order-status" :class="o.payment_status">
-            {{ statusLabel(o.payment_status) }}
+            {{ { paid: '已到账', pending: '待支付', failed: '失败' }[o.payment_status] || o.payment_status }}
           </span>
         </div>
       </div>
-
-      <!-- 兑换码 -->
-      <div class="recharge-card" style="margin-top:16px">
-        <div class="card-title">🎁 兑换码</div>
-        <div class="card-body">
-          <div class="redeem-row">
-            <el-input
-              v-model="redeemCode"
-              placeholder="输入兑换码，格式 XXXX-XXXX-XXXX-XXXX"
-              size="large"
-              :disabled="redeeming"
-              @keyup.enter="doRedeem"
-              style="flex:1"
-            />
-            <el-button
-              type="success"
-              size="large"
-              :loading="redeeming"
-              @click="doRedeem"
-              style="margin-left:8px;min-width:90px"
-            >兑换</el-button>
-          </div>
-          <div v-if="redeemMsg" :class="redeemOk ? 'redeem-ok' : 'redeem-err'">{{ redeemMsg }}</div>
-        </div>
-      </div>
-
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { rechargeAPI } from '@/utils/api'
-import dayjs from 'dayjs'
+import { rechargeAPI, dashboardAPI } from '@/utils/api'
 import api from '@/utils/api'
+import dayjs from 'dayjs'
 
-const submitting = ref(false)
-const loadingOrders = ref(true)
+// 用户信息
+const me = ref(null)
 const orders = ref([])
-const promo = reactive({ enabled: true, tiers: [], firstBonus: 0 })
+const loadingOrders = ref(true)
 
-const isFirstRecharge = computed(() => {
-  return !orders.value.some(o => o.payment_status === 'paid')
-})
+function tierLabel(t) {
+  const m = { free: '免费版', pro: '专业版', enterprise: '企业版' }
+  return m[t] || '免费版'
+}
 
-const totalBonus = computed(() => {
-  if (!promo.enabled) return 0
-  let tierBonus = 0
-  for (const t of promo.tiers) {
-    if (rechargeForm.amount >= t.min && t.bonus > tierBonus) tierBonus = t.bonus
-  }
-  const firstBonus = isFirstRecharge.value ? (promo.firstBonus || 0) : 0
-  return tierBonus + firstBonus
-})
-
-async function loadPromo() {
+async function fetchUserInfo() {
   try {
-    const cfg = await api.get('/auth/config')
-    promo.enabled = cfg.recharge_promo_enabled !== false
-    promo.firstBonus = parseFloat(cfg.first_recharge_bonus || '0')
-    try {
-      const arr = JSON.parse(cfg.recharge_tiers || '[]')
-      promo.tiers = Array.isArray(arr) ? arr.map(t => ({ min: Number(t.min), bonus: Number(t.bonus) })).sort((a,b) => a.min - b.min) : []
-    } catch { promo.tiers = [] }
+    const data = await dashboardAPI.stats()
+    me.value = data
   } catch {}
 }
-const presetAmounts = [
-  { value: 10,  label: '¥10' },
-  { value: 50,  label: '¥50' },
-  { value: 100, label: '¥100' },
-  { value: 200, label: '¥200' },
-  { value: 500, label: '¥500' },
-  { value: 1000, label: '¥1000' },
-]
-const rechargeForm = reactive({ amount: 100, method: 'alipay' }) // method kept for API compat
-
-onMounted(() => { fetchOrders(); loadPromo() })
 
 async function fetchOrders() {
   loadingOrders.value = true
   try {
     const data = await rechargeAPI.listOrders()
     orders.value = data.orders || []
-  } catch {} finally { loadingOrders.value = false }
+  } catch {
+    orders.value = []
+  } finally {
+    loadingOrders.value = false
+  }
 }
 
-async function handleRecharge() {
-  if (rechargeForm.amount < 1) return ElMessage.warning('充值金额至少 ¥1')
-  submitting.value = true
+// 兑换码
+const redeemCode = ref('')
+const redeeming = ref(false)
+const redeemMsg = ref('')
+const redeemOk = ref(false)
+
+
+// 兑换码实时预览
+const previewInfo = ref(null)
+const previewing = ref(false)
+let previewTimer = null
+
+// onCodeInput removed, using watch instead
+
+
+// 监听兑换码变化
+const previewDisplay = ref('')
+const previewDisplayColor = ref('#999')
+
+watch(redeemCode, (val) => {
+  previewInfo.value = null
+  previewDisplay.value = ''
+  if (!redeemOk.value) redeemMsg.value = ''
+  if (previewTimer) clearTimeout(previewTimer)
+  const code = (val || '').trim().toUpperCase()
+  if (code.length < 19) return
+  previewing.value = true
+  previewDisplay.value = '查询中...'
+  previewDisplayColor.value = '#999'
+  previewTimer = setTimeout(async () => {
+    try {
+      const res = await api.get('/user/redeem/preview', { params: { code } })
+      previewInfo.value = res
+      const d = res
+      if (!d.valid) {
+        previewDisplay.value = d.error || '兑换码无效'
+        previewDisplayColor.value = '#f56c6c'
+      } else if (d.type === 'membership') {
+        const tm = { pro: '专业版', enterprise: '企业版' }
+        let txt = '✅ 开通 ' + (tm[d.membership_tier] || d.membership_tier) + ' ' + d.membership_days + ' 天'
+        if (d.balance_amount > 0) txt += ' + 余额 +¥' + d.balance_amount.toFixed(2)
+        previewDisplay.value = txt
+        previewDisplayColor.value = '#67c23a'
+      } else {
+        let txt = '✅ 余额 +¥' + d.balance_amount.toFixed(2)
+        if (d.is_first_recharge && d.first_bonus > 0) txt += ' + 首充礼 +¥' + d.first_bonus.toFixed(2)
+        previewDisplay.value = txt
+        previewDisplayColor.value = '#67c23a'
+      }
+    } catch {
+      previewDisplay.value = '兑换码无效'
+      previewDisplayColor.value = '#f56c6c'
+    } finally {
+      previewing.value = false
+    }
+  }, 400)
+})
+
+const previewText = computed(() => {
+  if (!previewInfo.value) return ''
+  const p = previewInfo.value
+  if (!p.valid) return p.error || '兑换码无效'
+  if (p.type === 'membership') {
+    const tierMap = { pro: '专业版', enterprise: '企业版' }
+    const parts = [`开通 ${tierMap[p.membership_tier] || p.membership_tier} ${p.membership_days} 天`]
+    if (p.balance_amount > 0) parts.push(`余额 +¥${p.balance_amount.toFixed(2)}`)
+    return '✅ ' + parts.join(' + ')
+  }
+  // balance 类型
+  const parts = [`余额 +¥${p.balance_amount.toFixed(2)}`]
+  if (p.is_first_recharge && p.first_bonus > 0) {
+    parts.push(`首充礼 +¥${p.first_bonus.toFixed(2)}`)
+  }
+  return '✅ ' + parts.join(' + ')
+})
+
+const previewColor = computed(() => {
+  if (!previewInfo.value) return ''
+  return previewInfo.value.valid ? '#67c23a' : '#f56c6c'
+})
+
+const doRedeem = async () => {
+  if (!redeemCode.value.trim()) return
+  redeeming.value = true
+  redeemMsg.value = ''
   try {
-    const data = await rechargeAPI.createOrder(rechargeForm.amount)
-    if (data.pay_url) window.open(data.pay_url, '_blank')
-    ElMessage.success('订单已创建，正在跳转支付...')
+    const res = await api.post('/user/redeem', { code: redeemCode.value.trim().toUpperCase() })
+    redeemOk.value = true
+    const msg = res.message || '兑换成功！'
+    redeemMsg.value = msg
+    ElMessage.success(msg)
+    previewDisplay.value = ''
+    redeemCode.value = ''
+    await fetchUserInfo()
     await fetchOrders()
-  } catch {} finally { submitting.value = false }
+  } catch (e) {
+    redeemOk.value = false
+    const errMsg = e.response?.data?.error || '兑换失败，请检查兑换码'
+    redeemMsg.value = errMsg
+    ElMessage.error(errMsg)
+  } finally {
+    redeeming.value = false
+  }
 }
 
-function statusLabel(s) {
-  const map = { pending: '待支付', paid: '已支付', failed: '失败', refunded: '已退款' }
-  return map[s] || s
-}
+onMounted(() => {
+  fetchUserInfo()
+  fetchOrders()
+})
 </script>
 
 <style scoped>
-.page { padding-bottom: 20px; }
+.page { padding: 16px; max-width: 480px; margin: 0 auto; }
 
-.promo-card { background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 1px solid #fed7aa; }
-.promo-tiers { display: grid; gap: 8px; }
-.promo-tier {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-radius: 10px;
-  background: rgba(255,255,255,0.6);
-  font-size: 14px; transition: all 0.2s;
-}
-.promo-tier.active {
-  background: linear-gradient(135deg, #f97316, #ea580c);
-  color: #fff; transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(249,115,22,0.3);
-}
-.tier-min { font-weight: 600; min-width: 70px; }
-.tier-arrow { opacity: 0.5; }
-.tier-bonus { color: inherit; font-weight: 600; }
-.promo-tier.active .tier-bonus { color: #fff; }
-.first-badge {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #fff; padding: 2px 10px; border-radius: 12px;
-  font-size: 11px; font-weight: 600;
-}
-.first-bonus-tip {
-  margin-top: 12px; padding: 10px 14px;
-  background: rgba(239,68,68,0.08); color: #b91c1c;
-  border-radius: 10px; font-size: 13px;
-}
-.first-bonus-used {
-  margin-top: 10px; font-size: 12px; color: #9ca3af; text-align: center;
-}
-.bonus-preview {
-  margin-top: 10px; text-align: center; font-size: 13px;
-  color: #059669; padding: 8px;
-  background: rgba(16,185,129,0.08); border-radius: 8px;
-}
-.bonus-preview b { font-size: 15px; }
-.bonus-detail { color: #6b7280; font-size: 12px; margin-left: 4px; }
-.promo-card { position: relative; }
-.promo-card.promo-disabled { filter: saturate(0.3) opacity(0.55); pointer-events: none; }
-.membership-overlay {
-  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.55); backdrop-filter: blur(2px);
-  border-radius: 14px;
-  font-size: 14px; font-weight: 600; color: #92400e;
-  z-index: 5; pointer-events: auto;
-  text-align: center; padding: 0 20px;
-}
+/* Hero */
 .recharge-hero {
-  position: relative;
-  background: linear-gradient(135deg, #11998e, #38ef7d);
-  border-radius: 20px;
-  padding: 24px 20px;
-  color: #fff;
-  margin-bottom: 14px;
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(17,153,142,0.3);
-  overflow: hidden;
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 20px; padding: 28px 24px 24px;
+  color: #fff; text-align: center; margin-bottom: 16px;
 }
 .hero-bg-shape {
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 140px;
-  height: 140px;
+  position: absolute; top: -30px; right: -30px;
+  width: 120px; height: 120px; border-radius: 50%;
   background: rgba(255,255,255,0.1);
-  border-radius: 50%;
 }
-.hero-emoji { font-size: 36px; margin-bottom: 6px; position: relative; z-index: 1; }
-.hero-title { font-size: 22px; font-weight: 800; position: relative; z-index: 1; }
-.hero-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; position: relative; z-index: 1; }
+.hero-emoji { font-size: 36px; margin-bottom: 8px; }
+.hero-title { font-size: 22px; font-weight: 700; }
+.hero-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; }
 
-.data-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+/* 当前等级 */
+.current-card {
+  background: #fff; border-radius: 16px;
+  padding: 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  display: flex; align-items: center; gap: 12px;
 }
-.card-header { display: flex; justify-content: space-between; margin-bottom: 14px; }
-.card-title { font-size: 15px; font-weight: 600; color: #1f2937; }
+.current-label { font-size: 13px; color: #999; }
+.tier-badge {
+  padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
+}
+.tier-badge.free { background: #f3f4f6; color: #6b7280; }
+.tier-badge.pro { background: #eef2ff; color: #4338ca; }
+.tier-badge.enterprise { background: #fef3c7; color: #92400e; }
+.current-expire { font-size: 12px; color: #999; margin-left: auto; }
 
-.amount-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.amount-chip {
-  background: #f3f4f6;
+/* 兑换码卡片 */
+.redeem-top-card {
+  background: #fff; border-radius: 16px;
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   text-align: center;
-  padding: 14px 0;
-  border-radius: 12px;
-  font-weight: 700;
-  color: #4b5563;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: all 0.15s;
 }
-.amount-chip:active { transform: scale(0.96); }
-.amount-chip.active {
-  background: linear-gradient(135deg, #667eea22, #764ba222);
-  border-color: #667eea;
-  color: #667eea;
+.redeem-header { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.redeem-sub { font-size: 13px; color: #999; margin-bottom: 16px; }
+.redeem-row { display: flex; gap: 10px; align-items: center; }
+.redeem-input { flex: 1; }
+.redeem-btn {
+  min-width: 90px;
+  background: linear-gradient(135deg, #667eea, #764ba2) !important;
+  border: none !important;
+  color: #fff !important;
 }
+.redeem-ok { color: #67c23a; margin-top: 10px; font-size: 14px; font-weight: 600; }
+.redeem-err { color: #f56c6c; margin-top: 10px; font-size: 14px; }
 
-.form-row { display: flex; flex-direction: column; gap: 6px; }
-.form-label { font-size: 13px; color: #4b5563; font-weight: 500; }
-.form-tip { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 8px; }
-
-.pay-list { display: flex; flex-direction: column; gap: 8px; }
-.pay-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 2px solid #f3f4f6;
-  background: #fff;
-}
-.pay-item.active {
-  border-color: #667eea;
-  background: linear-gradient(135deg, #667eea08, #764ba208);
-}
-.pay-item.disabled { opacity: 0.5; }
-.pay-icon { font-size: 22px; }
-.pay-meta { flex: 1; }
-.pay-name { font-size: 14px; font-weight: 600; color: #1f2937; }
-.pay-desc { font-size: 11px; color: #9ca3af; margin-top: 2px; }
-.pay-check { color: #667eea; font-weight: 700; font-size: 18px; }
-
-.primary-btn {
-  background: linear-gradient(135deg, #11998e, #38ef7d);
-  color: #fff;
-  border: none;
-  height: 48px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-  width: 100%;
-  box-shadow: 0 4px 12px rgba(17,153,142,0.3);
-  transition: transform 0.15s;
-}
-.primary-btn:active { transform: scale(0.98); }
-.primary-btn:disabled { opacity: 0.6; }
-
-.empty-tip { text-align: center; color: #9ca3af; padding: 30px 0; font-size: 13px; }
-.order-list { display: flex; flex-direction: column; }
-.order-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #f3f4f6;
-}
-.order-item:last-child { border-bottom: none; }
-.order-left { flex: 1; min-width: 0; }
-.order-amount { font-size: 16px; font-weight: 700; color: #10b981; }
-.order-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
-.order-no { font-size: 10px; color: #9ca3af; font-family: monospace; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
-.order-status {
-  padding: 4px 12px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.order-status.paid { background: #d1fae5; color: #065f46; }
-.order-status.pending { background: #fef3c7; color: #92400e; }
-.order-status.failed { background: #fee2e2; color: #991b1b; }
-.order-status.refunded { background: #e0e7ff; color: #3730a3; }
-
-.amount-chip.chip-pro {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
-  border: 2px solid #a5b4fc;
-}
-.amount-chip.chip-pro.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  border-color: #4f46e5;
-}
-.amount-chip.chip-enterprise {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border: 2px solid #f59e0b;
-}
-.amount-chip.chip-enterprise.active {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #fff;
-  border-color: #b45309;
-}
-.chip-label { font-size: 16px; font-weight: 700; }
-.chip-bonus {
-  font-size: 11px; margin-top: 2px; opacity: 0.85;
-}
-.chip-tier-tag {
-  font-size: 10px; margin-top: 4px;
-  padding: 1px 6px; border-radius: 4px;
-  background: rgba(0,0,0,0.08);
-  display: inline-block;
-}
-.amount-chip.chip-pro.active .chip-tier-tag,
-.amount-chip.chip-enterprise.active .chip-tier-tag {
-  background: rgba(255,255,255,0.25);
-}
-
-
-.plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* 套餐卡片 */
+.plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .plan-card {
-  border-radius: 14px;
-  padding: 16px 12px;
-  text-align: center;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: all 0.15s;
+  border-radius: 16px; padding: 16px 12px;
+  position: relative; overflow: hidden;
 }
-.plan-card:active { transform: scale(0.97); }
-.plan-pro {
-  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-  color: #4338ca;
+.plan-card.pro { background: linear-gradient(145deg, #667eea 0%, #764ba2 100%); color: #fff; }
+.plan-card.enterprise { background: linear-gradient(145deg, #f093fb 0%, #f5576c 100%); color: #fff; }
+.plan-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border-radius: 10px; background: rgba(255,255,255,0.25); color: #fff;
+  display: inline-block; margin-bottom: 8px;
 }
-.plan-pro.active { border-color: #6366f1; box-shadow: 0 4px 14px rgba(99,102,241,0.25); }
-.plan-enterprise {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #92400e;
+.plan-badge.premium { background: rgba(255,255,255,0.25); }
+.plan-icon { font-size: 28px; margin-bottom: 6px; }
+.plan-name { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.plan-price { margin-bottom: 4px; }
+.price-num { font-size: 26px; font-weight: 800; color: #fff; }
+.plan-card.enterprise .price-num { color: #fff; }
+.price-unit { font-size: 12px; color: rgba(255,255,255,0.8); }
+.plan-bonus { font-size: 11px; color: rgba(255,255,255,0.9); font-weight: 600; margin-bottom: 10px; }
+.plan-features { list-style: none; padding: 0; margin: 0 0 12px; }
+.plan-features li { font-size: 12px; color: rgba(255,255,255,0.9); margin-bottom: 4px; display: flex; gap: 4px; }
+.ok { color: #a7f3d0; }
+.muted { color: rgba(255,255,255,0.4); }
+.plan-redeem-tip {
+  font-size: 11px; color: rgba(255,255,255,0.8); text-align: center;
+  background: rgba(255,255,255,0.15); border-radius: 8px;
+  padding: 6px; margin-top: 4px;
 }
-.plan-enterprise.active { border-color: #f59e0b; box-shadow: 0 4px 14px rgba(245,158,11,0.25); }
-.plan-name { font-size: 13px; font-weight: 600; opacity: 0.85; }
-.plan-price { font-size: 24px; font-weight: 800; margin: 4px 0; letter-spacing: -0.5px; }
-.plan-bonus { font-size: 12px; font-weight: 600; }
-.plan-period { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+
+/* 说明 */
+.note-card {
+  background: #f9fafb; border-radius: 16px;
+  padding: 16px; margin-bottom: 16px;
+}
+.note-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.note-list { padding-left: 16px; margin: 0; }
+.note-list li { font-size: 12px; color: #6b7280; margin-bottom: 6px; line-height: 1.5; }
+.link { color: #6366f1; text-decoration: none; }
+
+/* 充值记录 */
+.data-card {
+  background: #fff; border-radius: 16px;
+  padding: 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.card-header { display: flex; align-items: center; margin-bottom: 12px; }
+.card-title { font-size: 15px; font-weight: 600; }
+.empty-tip { text-align: center; color: #999; padding: 24px 0; font-size: 14px; }
+.order-list { display: flex; flex-direction: column; gap: 12px; }
+.order-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px; border-bottom: 1px solid #f3f4f6;
+}
+.order-item:last-child { border-bottom: none; padding-bottom: 0; }
+.order-amount { font-size: 16px; font-weight: 700; color: #1f2937; }
+.order-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+.order-no { font-size: 11px; color: #d1d5db; margin-top: 2px; }
+.order-status {
+  font-size: 12px; font-weight: 600; padding: 4px 10px;
+  border-radius: 20px;
+}
+.order-status.paid { background: #d1fae5; color: #059669; }
+.order-status.pending { background: #fef3c7; color: #d97706; }
+.order-status.failed { background: #fee2e2; color: #dc2626; }
+.redeem-preview { margin-top: 8px; font-size: 13px; font-weight: 500; }
+.query-btn { min-width: 60px; }
 </style>

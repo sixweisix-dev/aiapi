@@ -58,7 +58,7 @@ const routes = [
       { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue') },
       { path: 'api-keys', name: 'APIKeys', component: () => import('@/views/APIKeys.vue') },
       { path: 'recharge', name: 'Recharge', component: () => import('@/views/Recharge.vue') },
-      { path: 'membership', name: 'Membership', component: () => import('@/views/Membership.vue') },
+      { path: 'membership', redirect: '/recharge' },
       { path: 'billing', name: 'Billing', component: () => import('@/views/Billing.vue') },
       { path: 'models', name: 'Models', component: () => import('@/views/Models.vue') },
       { path: 'api-docs', name: 'ApiDocs', component: () => import('@/views/ApiDocs.vue') },
