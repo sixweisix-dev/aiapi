@@ -72,6 +72,8 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 			if err := tx.Exec(`UPDATE users SET balance=balance+? WHERE id=?`, actualAmount, userID).Error; err != nil {
 				return err
 			}
+			// 首充标记
+			tx.Exec(`UPDATE users SET first_recharge_at=? WHERE id=? AND first_recharge_at IS NULL`, now, userID)
 		}
 		if rc.Type == "membership" && rc.MembershipTier != "" && rc.MembershipTier != "free" {
 			var expiresAt time.Time
