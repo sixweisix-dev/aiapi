@@ -92,7 +92,11 @@ onMounted(async () => {
     const [modelData, keyData] = await Promise.all([userModelsAPI.list(), apiKeysAPI.list()])
     models.value = modelData.items || []
     apiKeys.value = keyData
-    if (models.value.length > 0) selectedModel.value = models.value[0].name
+    if (models.value.length > 0) {
+      // 优先选 Sonnet 4.6（速度快3倍）
+      const sonnet = models.value.find(m => m.name && m.name.includes('sonnet-4-6'))
+      selectedModel.value = sonnet ? sonnet.name : models.value[0].name
+    }
     if (apiKeys.value.length > 0) selectedKey.value = apiKeys.value[0].id
   } catch {}
 })
