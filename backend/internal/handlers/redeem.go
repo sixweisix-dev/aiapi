@@ -63,8 +63,8 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 	}
 
 	// 事务：标记已用 + 到账
+	now := time.Now()
 	err := h.db.Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
 		if err := tx.Exec(`UPDATE redeem_codes SET status='used',redeemed_by=?,redeemed_at=? WHERE id=? AND status='unused'`,
 			userID, now, rc.ID).Error; err != nil {
 			return err
@@ -77,20 +77,6 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 			tx.Exec(`UPDATE users SET first_recharge_at=? WHERE id=? AND first_recharge_at IS NULL`, now, userID)
 
 			// 查余额变化
-			var balBefore, balAfter float64
-			h.db.Raw(`SELECT balance FROM users WHERE id=?`, userID).Scan(&balBefore)
-			balAfter = balBefore + actualAmount
-
-			// 写充值记录
-			orderNo := fmt.Sprintf("REDEEM%d%s", now.UnixMilli(), rc.ID[:8])
-			if err2 := tx.Exec(`INSERT INTO recharge_orders(user_id,order_no,amount,bonus_amount,payment_method,payment_status,intent,paid_at,created_at,updated_at) VALUES(?,?,?,?,'redeem_code','paid','balance',?,NOW(),NOW())`, userID, orderNo, actualAmount, actualAmount-rc.FaceValue, now).Error; err2 != nil {
-				log.Printf("[Redeem] recharge_orders failed (non-fatal): %v", err2)
-			}
-			// 写消费明细
-			desc := fmt.Sprintf("兑换码充值 %s", code)
-			if err3 := tx.Exec(`INSERT INTO billing_records(user_id,type,amount,balance_before,balance_after,description,created_at) VALUES(?,'recharge',?,?,?,?,NOW())`, userID, actualAmount, balBefore, balAfter, desc).Error; err3 != nil {
-				log.Printf("[Redeem] billing_records failed (non-fatal): %v", err3)
-			}
 		}
 		if rc.Type == "membership" && rc.MembershipTier != "" && rc.MembershipTier != "free" {
 			var expiresAt time.Time
@@ -108,6 +94,21 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 		}
 		return nil
 	})
+
+	// 事务成功后写充值记录和消费明细（事务外，失败不影响余额）
+	if rc.Type == "balance" || actualAmount > 0 {
+		var balBefore float64
+		h.db.Raw(`SELECT balance-? FROM users WHERE id=?`, actualAmount, userID).Scan(&balBefore)
+		balAfter := balBefore + actualAmount
+		orderNo := fmt.Sprintf("REDEEM%d%s", now.UnixMilli(), rc.ID[:8])
+		if err2 := h.db.Exec(`INSERT INTO recharge_orders(user_id,order_no,amount,bonus_amount,payment_method,payment_status,intent,paid_at,created_at,updated_at) VALUES(?,?,?,?,'redeem_code','paid','balance',?,NOW(),NOW())`, userID, orderNo, actualAmount, actualAmount-rc.FaceValue, now).Error; err2 != nil {
+			log.Printf("[Redeem] recharge_orders failed: %v", err2)
+		}
+		desc := fmt.Sprintf("兑换码充值 %s", code)
+		if err3 := h.db.Exec(`INSERT INTO billing_records(user_id,type,amount,balance_before,balance_after,description,created_at) VALUES(?,'recharge',?,?,?,?,NOW())`, userID, actualAmount, balBefore, balAfter, desc).Error; err3 != nil {
+			log.Printf("[Redeem] billing_records failed: %v", err3)
+		}
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "兑换失败，请重试"})
 		return
@@ -189,6 +190,7 @@ func (h *RedeemHandler) AdminGenerateCodes(c *gin.Context) {
 		"count":    len(codes),
 		"codes":    codes,
 	})
+
 }
 
 // AdminListCodes 管理员查看兑换码
