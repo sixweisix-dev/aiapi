@@ -69,7 +69,6 @@
           <li><span class="ok">✓</span> API Key 数量 <b>5 个</b></li>
           <li><span class="ok">✓</span> 预算告警</li>
           <li><span class="ok">✓</span> CSV 账单导出</li>
-          <li><span class="ok">✓</span> 发票支持</li>
           <li><span class="muted">✗</span> SLA 保障（企业版独享）</li>
         </ul>
         <div class="plan-redeem-tip">购买专业版兑换码后在上方输入</div>
@@ -92,7 +91,6 @@
           <li><span class="ok">✓</span> API Key <b>不限数量</b></li>
           <li><span class="ok">✓</span> 预算告警</li>
           <li><span class="ok">✓</span> CSV 账单导出</li>
-          <li><span class="ok">✓</span> 发票支持</li>
           <li><span class="ok">✓</span> <b>SLA 99.5%</b></li>
           <li><span class="ok">✓</span> 优先技术支持</li>
         </ul>

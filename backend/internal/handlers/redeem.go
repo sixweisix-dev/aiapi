@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -82,15 +83,14 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 
 			// 写充值记录
 			orderNo := fmt.Sprintf("REDEEM%d%s", now.UnixMilli(), rc.ID[:8])
-			tx.Exec(`INSERT INTO recharge_orders(user_id,order_no,amount,bonus_amount,payment_method,payment_status,intent,paid_at,created_at,updated_at)
-				VALUES(?,?,?,?,'redeem_code','paid','balance',?,NOW(),NOW())`,
-				userID, orderNo, actualAmount, actualAmount-rc.FaceValue, now)
-
+			if err2 := tx.Exec(`INSERT INTO recharge_orders(user_id,order_no,amount,bonus_amount,payment_method,payment_status,intent,paid_at,created_at,updated_at) VALUES(?,?,?,?,'redeem_code','paid','balance',?,NOW(),NOW())`, userID, orderNo, actualAmount, actualAmount-rc.FaceValue, now).Error; err2 != nil {
+				log.Printf("[Redeem] recharge_orders failed (non-fatal): %v", err2)
+			}
 			// 写消费明细
 			desc := fmt.Sprintf("兑换码充值 %s", code)
-			tx.Exec(`INSERT INTO billing_records(user_id,type,amount,balance_before,balance_after,description,created_at)
-				VALUES(?,'recharge',?,?,?,?,NOW())`,
-				userID, actualAmount, balBefore, balAfter, desc)
+			if err3 := tx.Exec(`INSERT INTO billing_records(user_id,type,amount,balance_before,balance_after,description,created_at) VALUES(?,'recharge',?,?,?,?,NOW())`, userID, actualAmount, balBefore, balAfter, desc).Error; err3 != nil {
+				log.Printf("[Redeem] billing_records failed (non-fatal): %v", err3)
+			}
 		}
 		if rc.Type == "membership" && rc.MembershipTier != "" && rc.MembershipTier != "free" {
 			var expiresAt time.Time
