@@ -92,7 +92,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
-	redeemHandler := handlers.NewRedeemHandler(db)
+	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
 	userHandler := handlers.NewUserHandler(db)

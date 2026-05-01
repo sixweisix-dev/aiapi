@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -10,13 +11,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-type RedeemHandler struct{ db *gorm.DB }
+type RedeemHandler struct {
+	db  *gorm.DB
+	rdb *redis.Client
+}
 
-func NewRedeemHandler(db *gorm.DB) *RedeemHandler { return &RedeemHandler{db: db} }
+func NewRedeemHandler(db *gorm.DB, rdb *redis.Client) *RedeemHandler { return &RedeemHandler{db: db, rdb: rdb} }
 
 // RedeemCode 用户兑换
 func (h *RedeemHandler) RedeemCode(c *gin.Context) {
@@ -94,6 +100,11 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 		}
 		return nil
 	})
+
+	// 清除 Redis 余额缓存
+	if h.rdb != nil {
+		h.rdb.Del(context.Background(), "balance:"+userID)
+	}
 
 	// 事务成功后写充值记录和消费明细（事务外，失败不影响余额）
 	if rc.Type == "balance" || actualAmount > 0 {
