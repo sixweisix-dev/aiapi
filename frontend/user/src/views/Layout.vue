@@ -33,7 +33,7 @@
             <div class="user-avatar">{{ avatarLetter }}</div>
             <div class="user-meta">
               <div class="user-email">{{ user?.email }}</div>
-              <div class="user-tag">普通用户</div>
+              <div class="user-tag" :class="tierClass">{{ tierLabel }}</div>
             </div>
           </div>
           <div class="balance-block">
@@ -99,6 +99,20 @@ const menuItems = [
 const currentRoute = computed(() => route.path)
 const user = computed(() => auth.user)
 const avatarLetter = computed(() => (user.value?.email?.[0] || 'U').toUpperCase())
+const tierLabel = computed(() => {
+  const t = user.value?.membership_tier
+  const exp = user.value?.membership_expires_at
+  if (t === 'pro' && exp && new Date(exp) > new Date()) return '⭐ 专业版'
+  if (t === 'enterprise' && exp && new Date(exp) > new Date()) return '💎 企业版'
+  return '普通用户'
+})
+const tierClass = computed(() => {
+  const t = user.value?.membership_tier
+  const exp = user.value?.membership_expires_at
+  if (t === 'pro' && exp && new Date(exp) > new Date()) return 'tag-pro'
+  if (t === 'enterprise' && exp && new Date(exp) > new Date()) return 'tag-enterprise'
+  return ''
+})
 
 function navigateTo(path) {
   drawerOpen.value = false
@@ -132,6 +146,9 @@ onUnmounted(() => window.removeEventListener('balance-changed', balanceListener)
 watch(() => route.path, () => {
   if (route.path === '/dashboard') fetchBalance()
 })
+
+// 每次加载刷新用户信息（会员状态等）
+auth.fetchMe()
 </script>
 
 <style scoped>

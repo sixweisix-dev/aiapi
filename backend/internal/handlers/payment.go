@@ -298,31 +298,42 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 			return fmt.Errorf("failed to update order: %w", err)
 		}
 
-		// 读取赠送配置 + 判断是否首充
-		tiersJSON := GetSettingValue(h.db, "recharge_tiers", "")
-		firstBonusStr := GetSettingValue(h.db, "first_recharge_bonus", "0")
-		promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
+		// 按 intent 决定走会员套餐还是普通充值赠送
+		var actualAmount float64
+		var upgradeTier membership.Tier
+		var durationDays int
 
-		var firstBonusF float64
-		fmt.Sscanf(firstBonusStr, "%f", &firstBonusF)
-
+		// 判断是否首充(会员套餐也要记录)
 		var isFirstRecharge bool
 		var userRow models.User
 		if err := tx.Select("first_recharge_at").Where("id = ?", order.UserID).First(&userRow).Error; err == nil {
 			isFirstRecharge = userRow.FirstRechargeAt == nil
 		}
 
-		var tiersForCalc string
-		var firstForCalc float64
-		if promoEnabled {
-			tiersForCalc = tiersJSON
-			firstForCalc = firstBonusF
-		}
+		if rule, ok := membership.GetUpgradeByIntent(order.Intent); ok {
+			// 会员套餐: 直接用套餐规则
+			actualAmount = rule.BonusAmount
+			upgradeTier = rule.Tier
+			durationDays = rule.DurationDays
+		} else {
+			// 普通充值: 阶梯赠送 + 首充礼
+			tiersJSON := GetSettingValue(h.db, "recharge_tiers", "")
+			firstBonusStr := GetSettingValue(h.db, "first_recharge_bonus", "0")
+			promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
 
-		// 计算实际到账金额（含赠送）+ 是否升级会员
-		actualAmount, upgradeTier, durationDays, tierBonus, firstBonus := membership.CalculateBonus(order.Amount, order.Intent, tiersForCalc, firstForCalc, isFirstRecharge)
-		_ = tierBonus
-		_ = firstBonus
+			var firstBonusF float64
+			fmt.Sscanf(firstBonusStr, "%f", &firstBonusF)
+
+			var tiersForCalc string
+			var firstForCalc float64
+			if promoEnabled {
+				tiersForCalc = tiersJSON
+				firstForCalc = firstBonusF
+			}
+
+			_, _, _, tierBonus, firstBonus := membership.CalculateBonus(order.Amount, "balance", tiersForCalc, firstForCalc, isFirstRecharge)
+			actualAmount = order.Amount + tierBonus + firstBonus
+		}
 
 		// Atomic balance increment（基于实际到账金额，包含赠送部分）
 		var balanceBefore float64

@@ -43,10 +43,12 @@ type AuthResponse struct {
 }
 
 type UserBrief struct {
-	ID      string  `json:"id"`
-	Email   string  `json:"email"`
-	Role    string  `json:"role"`
-	Balance float64 `json:"balance"`
+	ID                  string  `json:"id"`
+	Email               string  `json:"email"`
+	Role                string  `json:"role"`
+	Balance             float64 `json:"balance"`
+	MembershipTier      string  `json:"membership_tier"`
+	MembershipExpiresAt *string `json:"membership_expires_at"`
 }
 
 func NewAuthHandler(db *gorm.DB, jwtSecret string, rdb *redis.Client, mailCfg MailConfig) *AuthHandler {
@@ -134,6 +136,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			Email:   user.Email,
 			Role:    user.Role,
 			Balance: user.Balance,
+			MembershipTier:      user.MembershipTier,
+			MembershipExpiresAt: formatTimePtr(user.MembershipExpiresAt),
 		},
 	})
 }
@@ -183,6 +187,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			Email:   user.Email,
 			Role:    user.Role,
 			Balance: user.Balance,
+			MembershipTier:      user.MembershipTier,
+			MembershipExpiresAt: formatTimePtr(user.MembershipExpiresAt),
 		},
 	})
 }
@@ -247,9 +253,13 @@ type UserModel struct {
 	RequestCount  int       `gorm:"not null;default:0"`
 	IsActive      bool      `gorm:"not null;default:true"`
 	EmailVerified bool      `gorm:"not null;default:false"`
-	LastLoginAt   *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	MembershipTier      string     `gorm:"type:varchar(20);not null;default:'free'"`
+	MembershipExpiresAt *time.Time
+	MembershipStartedAt *time.Time
+	FirstRechargeAt     *time.Time
+	LastLoginAt         *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 func (UserModel) TableName() string {
@@ -421,4 +431,12 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	DeleteToken(h.rdb, req.Token)
 	c.JSON(http.StatusOK, gin.H{"message": "密码重置成功"})
+}
+
+func formatTimePtr(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	v := t.Format(time.RFC3339)
+	return &v
 }

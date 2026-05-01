@@ -150,3 +150,9 @@ func EffectiveTier(tier Tier, expiresAt *time.Time) Tier {
 	}
 	return TierFree
 }
+
+// GetUpgradeByIntent 按 intent 查升级规则
+func GetUpgradeByIntent(intent string) (RechargeUpgrade, bool) {
+	rule, ok := RechargeRules[intent]
+	return rule, ok
+}
