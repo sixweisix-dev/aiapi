@@ -90,6 +90,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
+	redeemHandler := handlers.NewRedeemHandler(db)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
 	userHandler := handlers.NewUserHandler(db)
@@ -169,6 +170,9 @@ func main() {
 	}
 
 	// Alipay notify callback (no auth — Alipay sends the request directly)
+	r.POST("/v1/user/redeem", middleware.JWTAuth(cfg.JWTSecret), redeemHandler.RedeemCode)
+	r.POST("/v1/admin/redeem-codes/generate", middleware.JWTAuth(cfg.JWTSecret), middleware.AdminRequired(), redeemHandler.AdminGenerateCodes)
+	r.GET("/v1/admin/redeem-codes", middleware.JWTAuth(cfg.JWTSecret), middleware.AdminRequired(), redeemHandler.AdminListCodes)
 	r.POST("/v1/internal/daily-report", cronHandler.DailyReport)
 	r.POST("/v1/recharge/alipay/notify", paymentHandler.AlipayNotify)
 	r.GET("/v1/recharge/alipay/return", paymentHandler.AlipayReturn)

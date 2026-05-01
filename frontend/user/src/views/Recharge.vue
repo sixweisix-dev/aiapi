@@ -5,7 +5,7 @@
       <div class="hero-bg-shape"></div>
       <div class="hero-emoji">💳</div>
       <div class="hero-title">余额充值</div>
-      <div class="hero-sub">支付宝快捷充值，到账秒级</div>
+      <div class="hero-sub">充值余额即刻到账，安全可靠</div>
     </div>
 
     <!-- 充值优惠规则 -->
@@ -44,35 +44,11 @@
         <label class="form-label">自定义金额 (¥)</label>
         <el-input-number v-model="rechargeForm.amount" :min="1" :max="100000" :step="10" size="large" style="width:100%" />
       </div>
-      <div class="form-row" style="margin-top:14px">
-        <label class="form-label">支付方式</label>
-        <div class="pay-list">
-          <div class="pay-item active">
-            <span class="pay-icon">💙</span>
-            <div class="pay-meta">
-              <div class="pay-name">支付宝</div>
-              <div class="pay-desc">推荐 · 即时到账</div>
-            </div>
-            <span class="pay-check">✓</span>
-          </div>
-          <div class="pay-item disabled">
-            <span class="pay-icon">💳</span>
-            <div class="pay-meta">
-              <div class="pay-name">Stripe</div>
-              <div class="pay-desc">即将支持</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <button class="primary-btn" :disabled="submitting" @click="handleRecharge" style="margin-top:18px">
-        <span v-if="submitting">处理中...</span>
-        <span v-else>立即支付 ¥{{ rechargeForm.amount }}</span>
-      </button>
       <div v-if="totalBonus > 0" class="bonus-preview">
-        ✨ 实际到账 <b>¥{{ (rechargeForm.amount + totalBonus).toFixed(2) }}</b>
+        ✨ 兑换后实际到账 <b>¥{{ (rechargeForm.amount + totalBonus).toFixed(2) }}</b>
         <span class="bonus-detail">（本金 ¥{{ rechargeForm.amount }} + 赠送 ¥{{ totalBonus.toFixed(2) }}）</span>
       </div>
-      <div class="form-tip">充值金额将立即计入账户余额，由支付宝安全处理</div>
+      <div class="form-tip">充值余额将立即计入账户，支持兑换码直接到账</div>
     </div>
 
     <!-- 充值记录 -->
@@ -92,6 +68,32 @@
           </span>
         </div>
       </div>
+
+      <!-- 兑换码 -->
+      <div class="recharge-card" style="margin-top:16px">
+        <div class="card-title">🎁 兑换码</div>
+        <div class="card-body">
+          <div class="redeem-row">
+            <el-input
+              v-model="redeemCode"
+              placeholder="输入兑换码，格式 XXXX-XXXX-XXXX-XXXX"
+              size="large"
+              :disabled="redeeming"
+              @keyup.enter="doRedeem"
+              style="flex:1"
+            />
+            <el-button
+              type="success"
+              size="large"
+              :loading="redeeming"
+              @click="doRedeem"
+              style="margin-left:8px;min-width:90px"
+            >兑换</el-button>
+          </div>
+          <div v-if="redeemMsg" :class="redeemOk ? 'redeem-ok' : 'redeem-err'">{{ redeemMsg }}</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -141,7 +143,7 @@ const presetAmounts = [
   { value: 500, label: '¥500' },
   { value: 1000, label: '¥1000' },
 ]
-const rechargeForm = reactive({ amount: 100, method: 'alipay' })
+const rechargeForm = reactive({ amount: 100, method: 'alipay' }) // method kept for API compat
 
 onMounted(() => { fetchOrders(); loadPromo() })
 
