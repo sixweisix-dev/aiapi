@@ -219,6 +219,7 @@ func main() {
 		// Settings
 		admin.GET("/settings", adminHandler.GetSettings)
 		admin.PUT("/settings", adminHandler.UpdateSettings)
+		admin.POST("/restock", cronHandler.AdminRestock)
 	}
 
 	// === User Dashboard & Frontend API (JWT required) ===

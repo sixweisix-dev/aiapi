@@ -60,7 +60,7 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 	}
 
 	// 检查活动开关
-	promoEnabled := GetSettingValue(h.db, "promo_enabled", "true") == "true"
+	promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
 
 	// 计算实际到账金额：活动关闭则用面值
 	actualAmount := rc.BalanceAmount
@@ -271,7 +271,7 @@ func (h *RedeemHandler) PreviewCode(c *gin.Context) {
 		fmt.Sscanf(val, "%f", &firstBonus)
 	}
 
-	promoEnabled := GetSettingValue(h.db, "promo_enabled", "true") == "true"
+	promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
 	actualAmount := rc.BalanceAmount
 	if !promoEnabled && rc.FaceValue > 0 {
 		actualAmount = rc.FaceValue

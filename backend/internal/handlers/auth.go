@@ -195,14 +195,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Me returns current user info (requires JWT middleware).
 func (h *AuthHandler) Me(c *gin.Context) {
-	claims, exists := c.Get("claims")
+	userIDRaw, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-
-	jwtClaims := claims.(*middleware.Claims)
-	userID := jwtClaims.UserID
+	userID := userIDRaw.(string)
 
 	var user UserModel
 	if err := h.db.First(&user, "id = ?", userID).Error; err != nil {
@@ -211,16 +209,18 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":             user.ID.String(),
-		"email":          user.Email,
-		"username":       user.Username,
-		"role":           user.Role,
-		"balance":        user.Balance,
-		"total_spent":    user.TotalSpent,
-		"request_count":  user.RequestCount,
-		"is_active":      user.IsActive,
-		"email_verified": user.EmailVerified,
-		"created_at":     user.CreatedAt,
+		"id":                    user.ID.String(),
+		"email":                 user.Email,
+		"username":              user.Username,
+		"role":                  user.Role,
+		"balance":               user.Balance,
+		"total_spent":           user.TotalSpent,
+		"request_count":         user.RequestCount,
+		"is_active":             user.IsActive,
+		"email_verified":        user.EmailVerified,
+		"membership_tier":       user.MembershipTier,
+		"membership_expires_at": formatTimePtr(user.MembershipExpiresAt),
+		"created_at":            user.CreatedAt,
 	})
 }
 

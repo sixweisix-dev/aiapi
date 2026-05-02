@@ -32,7 +32,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = res
         localStorage.setItem('user_user', JSON.stringify(res))
       } catch {
-        this.logout()
+        // 静默失败, 不强制退出(token 可能只是暂时失效)
       }
     },
     logout() {

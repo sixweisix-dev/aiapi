@@ -44,6 +44,21 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="membership_tier" label="会员等级" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.membership_tier === 'pro'" type="warning" size="small">专业版</el-tag>
+            <el-tag v-else-if="row.membership_tier === 'enterprise'" type="danger" size="small">企业版</el-tag>
+            <span v-else style="color:#9ca3af;font-size:12px">免费版</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="membership_expires_at" label="会员到期" width="120">
+          <template #default="{ row }">
+            <span v-if="row.membership_expires_at" style="font-size:12px">
+              {{ dayjs(row.membership_expires_at).format('YYYY-MM-DD') }}
+            </span>
+            <span v-else style="color:#9ca3af;font-size:12px">—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="created_at" label="注册时间" width="170">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
@@ -76,10 +91,8 @@
       <el-form :model="editForm" label-width="100px">
         <el-form-item label="角色">
           <el-select v-model="editForm.role">
-            <el-option label="普通" value="user" />
-            <el-option label="VIP" value="vip" />
+            <el-option label="普通用户" value="user" />
             <el-option label="管理员" value="admin" />
-            <el-option label="游客" value="guest" />
           </el-select>
         </el-form-item>
         <el-form-item label="调整余额">
@@ -88,6 +101,17 @@
         </el-form-item>
         <el-form-item label="邮箱验证">
           <el-switch v-model="editForm.email_verified" />
+        </el-form-item>
+        <el-form-item label="会员等级">
+          <el-select v-model="editForm.membership_tier" style="width:140px">
+            <el-option label="免费版" value="free" />
+            <el-option label="专业版 (Pro)" value="pro" />
+            <el-option label="企业版 (Enterprise)" value="enterprise" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="会员天数" v-if="editForm.membership_tier !== 'free'">
+          <el-input-number v-model="editForm.membership_days" :min="0" :max="3650" :step="30" />
+          <div style="font-size:11px;color:#9ca3af;margin-top:4px">0=清除会员；>0=从现在起顺延N天</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -113,7 +137,7 @@ const total = ref(0)
 const dialogVisible = ref(false)
 
 const query = ref({ search: '', role: '' })
-const editForm = ref({ role: 'user', balance_adjust: 0, email_verified: false })
+const editForm = ref({ role: 'user', balance_adjust: 0, email_verified: false, membership_tier: 'free', membership_days: 30 })
 const editingUser = ref(null)
 
 function formatTime(t) {
@@ -142,6 +166,8 @@ function openEdit(row) {
     role: row.role,
     balance_adjust: 0,
     email_verified: row.email_verified,
+    membership_tier: row.membership_tier || 'free',
+    membership_days: 30,
   }
   dialogVisible.value = true
 }
@@ -154,6 +180,13 @@ async function handleSave() {
     if (editForm.value.role !== editingUser.value.role) data.role = editForm.value.role
     if (editForm.value.balance_adjust !== 0) data.balance_adjust = editForm.value.balance_adjust
     if (editForm.value.email_verified !== editingUser.value.email_verified) data.email_verified = editForm.value.email_verified
+    const origTier = editingUser.value.membership_tier || 'free'
+    if (editForm.value.membership_tier !== origTier) {
+      data.membership_tier = editForm.value.membership_tier
+      data.membership_days = editForm.value.membership_tier === 'free' ? 0 : (editForm.value.membership_days || 30)
+    } else if (editForm.value.membership_tier !== 'free' && editForm.value.membership_days > 0) {
+      data.membership_days = editForm.value.membership_days
+    }
     if (Object.keys(data).length === 0) {
       ElMessage.info('没有修改')
       return

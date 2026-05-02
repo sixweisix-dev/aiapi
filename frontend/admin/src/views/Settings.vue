@@ -79,7 +79,7 @@
                 <span></span>
               </div>
               <div v-for="(t, idx) in tiers" :key="idx" class="tier-row">
-                <span class="tier-min-fixed">¥{{ t.min }}</span>
+                <el-input-number v-model="t.min" :min="1" :precision="0" :step="100" controls-position="right" @change="tiers.sort((a,b)=>a.min-b.min)" />
                 <el-input-number v-model="t.bonus" :min="0" :precision="2" controls-position="right" />
                 <span class="ratio" :class="ratioClass(t)">{{ ratio(t) }}</span>
                 <span class="ratio" :class="profitClass(t)">{{ profit(t) }}</span>
@@ -272,7 +272,6 @@ async function save() {
       announcement: announcement.value,
       allow_registration: allowRegistration.value ? 'true' : 'false',
       recharge_promo_enabled: promoEnabled.value ? 'true' : 'false',
-      promo_enabled: promoEnabled.value ? 'true' : 'false',
       promo_start: promoStart.value || '',
       promo_end: promoEnd.value || '',
       first_recharge_bonus: String(firstRechargeBonus.value),

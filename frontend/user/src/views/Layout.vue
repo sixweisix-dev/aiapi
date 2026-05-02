@@ -147,8 +147,8 @@ watch(() => route.path, () => {
   if (route.path === '/dashboard') fetchBalance()
 })
 
-// 每次加载刷新用户信息（会员状态等）
-auth.fetchMe()
+// 每次加载刷新用户信息（会员状态等，仅已登录时）
+if (auth.isLoggedIn) auth.fetchMe()
 </script>
 
 <style scoped>

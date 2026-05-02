@@ -1,14 +1,32 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <h2>🎁 兑换码管理</h2>
-      <el-button type="primary" @click="showGenerate = true">+ 生成新码</el-button>
+    <!-- 顶部操作栏 -->
+    <div class="data-card filter-card">
+      <div class="filter-title">🎁 兑换码管理</div>
+      <div class="filter-row">
+        <el-select v-model="filter.status" placeholder="状态" clearable size="small" style="width:110px">
+          <el-option label="未使用" value="unused" />
+          <el-option label="已使用" value="used" />
+        </el-select>
+        <el-input v-model="filter.note" placeholder="备注/档位" clearable size="small" style="width:160px" />
+        <el-input v-model="filter.code" placeholder="搜索兑换码" clearable size="small" style="width:180px" />
+        <el-button type="primary" size="small" @click="fetchCodes">🔍 查询</el-button>
+        <el-button size="small" @click="exportCodes">📥 导出未使用</el-button>
+        <el-button type="success" size="small" @click="showGenerate = true">+ 生成新码</el-button>
+      </div>
     </div>
 
     <!-- 库存概览 -->
     <div class="stock-grid">
-      <div v-for="s in stockList" :key="s.note" class="stock-card" :class="{ low: s.unused <= s.threshold }">
-        <div class="stock-note">{{ s.note }}</div>
+      <div
+        v-for="s in stockList" :key="s.note"
+        class="stock-card" :class="{ low: s.unused <= s.threshold, expanded: expandedNote === s.note }"
+        @click="toggleExpand(s.note)"
+      >
+        <div class="stock-card-header">
+          <div class="stock-note">{{ s.note }}</div>
+          <span class="stock-arrow">{{ expandedNote === s.note ? '▲' : '▼' }}</span>
+        </div>
         <div class="stock-count">
           <span class="stock-num" :class="{ low: s.unused <= s.threshold }">{{ s.unused }}</span>
           <span class="stock-unit">个可用</span>
@@ -17,61 +35,37 @@
           <div class="stock-bar-fill" :style="{ width: Math.min(100, s.unused / s.total * 100) + '%', background: s.unused <= s.threshold ? '#f56c6c' : '#67c23a' }"></div>
         </div>
         <div class="stock-meta">总计 {{ s.total }} 个 · 已用 {{ s.used }} 个</div>
-        <el-button v-if="s.unused <= s.threshold" size="small" type="danger" @click="triggerRestock">⚠️ 立即补货</el-button>
-      </div>
-    </div>
+        <el-button v-if="s.unused <= s.threshold" size="small" type="danger" @click.stop="triggerRestock">⚠️ 立即补货</el-button>
 
-    <!-- 筛选 -->
-    <div class="data-card filter-card">
-      <div class="filter-row">
-        <el-select v-model="filter.status" placeholder="状态" clearable size="small" style="width:110px">
-          <el-option label="未使用" value="unused" />
-          <el-option label="已使用" value="used" />
-        </el-select>
-        <el-input v-model="filter.note" placeholder="备注/档位" clearable size="small" style="width:160px" />
-        <el-input v-model="filter.code" placeholder="搜索兑换码" clearable size="small" style="width:180px" />
-        <el-button type="primary" size="small" @click="fetchCodes">查询</el-button>
-        <el-button size="small" @click="exportCodes">导出未使用</el-button>
-      </div>
-    </div>
-
-    <!-- 兑换码列表 -->
-    <div class="data-card">
-      <div class="card-header">
-        <span class="card-title">兑换码列表</span>
-        <span class="card-tag">{{ codes.length }} 条</span>
-      </div>
-      <div v-if="loading" class="empty">加载中...</div>
-      <div v-else-if="codes.length === 0" class="empty">暂无数据</div>
-      <div v-else class="code-list">
-        <div v-for="c in codes" :key="c.id" class="code-item">
-          <div class="code-main">
-            <span class="code-text">{{ c.code }}</span>
-            <el-tag :type="c.status === 'unused' ? 'success' : 'info'" size="small">{{ c.status === 'unused' ? '未使用' : '已使用' }}</el-tag>
-          </div>
-          <div class="code-meta">
-            <span>{{ c.note }}</span>
-            <span v-if="c.balance_amount > 0">余额 ¥{{ c.balance_amount }}</span>
-            <span v-if="c.membership_tier !== 'free'">{{ c.membership_tier }} {{ c.membership_days }}天</span>
-            <span v-if="c.redeemed_at">{{ dayjs(c.redeemed_at).format('MM-DD HH:mm') }} 兑换</span>
+        <!-- 展开的兑换码列表 -->
+        <div v-if="expandedNote === s.note" class="card-code-list" @click.stop>
+          <div v-if="cardCodesLoading" class="card-codes-empty">加载中...</div>
+          <div v-else-if="groupedCodes[s.note]?.length === 0" class="card-codes-empty">暂无数据</div>
+          <div v-else class="code-list">
+            <div v-for="c in groupedCodes[s.note]" :key="c.id" class="code-item">
+              <div class="code-main">
+                <span class="code-text">{{ c.code }}</span>
+                <el-tag :type="c.status === 'unused' ? 'success' : 'info'" size="small">{{ c.status === 'unused' ? '未使用' : '已使用' }}</el-tag>
+              </div>
+              <div class="code-meta">
+                <span v-if="c.balance_amount > 0">余额 ¥{{ c.balance_amount }}</span>
+                <span v-if="c.membership_tier !== 'free'">{{ c.membership_tier }} {{ c.membership_days }}天</span>
+                <span v-if="c.redeemed_at">{{ dayjs(c.redeemed_at).format('MM-DD HH:mm') }} 兑换</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
+
+
     <!-- 生成对话框 -->
     <el-dialog v-model="showGenerate" title="批量生成兑换码" width="360px">
       <el-form label-position="top">
         <el-form-item label="档位">
-          <el-select v-model="genForm.preset" placeholder="选择档位" @change="applyPreset" style="width:100%">
-            <el-option label="¥100充值码（到账¥108）" value="100" />
-            <el-option label="¥300充值码（到账¥330）" value="300" />
-            <el-option label="¥500充值码（到账¥575）" value="500" />
-            <el-option label="¥1000充值码（到账¥1200）" value="1000" />
-            <el-option label="¥3000充值码（到账¥3750）" value="3000" />
-            <el-option label="专业版会员30天" value="pro" />
-            <el-option label="企业版会员30天" value="enterprise" />
-            <el-option label="自定义" value="custom" />
+          <el-select v-model="genForm.preset" placeholder="选择档位（从系统设置阶梯同步）" @change="applyPreset" style="width:100%">
+            <el-option v-for="opt in tierOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="数量">
@@ -103,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import dayjs from 'dayjs'
@@ -115,24 +109,78 @@ const showResult = ref(false)
 const generating = ref(false)
 const resultCodes = ref([])
 const stockList = ref([])
+const settingTiers = ref([]) // 从 Settings 读取的阶梯规则
+const firstBonus = ref(0)   // 首充礼金额
 
 const filter = ref({ status: 'unused', note: '', code: '' })
+const openGroups = ref([])
+const expandedNote = ref(null)
+const cardCodesLoading = ref(false)
 
-const presets = {
-  '100':        { type: 'balance', balance_amount: 108, membership_tier: 'free', membership_days: 0, note: '闲鱼¥100充值码', expiry_days: 180, count: 20 },
-  '300':        { type: 'balance', balance_amount: 330, membership_tier: 'free', membership_days: 0, note: '闲鱼¥300充值码', expiry_days: 180, count: 10 },
-  '500':        { type: 'balance', balance_amount: 575, membership_tier: 'free', membership_days: 0, note: '闲鱼¥500充值码', expiry_days: 180, count: 10 },
-  '1000':       { type: 'balance', balance_amount: 1200, membership_tier: 'free', membership_days: 0, note: '闲鱼¥1000充值码', expiry_days: 180, count: 5 },
-  '3000':       { type: 'balance', balance_amount: 3750, membership_tier: 'free', membership_days: 0, note: '闲鱼¥3000充值码', expiry_days: 180, count: 3 },
-  'pro':        { type: 'membership', balance_amount: 120, membership_tier: 'pro', membership_days: 30, note: '闲鱼专业版30天', expiry_days: 180, count: 10 },
-  'enterprise': { type: 'membership', balance_amount: 600, membership_tier: 'enterprise', membership_days: 30, note: '闲鱼企业版30天', expiry_days: 180, count: 5 },
+// 加载阶梯规则（用于动态生成档位）
+async function loadSettings() {
+  try {
+    const res = await api.get('/admin/settings')
+    try { settingTiers.value = JSON.parse(res.recharge_tiers || '[]') } catch { settingTiers.value = [] }
+    firstBonus.value = parseFloat(res.first_recharge_bonus || '0')
+  } catch {}
 }
 
-const genForm = ref({ preset: '100', type: 'balance', balance_amount: 108, membership_tier: 'free', membership_days: 0, note: '闲鱼¥100充值码', expiry_days: 180, count: 20 })
+// 动态档位列表（基于 settingTiers）
+const tierOptions = computed(() => {
+  const opts = settingTiers.value.map(t => ({
+    value: String(t.min),
+    label: `¥${t.min} 充值码（到账 ¥${(t.min + t.bonus).toFixed(0)}）`,
+    type: 'balance',
+    balance_amount: t.min + t.bonus,
+    face_value: t.min,
+    note: `闲鱼¥${t.min}充值码`,
+    expiry_days: 180,
+    count: t.min >= 1000 ? 5 : t.min >= 500 ? 10 : 20,
+  }))
+  opts.push({ value: 'pro', label: '专业版会员30天', type: 'membership', balance_amount: 120, face_value: 99, membership_tier: 'pro', membership_days: 30, note: '闲鱼专业版30天', expiry_days: 180, count: 10 })
+  opts.push({ value: 'enterprise', label: '企业版会员30天', type: 'membership', balance_amount: 600, face_value: 499, membership_tier: 'enterprise', membership_days: 30, note: '闲鱼企业版30天', expiry_days: 180, count: 5 })
+  opts.push({ value: 'custom', label: '自定义' })
+  return opts
+})
+
+async function toggleExpand(note) {
+  if (expandedNote.value === note) {
+    expandedNote.value = null
+    return
+  }
+  expandedNote.value = note
+  // 触发加载该分组数据
+  if (!codes.value.length || !groupedCodes.value[note]) {
+    cardCodesLoading.value = true
+    await fetchCodes()
+    cardCodesLoading.value = false
+  }
+}
+
+const groupedCodes = computed(() => {
+  const map = {}
+  for (const c of codes.value) {
+    const key = c.note || '未分类'
+    if (!map[key]) map[key] = []
+    map[key].push(c)
+  }
+  return map
+})
+
+const genForm = ref({ preset: '', type: 'balance', balance_amount: 0, face_value: 0, membership_tier: 'free', membership_days: 0, note: '', expiry_days: 180, count: 20 })
 
 function applyPreset(val) {
-  if (val !== 'custom' && presets[val]) {
-    Object.assign(genForm.value, presets[val])
+  const opt = tierOptions.value.find(o => o.value === val)
+  if (opt && val !== 'custom') {
+    genForm.value.type = opt.type || 'balance'
+    genForm.value.balance_amount = opt.balance_amount || 0
+    genForm.value.face_value = opt.face_value || opt.balance_amount || 0
+    genForm.value.membership_tier = opt.membership_tier || 'free'
+    genForm.value.membership_days = opt.membership_days || 0
+    genForm.value.note = opt.note || ''
+    genForm.value.expiry_days = opt.expiry_days || 180
+    genForm.value.count = opt.count || 10
   }
 }
 
@@ -147,6 +195,8 @@ async function fetchCodes() {
     if (filter.value.code) list = list.filter(c => c.code.includes(filter.value.code.toUpperCase()))
     if (filter.value.note) list = list.filter(c => (c.note || '').includes(filter.value.note))
     codes.value = list
+    // 默认展开所有分组
+    openGroups.value = [...new Set(list.map(c => c.note || '未分类'))]
   } catch (e) {
     ElMessage.error('加载失败')
   } finally {
@@ -155,36 +205,34 @@ async function fetchCodes() {
 }
 
 async function fetchStock() {
-  const noteConfigs = [
-    { note: '闲鱼¥100充值码', threshold: 5 },
-    { note: '闲鱼¥300充值码', threshold: 3 },
-    { note: '闲鱼¥500充值码', threshold: 3 },
-    { note: '闲鱼¥1000充值码', threshold: 2 },
-    { note: '闲鱼¥3000充值码', threshold: 1 },
-    { note: '闲鱼专业版30天', threshold: 3 },
-    { note: '闲鱼企业版30天', threshold: 1 },
-  ]
-  const results = []
-  for (const cfg of noteConfigs) {
-    try {
-      const all = await api.get('/admin/redeem-codes', { params: {} })
-      const list = (all.codes || []).filter(c => c.note === cfg.note)
-      const unused = list.filter(c => c.status === 'unused').length
-      const used = list.filter(c => c.status === 'used').length
-      results.push({ note: cfg.note, unused, used, total: list.length, threshold: cfg.threshold })
-    } catch {}
-  }
-  stockList.value = results
+  try {
+    const all = await api.get('/admin/redeem-codes', { params: {} })
+    const list = all.codes || []
+    // 按 note 自动分组，动态统计库存
+    const map = {}
+    for (const c of list) {
+      const key = c.note || '未分类'
+      if (!map[key]) map[key] = { note: key, unused: 0, used: 0, total: 0, threshold: 3 }
+      map[key].total++
+      if (c.status === 'unused') map[key].unused++
+      else map[key].used++
+    }
+    // 按档位金额排序（会员放最后）
+    stockList.value = Object.values(map).sort((a, b) => {
+      const getNum = n => { const m = n.match(/¥(\d+)/); return m ? Number(m[1]) : 99999 }
+      return getNum(a.note) - getNum(b.note)
+    })
+  } catch {}
 }
 
 async function triggerRestock() {
   try {
-    const token = localStorage.getItem('admin_token')
-    await fetch('/v1/internal/restock-check', {
-      method: 'POST',
-      headers: { 'X-Cron-Token': token || '', 'Content-Type': 'application/json' }
-    })
-    ElMessage.success('已触发补货，邮件通知将发送到告警邮箱')
+    const res = await api.post('/admin/restock')
+    if (res.message) {
+      ElMessage.info(res.message)
+    } else {
+      ElMessage.success(`已补货 ${res.restocked} 个档位，邮件通知将发送到告警邮箱`)
+    }
     await fetchStock()
   } catch {
     ElMessage.error('补货失败')
@@ -228,7 +276,8 @@ function exportCodes() {
   const a = document.createElement('a'); a.href = url; a.download = 'unused_codes.txt'; a.click()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadSettings()
   fetchCodes()
   fetchStock()
 })
@@ -236,8 +285,7 @@ onMounted(() => {
 
 <style scoped>
 .page { padding: 24px; max-width: 1200px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.page-header h2 { margin: 0; font-size: 20px; }
+.filter-title { font-size: 18px; font-weight: 700; color: #1f2937; margin-bottom: 12px; }
 
 .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stock-card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1.5px solid #e5e7eb; }
@@ -267,4 +315,23 @@ onMounted(() => {
 .code-meta { display: flex; gap: 12px; font-size: 12px; color: #9ca3af; flex-wrap: wrap; }
 
 .result-info { margin-bottom: 12px; font-size: 14px; color: #4b5563; }
+
+.code-collapse { border: none; }
+.code-collapse :deep(.el-collapse-item__header) {
+  background: #f9fafb; border-radius: 10px; padding: 0 16px;
+  font-size: 14px; border: 1px solid #e5e7eb; margin-bottom: 8px;
+}
+.code-collapse :deep(.el-collapse-item__wrap) { border: none; }
+.code-collapse :deep(.el-collapse-item__content) { padding: 0 0 12px; }
+.group-title { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.group-note { font-weight: 600; color: #1f2937; }
+.group-count { display: flex; align-items: center; margin-right: 24px; }
+
+.stock-card { cursor: pointer; transition: box-shadow 0.2s; }
+.stock-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.stock-card.expanded { border-color: #6366f1; }
+.stock-card-header { display: flex; justify-content: space-between; align-items: center; }
+.stock-arrow { font-size: 10px; color: #9ca3af; }
+.card-code-list { margin-top: 14px; border-top: 1px solid #f3f4f6; padding-top: 12px; max-height: 400px; overflow-y: auto; }
+.card-codes-empty { text-align: center; color: #9ca3af; padding: 20px 0; font-size: 13px; }
 </style>

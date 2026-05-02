@@ -81,7 +81,7 @@
         <div class="quick-icon">💳</div>
         <div class="quick-text">
           <div class="quick-title">立即充值</div>
-          <div class="quick-sub">支付宝快捷充值</div>
+          <div class="quick-sub">闲鱼下单兑换</div>
         </div>
       </div>
       <div class="quick-btn quick-play" @click="$router.push('/playground')">

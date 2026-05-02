@@ -134,6 +134,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { rechargeAPI, dashboardAPI } from '@/utils/api'
+import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 import dayjs from 'dayjs'
 
@@ -167,6 +168,7 @@ async function fetchOrders() {
 }
 
 // 兑换码
+const auth = useAuthStore()
 const redeemCode = ref('')
 const redeeming = ref(false)
 const redeemMsg = ref('')
@@ -260,6 +262,7 @@ const doRedeem = async () => {
     previewDisplay.value = ''
     redeemCode.value = ''
     await fetchUserInfo()
+    await auth.fetchMe()
     await fetchOrders()
   } catch (e) {
     redeemOk.value = false

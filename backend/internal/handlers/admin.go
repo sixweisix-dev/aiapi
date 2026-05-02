@@ -58,24 +58,28 @@ func (h *AdminHandler) DashboardStats(c *gin.Context) {
 // ---- User Management ----
 
 type UserListItem struct {
-	ID            string     `json:"id"`
-	Email         string     `json:"email"`
-	Username      *string    `json:"username"`
-	Role          string     `json:"role"`
-	Balance       float64    `json:"balance"`
-	TotalSpent    float64    `json:"total_spent"`
-	RequestCount  int        `json:"request_count"`
-	IsActive      bool       `json:"is_active"`
-	EmailVerified bool       `json:"email_verified"`
-	LastLoginAt   *time.Time `json:"last_login_at"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID                  string     `json:"id"`
+	Email               string     `json:"email"`
+	Username            *string    `json:"username"`
+	Role                string     `json:"role"`
+	Balance             float64    `json:"balance"`
+	TotalSpent          float64    `json:"total_spent"`
+	RequestCount        int        `json:"request_count"`
+	IsActive            bool       `json:"is_active"`
+	EmailVerified       bool       `json:"email_verified"`
+	MembershipTier      string     `json:"membership_tier"`
+	MembershipExpiresAt *time.Time `json:"membership_expires_at"`
+	LastLoginAt         *time.Time `json:"last_login_at"`
+	CreatedAt           time.Time  `json:"created_at"`
 }
 
 type UpdateUserRequest struct {
-	Role          *string  `json:"role,omitempty" binding:"omitempty,oneof=guest user vip admin"`
-	IsActive      *bool    `json:"is_active,omitempty"`
-	EmailVerified *bool    `json:"email_verified,omitempty"`
-	BalanceAdjust *float64 `json:"balance_adjust,omitempty"` // positive = add, negative = subtract
+	Role               *string  `json:"role,omitempty" binding:"omitempty,oneof=user admin"`
+	IsActive           *bool    `json:"is_active,omitempty"`
+	EmailVerified      *bool    `json:"email_verified,omitempty"`
+	BalanceAdjust      *float64 `json:"balance_adjust,omitempty"` // positive = add, negative = subtract
+	MembershipTier     *string  `json:"membership_tier,omitempty" binding:"omitempty,oneof=free pro enterprise"`
+	MembershipDays     *int     `json:"membership_days,omitempty"` // 0=clear, >0=set/extend days from now
 }
 
 // ListUsers returns paginated user list with optional search.
@@ -103,17 +107,19 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	items := make([]UserListItem, 0, len(users))
 	for _, u := range users {
 		items = append(items, UserListItem{
-			ID:            u.ID.String(),
-			Email:         u.Email,
-			Username:      u.Username,
-			Role:          u.Role,
-			Balance:       u.Balance,
-			TotalSpent:    u.TotalSpent,
-			RequestCount:  u.RequestCount,
-			IsActive:      u.IsActive,
-			EmailVerified: u.EmailVerified,
-			LastLoginAt:   u.LastLoginAt,
-			CreatedAt:     u.CreatedAt,
+			ID:                  u.ID.String(),
+			Email:               u.Email,
+			Username:            u.Username,
+			Role:                u.Role,
+			Balance:             u.Balance,
+			TotalSpent:          u.TotalSpent,
+			RequestCount:        u.RequestCount,
+			IsActive:            u.IsActive,
+			EmailVerified:       u.EmailVerified,
+			MembershipTier:      u.MembershipTier,
+			MembershipExpiresAt: u.MembershipExpiresAt,
+			LastLoginAt:         u.LastLoginAt,
+			CreatedAt:           u.CreatedAt,
 		})
 	}
 
@@ -174,6 +180,19 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 	if req.EmailVerified != nil {
 		updates["email_verified"] = *req.EmailVerified
+	}
+	if req.MembershipTier != nil || req.MembershipDays != nil {
+		tier := "free"
+		if req.MembershipTier != nil {
+			tier = *req.MembershipTier
+		}
+		updates["membership_tier"] = tier
+		if tier == "free" || (req.MembershipDays != nil && *req.MembershipDays == 0) {
+			updates["membership_expires_at"] = nil
+		} else if req.MembershipDays != nil && *req.MembershipDays > 0 {
+			expiry := time.Now().AddDate(0, 0, *req.MembershipDays)
+			updates["membership_expires_at"] = expiry
+		}
 	}
 
 	// Balance adjustment in transaction

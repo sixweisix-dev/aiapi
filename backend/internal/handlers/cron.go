@@ -177,7 +177,15 @@ func (h *CronHandler) CodeRestockCheck(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
 	}
+	h.doRestock(c)
+}
 
+// AdminRestock 管理员手动触发（JWT 鉴权）
+func (h *CronHandler) AdminRestock(c *gin.Context) {
+	h.doRestock(c)
+}
+
+func (h *CronHandler) doRestock(c *gin.Context) {
 	alertEmail := GetSettingValue(h.db, "alert_email", os.Getenv("EMAIL_FROM"))
 
 	// 各档位配置: type, balance, tier, days, threshold(低于此数补货), generate(每次补多少)
