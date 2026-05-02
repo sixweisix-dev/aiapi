@@ -884,21 +884,27 @@ func parseInt(s string, defaultVal int) int {
 
 // testProviderConnection performs a basic health check.
 func testProviderConnection(ch models.UpstreamChannel) bool {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 15 * time.Second}
 
 	if ch.Provider == "anthropic" {
-		url := "https://api.anthropic.com/v1/models"
-		req, err := http.NewRequest("GET", url, nil)
+		baseURL := "https://api.anthropic.com"
+		if ch.BaseURL != nil && *ch.BaseURL != "" {
+			baseURL = *ch.BaseURL
+		}
+		req, err := http.NewRequest("GET", baseURL+"/v1/models", nil)
 		if err != nil {
 			return false
 		}
 		req.Header.Set("x-api-key", ch.APIKeyEncrypted)
 		req.Header.Set("anthropic-version", "2023-06-01")
+		log.Printf("[TestChannel] testing url: %s", baseURL+"/v1/models")
 		resp, err := client.Do(req)
 		if err != nil {
+			log.Printf("[TestChannel] error: %v", err)
 			return false
 		}
 		defer resp.Body.Close()
+		log.Printf("[TestChannel] status: %d", resp.StatusCode)
 		return resp.StatusCode == 200
 	}
 
@@ -914,9 +920,11 @@ func testProviderConnection(ch models.UpstreamChannel) bool {
 	req.Header.Set("Authorization", "Bearer "+ch.APIKeyEncrypted)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("[TestChannel] anthropic request error: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
+	log.Printf("[TestChannel] anthropic status: %d url: %s", resp.StatusCode, baseURL)
 	return resp.StatusCode == 200
 }
 

@@ -241,7 +241,7 @@ func (p *Pool) ping(ch *Channel) bool {
 	case "openai":
 		path = "/v1/models"
 	case "anthropic":
-		path = "/v1/messages" // lightweight ping
+		path = "/v1/models" // lightweight ping
 	case "google":
 		path = "/v1/models"
 	default:
