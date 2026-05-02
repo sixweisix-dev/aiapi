@@ -199,15 +199,43 @@ func (h *CronHandler) doRestock(c *gin.Context) {
 		Generate  int
 	}
 
-	configs := []stockCfg{
-		{"闲鱼¥100充值码", "balance", 108, "free", 0, 5, 20},
-		{"闲鱼¥300充值码", "balance", 330, "free", 0, 3, 10},
-		{"闲鱼¥500充值码", "balance", 575, "free", 0, 3, 10},
-		{"闲鱼¥1000充值码", "balance", 1200, "free", 0, 2, 5},
-		{"闲鱼¥3000充值码", "balance", 3750, "free", 0, 1, 3},
-		{"闲鱼专业版30天", "membership", 120, "pro", 30, 3, 10},
-		{"闲鱼企业版30天", "membership", 600, "enterprise", 30, 1, 5},
+	// 从 settings 动态读阶梯规则
+	tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
+	var tierDefs []struct {
+		Min   float64 `json:"min"`
+		Bonus float64 `json:"bonus"`
 	}
+	if err := json.Unmarshal([]byte(tiersJSON), &tierDefs); err != nil {
+		log.Printf("[Restock] parse recharge_tiers failed: %v", err)
+	}
+
+	var configs []stockCfg
+	for _, t := range tierDefs {
+		note := fmt.Sprintf("闲鱼¥%.0f充值码", t.Min)
+		balance := t.Min + t.Bonus
+		thresh := 5
+		if t.Min >= 3000 {
+			thresh = 2
+		} else if t.Min >= 1000 {
+			thresh = 3
+		} else if t.Min >= 500 {
+			thresh = 3
+		}
+		gen := 20
+		if t.Min >= 3000 {
+			gen = 3
+		} else if t.Min >= 1000 {
+			gen = 5
+		} else if t.Min >= 500 {
+			gen = 10
+		}
+		configs = append(configs, stockCfg{note, "balance", balance, "free", 0, thresh, gen})
+	}
+	// 固定会员档位
+	configs = append(configs,
+		stockCfg{"闲鱼专业版30天", "membership", 120, "pro", 30, 3, 10},
+		stockCfg{"闲鱼企业版30天", "membership", 600, "enterprise", 30, 1, 5},
+	)
 
 	type restockResult struct {
 		Note  string
