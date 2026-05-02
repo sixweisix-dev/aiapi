@@ -152,21 +152,26 @@ func (h *RedeemHandler) AdminGenerateCodes(c *gin.Context) {
 		return
 	}
 
-	// auto_calc=true 时按阶梯规则计算 balance_amount
+	// auto_calc=true 时按阶梯规则计算 balance_amount（活动关闭时按面值）
+	promoOn := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
 	if req.AutoCalc && req.Type == "balance" && req.FaceValue > 0 {
-		tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
-		var tiers []struct {
-			Min   float64 `json:"min"`
-			Bonus float64 `json:"bonus"`
-		}
-		if err := json.Unmarshal([]byte(tiersJSON), &tiers); err == nil {
-			var bonus float64
-			for _, t := range tiers {
-				if req.FaceValue >= t.Min {
-					bonus = t.Bonus
-				}
+		if promoOn {
+			tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
+			var tiers []struct {
+				Min   float64 `json:"min"`
+				Bonus float64 `json:"bonus"`
 			}
-			req.BalanceAmount = req.FaceValue + bonus
+			if err := json.Unmarshal([]byte(tiersJSON), &tiers); err == nil {
+				var bonus float64
+				for _, t := range tiers {
+					if req.FaceValue >= t.Min {
+						bonus = t.Bonus
+					}
+				}
+				req.BalanceAmount = req.FaceValue + bonus
+			}
+		} else {
+			req.BalanceAmount = req.FaceValue
 		}
 	}
 	if req.FaceValue == 0 {

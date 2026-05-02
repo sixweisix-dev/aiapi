@@ -248,7 +248,7 @@ func (h *CronHandler) doRestock(c *gin.Context) {
 		// 查未使用数量
 		var unused int64
 		h.db.Raw(`SELECT COUNT(*) FROM redeem_codes WHERE note=? AND status='unused'`, cfg.Note).Scan(&unused)
-		if int(unused) >= cfg.Threshold {
+		if int(unused) > cfg.Threshold {
 			continue
 		}
 

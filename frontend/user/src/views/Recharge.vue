@@ -263,6 +263,7 @@ const doRedeem = async () => {
     redeemCode.value = ''
     await fetchUserInfo()
     await auth.fetchMe()
+    window.dispatchEvent(new Event('balance-changed'))
     await fetchOrders()
   } catch (e) {
     redeemOk.value = false

@@ -760,6 +760,8 @@ var settingsDefaults = map[string]string{
 	"allow_registration":       "true",
 	"announcement":              "",
 	"recharge_promo_enabled":   "true",
+	"promo_start":               "",
+	"promo_end":                 "",
 	"recharge_tiers":            `[{"min":100,"bonus":8},{"min":300,"bonus":30},{"min":500,"bonus":75},{"min":1000,"bonus":200},{"min":3000,"bonus":750}]`,
 	"first_recharge_bonus":      "50",
 	"alert_email":               "",

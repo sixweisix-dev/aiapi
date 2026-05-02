@@ -2,7 +2,7 @@
   <div class="page">
     <!-- 顶部操作栏 -->
     <div class="data-card filter-card">
-      <div class="filter-title">🎁 兑换码管理</div>
+      <div class="filter-title">🎁 兑换码管理 <el-tag :type="promoEnabled ? 'success' : 'info'" size="small" style="margin-left:8px">{{ promoEnabled ? '活动进行中' : '活动已关闭' }}</el-tag></div>
       <div class="filter-row">
         <el-select v-model="filter.status" placeholder="状态" clearable size="small" style="width:110px">
           <el-option label="未使用" value="unused" />
@@ -20,7 +20,7 @@
     <div class="stock-grid">
       <div
         v-for="s in stockList" :key="s.note"
-        class="stock-card" :class="{ low: s.unused <= s.threshold, expanded: expandedNote === s.note }"
+        class="stock-card" :class="{ low: s.unused <= s.threshold && s.active, expanded: expandedNote === s.note, inactive: !s.active }"
         @click="toggleExpand(s.note)"
       >
         <div class="stock-card-header">
@@ -35,20 +35,26 @@
           <div class="stock-bar-fill" :style="{ width: Math.min(100, s.unused / s.total * 100) + '%', background: s.unused <= s.threshold ? '#f56c6c' : '#67c23a' }"></div>
         </div>
         <div class="stock-meta">总计 {{ s.total }} 个 · 已用 {{ s.used }} 个</div>
-        <el-button v-if="s.unused <= s.threshold" size="small" type="danger" @click.stop="triggerRestock">⚠️ 立即补货</el-button>
+        <template v-if="s.active">
+          <el-button v-if="s.unused <= s.threshold" size="small" type="danger" @click.stop="triggerRestock">⚠️ 立即补货</el-button>
+        </template>
+        <el-tag v-else type="info" size="small" style="margin-top:6px">已停用档位</el-tag>
 
         <!-- 展开的兑换码列表 -->
         <div v-if="expandedNote === s.note" class="card-code-list" @click.stop>
           <div v-if="cardCodesLoading" class="card-codes-empty">加载中...</div>
-          <div v-else-if="groupedCodes[s.note]?.length === 0" class="card-codes-empty">暂无数据</div>
+          <div v-else-if="cardCodes.length === 0" class="card-codes-empty">暂无数据</div>
           <div v-else class="code-list">
-            <div v-for="c in groupedCodes[s.note]" :key="c.id" class="code-item">
+            <div v-for="c in cardCodes" :key="c.id" class="code-item">
               <div class="code-main">
                 <span class="code-text">{{ c.code }}</span>
                 <el-tag :type="c.status === 'unused' ? 'success' : 'info'" size="small">{{ c.status === 'unused' ? '未使用' : '已使用' }}</el-tag>
               </div>
               <div class="code-meta">
-                <span v-if="c.balance_amount > 0">余额 ¥{{ c.balance_amount }}</span>
+                <span v-if="c.balance_amount > 0">
+                  余额 ¥{{ promoEnabled ? c.balance_amount : (c.face_value || c.balance_amount) }}
+                  <el-tag v-if="!promoEnabled && c.face_value && c.face_value < c.balance_amount" type="info" size="small" style="margin-left:4px">活动关闭</el-tag>
+                </span>
                 <span v-if="c.membership_tier !== 'free'">{{ c.membership_tier }} {{ c.membership_days }}天</span>
                 <span v-if="c.redeemed_at">{{ dayjs(c.redeemed_at).format('MM-DD HH:mm') }} 兑换</span>
               </div>
@@ -62,6 +68,9 @@
 
     <!-- 生成对话框 -->
     <el-dialog v-model="showGenerate" title="批量生成兑换码" width="360px">
+      <el-alert v-if="!promoEnabled" type="warning" :closable="false" show-icon style="margin-bottom:12px">
+        活动总开关已关闭，balance 类型兑换码将按面值生成（无赠送）
+      </el-alert>
       <el-form label-position="top">
         <el-form-item label="档位">
           <el-select v-model="genForm.preset" placeholder="选择档位（从系统设置阶梯同步）" @change="applyPreset" style="width:100%">
@@ -111,11 +120,13 @@ const resultCodes = ref([])
 const stockList = ref([])
 const settingTiers = ref([]) // 从 Settings 读取的阶梯规则
 const firstBonus = ref(0)   // 首充礼金额
+const promoEnabled = ref(true) // 活动总开关
 
 const filter = ref({ status: 'unused', note: '', code: '' })
 const openGroups = ref([])
 const expandedNote = ref(null)
 const cardCodesLoading = ref(false)
+const cardCodes = ref([]) // 展开卡片时按 note 拉的完整码列表（含已用）
 
 // 加载阶梯规则（用于动态生成档位）
 async function loadSettings() {
@@ -123,6 +134,7 @@ async function loadSettings() {
     const res = await api.get('/admin/settings')
     try { settingTiers.value = JSON.parse(res.recharge_tiers || '[]') } catch { settingTiers.value = [] }
     firstBonus.value = parseFloat(res.first_recharge_bonus || '0')
+    promoEnabled.value = (res.recharge_promo_enabled ?? 'true') === 'true'
   } catch {}
 }
 
@@ -130,7 +142,9 @@ async function loadSettings() {
 const tierOptions = computed(() => {
   const opts = settingTiers.value.map(t => ({
     value: String(t.min),
-    label: `¥${t.min} 充值码（到账 ¥${(t.min + t.bonus).toFixed(0)}）`,
+    label: promoEnabled.value
+      ? `¥${t.min} 充值码（到账 ¥${(t.min + t.bonus).toFixed(0)}，含赠 ¥${t.bonus.toFixed(0)}）`
+      : `¥${t.min} 充值码（到账 ¥${t.min}，活动关闭按面值）`,
     type: 'balance',
     balance_amount: t.min + t.bonus,
     face_value: t.min,
@@ -147,13 +161,19 @@ const tierOptions = computed(() => {
 async function toggleExpand(note) {
   if (expandedNote.value === note) {
     expandedNote.value = null
+    cardCodes.value = []
     return
   }
   expandedNote.value = note
-  // 触发加载该分组数据
-  if (!codes.value.length || !groupedCodes.value[note]) {
-    cardCodesLoading.value = true
-    await fetchCodes()
+  cardCodesLoading.value = true
+  try {
+    const res = await api.get('/admin/redeem-codes', { params: {} })
+    const all = res.codes || []
+    cardCodes.value = all.filter(c => (c.note || '未分类') === note)
+      .sort((a, b) => a.status === 'unused' ? -1 : 1)
+  } catch {
+    cardCodes.value = []
+  } finally {
     cardCodesLoading.value = false
   }
 }
@@ -208,6 +228,11 @@ async function fetchStock() {
   try {
     const all = await api.get('/admin/redeem-codes', { params: {} })
     const list = all.codes || []
+    // 当前有效档位 note 集合（从 settingTiers + 固定会员档位）
+    const activeNotes = new Set([
+      ...settingTiers.value.map(t => `闲鱼¥${t.min}充值码`),
+      '闲鱼专业版30天', '闲鱼企业版30天',
+    ])
     // 按 note 自动分组，动态统计库存
     const map = {}
     for (const c of list) {
@@ -218,7 +243,10 @@ async function fetchStock() {
       else map[key].used++
     }
     // 按档位金额排序（会员放最后）
-    stockList.value = Object.values(map).sort((a, b) => {
+    stockList.value = Object.values(map).map(s => ({
+      ...s,
+      active: activeNotes.has(s.note),
+    })).sort((a, b) => {
       const getNum = n => { const m = n.match(/¥(\d+)/); return m ? Number(m[1]) : 99999 }
       return getNum(a.note) - getNum(b.note)
     })
@@ -234,6 +262,7 @@ async function triggerRestock() {
       ElMessage.success(`已补货 ${res.restocked} 个档位，邮件通知将发送到告警邮箱`)
     }
     await fetchStock()
+    await fetchCodes()
   } catch {
     ElMessage.error('补货失败')
   }
@@ -245,7 +274,9 @@ async function doGenerate() {
     const payload = {
       count: genForm.value.count,
       type: genForm.value.type,
-      balance_amount: genForm.value.balance_amount,
+      face_value: genForm.value.face_value || genForm.value.balance_amount,
+      balance_amount: genForm.value.balance_amount, // 后端 auto_calc=true 时会覆盖
+      auto_calc: genForm.value.type === 'balance',  // balance 类型让后端按活动开关重新计算
       membership_tier: genForm.value.membership_tier || 'free',
       membership_days: genForm.value.membership_days || 0,
       expiry_days: genForm.value.expiry_days,
@@ -290,6 +321,7 @@ onMounted(async () => {
 .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stock-card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1.5px solid #e5e7eb; }
 .stock-card.low { border-color: #fca5a5; background: #fff7f7; }
+.stock-card.inactive { border-color: #e5e7eb; background: #f9fafb; opacity: 0.7; }
 .stock-note { font-size: 13px; color: #6b7280; margin-bottom: 8px; font-weight: 500; }
 .stock-count { display: flex; align-items: baseline; gap: 4px; margin-bottom: 8px; }
 .stock-num { font-size: 32px; font-weight: 800; color: #1f2937; }
