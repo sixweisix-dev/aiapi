@@ -214,7 +214,7 @@ func (h *RedeemHandler) AdminListCodes(c *gin.Context) {
 	batchID := c.Query("batch_id")
 	status := c.Query("status")
 
-	query := `SELECT id,code,type,balance_amount,membership_tier,membership_days,status,redeemed_at,expires_at,batch_id,note FROM redeem_codes WHERE 1=1`
+	query := `SELECT id,code,type,balance_amount,face_value,membership_tier,membership_days,status,redeemed_at,expires_at,batch_id,note FROM redeem_codes WHERE 1=1`
 	var args []interface{}
 	if batchID != "" {
 		query += " AND batch_id=?"

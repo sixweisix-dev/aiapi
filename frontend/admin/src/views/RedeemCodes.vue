@@ -55,6 +55,15 @@
                   余额 ¥{{ promoEnabled ? c.balance_amount : (c.face_value || c.balance_amount) }}
                   <el-tag v-if="!promoEnabled && c.face_value && c.face_value < c.balance_amount" type="info" size="small" style="margin-left:4px">活动关闭</el-tag>
                 </span>
+                <el-tag
+                  v-if="c.balance_amount > 0 && c.type === 'balance'"
+                  :type="(c.face_value > 0 && c.balance_amount > c.face_value) ? 'warning' : ''"
+                  size="small"
+                >{{
+                  c.face_value <= 0 ? '旧码' :
+                  c.balance_amount > c.face_value ? `🎁 活动码 +¥${(c.balance_amount - c.face_value).toFixed(0)}` :
+                  '普通码'
+                }}</el-tag>
                 <span v-if="c.membership_tier !== 'free'">{{ c.membership_tier }} {{ c.membership_days }}天</span>
                 <span v-if="c.redeemed_at">{{ dayjs(c.redeemed_at).format('MM-DD HH:mm') }} 兑换</span>
               </div>
