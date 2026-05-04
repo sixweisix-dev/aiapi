@@ -387,8 +387,11 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 		log.Printf("[messages] record request error: %v", err)
 	}
 
-	// 上报渠道指标
+	// 上报渠道指标 + 审计
 	if h.tracker != nil {
 		h.tracker.RecordSuccess(ch.ID, cost, cacheRead, promptTokens+cacheRead, durationMs)
+		h.tracker.AuditBigCost(userIDStr, model.Name, ch.ID, cost, promptTokens+cacheCreate+cacheRead, completionTokens)
+		h.tracker.AuditHighRPM(userIDStr)
+		h.tracker.AuditFailureRate(userIDStr, statusCode)
 	}
 }
