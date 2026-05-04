@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/channelmetrics"
 	"ai-api-gateway/internal/models"
 	"ai-api-gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
@@ -22,10 +23,11 @@ type MessagesHandler struct {
 	db            *gorm.DB
 	pool          *upstream.Pool
 	billingEngine *billing.Engine
+	tracker       *channelmetrics.Tracker
 }
 
-func NewMessagesHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine) *MessagesHandler {
-	return &MessagesHandler{db: db, pool: pool, billingEngine: be}
+func NewMessagesHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, tracker *channelmetrics.Tracker) *MessagesHandler {
+	return &MessagesHandler{db: db, pool: pool, billingEngine: be, tracker: tracker}
 }
 
 type anthropicPassthruReq struct {
@@ -383,5 +385,10 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 	}
 	if err := h.db.Create(req).Error; err != nil {
 		log.Printf("[messages] record request error: %v", err)
+	}
+
+	// 上报渠道指标
+	if h.tracker != nil {
+		h.tracker.RecordSuccess(ch.ID, cost, cacheRead, promptTokens+cacheRead, durationMs)
 	}
 }

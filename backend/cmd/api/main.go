@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/channelmetrics"
 	"ai-api-gateway/internal/config"
 	"ai-api-gateway/internal/database"
 	"ai-api-gateway/internal/handlers"
@@ -91,7 +92,8 @@ func main() {
 	chatHandler.SetMailCfg(&mailCfg)
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	usageByModelHandler := handlers.NewUsageByModelHandler(db)
-	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine)
+	channelTracker := channelmetrics.New(db, alerter)
+	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
