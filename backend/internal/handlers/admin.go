@@ -254,25 +254,56 @@ type CreateChannelRequest struct {
 }
 
 type UpdateChannelRequest struct {
-	Name     *string `json:"name,omitempty"`
-	APIKey   *string `json:"api_key,omitempty"`
-	BaseURL  *string `json:"base_url,omitempty"`
-	Weight   *int    `json:"weight,omitempty"`
-	IsEnabled *bool  `json:"is_enabled,omitempty"`
+	Name              *string  `json:"name,omitempty"`
+	APIKey            *string  `json:"api_key,omitempty"`
+	BaseURL           *string  `json:"base_url,omitempty"`
+	Weight            *int     `json:"weight,omitempty"`
+	IsEnabled         *bool    `json:"is_enabled,omitempty"`
+	DailyQuotaUSD     *float64 `json:"daily_quota_usd,omitempty"`
+	SubscriptionStart *string  `json:"subscription_start,omitempty"` // YYYY-MM-DD
+	SubscriptionEnd   *string  `json:"subscription_end,omitempty"`
+	IsDedicated       *bool    `json:"is_dedicated,omitempty"`
+	DedicatedUserIDs  *string  `json:"dedicated_user_ids,omitempty"`
+	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
 type ChannelListItem struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Provider     string     `json:"provider"`
-	Weight       int        `json:"weight"`
-	IsEnabled    bool       `json:"is_enabled"`
-	HealthStatus string     `json:"health_status"`
-	LastCheck    *time.Time `json:"last_health_check"`
-	TotalReqs    int        `json:"total_requests"`
-	TotalTokens  int        `json:"total_tokens"`
-	ErrorCount   int        `json:"error_count"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID                  string     `json:"id"`
+	Name                string     `json:"name"`
+	Provider            string     `json:"provider"`
+	Weight              int        `json:"weight"`
+	IsEnabled           bool       `json:"is_enabled"`
+	HealthStatus        string     `json:"health_status"`
+	LastCheck           *time.Time `json:"last_health_check"`
+	TotalReqs           int        `json:"total_requests"`
+	TotalTokens         int        `json:"total_tokens"`
+	ErrorCount          int        `json:"error_count"`
+	CreatedAt           time.Time  `json:"created_at"`
+
+	// 额度
+	DailyQuotaUSD       float64    `json:"daily_quota_usd"`
+	QuotaUsedTodayUSD   float64    `json:"quota_used_today_usd"`
+	QuotaStatus         string     `json:"quota_status"`
+	SubscriptionStart   *time.Time `json:"subscription_start"`
+	SubscriptionEnd     *time.Time `json:"subscription_end"`
+	ErrorStreak         int        `json:"error_streak"`
+
+	// 成本
+	DailyCostCNY        float64    `json:"daily_cost_cny"`
+	MonthlyCostCNY      float64    `json:"monthly_cost_cny"`
+
+	// 缓存命中率
+	CacheHitTokens      int64      `json:"cache_hit_tokens"`
+	CacheTotalTokens    int64      `json:"cache_total_tokens"`
+	CacheHitRate        float64    `json:"cache_hit_rate"`
+
+	// 延迟
+	AvgLatencyMs        int        `json:"avg_latency_ms"`
+	P95LatencyMs        int        `json:"p95_latency_ms"`
+
+	// 专属
+	IsDedicated         bool       `json:"is_dedicated"`
+	DedicatedUserIDs    string     `json:"dedicated_user_ids"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -280,18 +311,37 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 	h.db.Order("created_at DESC").Find(&channels)
 	items := make([]ChannelListItem, 0, len(channels))
 	for _, ch := range channels {
+		hitRate := float64(0)
+		if ch.CacheTotalTokens > 0 {
+			hitRate = float64(ch.CacheHitTokens) / float64(ch.CacheTotalTokens)
+		}
 		items = append(items, ChannelListItem{
-			ID:           ch.ID.String(),
-			Name:         ch.Name,
-			Provider:     ch.Provider,
-			Weight:       ch.Weight,
-			IsEnabled:    ch.IsEnabled,
-			HealthStatus: ch.HealthStatus,
-			LastCheck:    ch.LastHealthCheck,
-			TotalReqs:    ch.TotalRequests,
-			TotalTokens:  ch.TotalTokens,
-			ErrorCount:   ch.ErrorCount,
-			CreatedAt:    ch.CreatedAt,
+			ID:                ch.ID.String(),
+			Name:              ch.Name,
+			Provider:          ch.Provider,
+			Weight:            ch.Weight,
+			IsEnabled:         ch.IsEnabled,
+			HealthStatus:      ch.HealthStatus,
+			LastCheck:         ch.LastHealthCheck,
+			TotalReqs:         ch.TotalRequests,
+			TotalTokens:       ch.TotalTokens,
+			ErrorCount:        ch.ErrorCount,
+			CreatedAt:         ch.CreatedAt,
+			DailyQuotaUSD:     ch.DailyQuotaUSD,
+			QuotaUsedTodayUSD: ch.QuotaUsedTodayUSD,
+			QuotaStatus:       ch.QuotaStatus,
+			SubscriptionStart: ch.SubscriptionStart,
+			SubscriptionEnd:   ch.SubscriptionEnd,
+			ErrorStreak:       ch.ErrorStreak,
+			DailyCostCNY:      ch.DailyCostCNY,
+			MonthlyCostCNY:    ch.MonthlyCostCNY,
+			CacheHitTokens:    ch.CacheHitTokens,
+			CacheTotalTokens:  ch.CacheTotalTokens,
+			CacheHitRate:      hitRate,
+			AvgLatencyMs:      ch.AvgLatencyMs,
+			P95LatencyMs:      ch.P95LatencyMs,
+			IsDedicated:       ch.IsDedicated,
+			DedicatedUserIDs:  ch.DedicatedUserIDs,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -367,6 +417,31 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.IsEnabled != nil {
 		updates["is_enabled"] = *req.IsEnabled
+	}
+	if req.DailyQuotaUSD != nil {
+		updates["daily_quota_usd"] = *req.DailyQuotaUSD
+	}
+	if req.SubscriptionStart != nil {
+		if t, err := time.Parse("2006-01-02", *req.SubscriptionStart); err == nil {
+			updates["subscription_start"] = t
+		}
+	}
+	if req.SubscriptionEnd != nil {
+		if t, err := time.Parse("2006-01-02", *req.SubscriptionEnd); err == nil {
+			updates["subscription_end"] = t
+		}
+	}
+	if req.IsDedicated != nil {
+		updates["is_dedicated"] = *req.IsDedicated
+	}
+	if req.DedicatedUserIDs != nil {
+		updates["dedicated_user_ids"] = *req.DedicatedUserIDs
+	}
+	if req.ResetQuota != nil && *req.ResetQuota {
+		updates["quota_used_today_usd"] = 0
+		updates["daily_cost_cny"] = 0
+		updates["quota_status"] = "normal"
+		updates["error_streak"] = 0
 	}
 
 	if len(updates) > 0 {
