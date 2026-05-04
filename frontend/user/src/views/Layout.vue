@@ -9,6 +9,7 @@
         <span class="brand-icon">⚡</span>
         <span class="brand-name">TransitAI</span>
       </div>
+      <button class="lang-toggle" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中' }}</button>
       <div class="balance-pill" :class="{ negative: balance < 0 }">
         ¥{{ balance.toFixed(2) }}
       </div>
@@ -21,8 +22,8 @@
           <div class="brand-block">
             <span class="brand-icon-large">⚡</span>
             <div>
-              <div class="drawer-brand-name">TransitAI</div>
-              <div class="drawer-brand-sub">AI API 中转</div>
+              <div class="drawer-brand-name">{{ t('brand.name') }}</div>
+              <div class="drawer-brand-sub">{{ t('brand.sub') }}</div>
             </div>
           </div>
         </div>
@@ -37,7 +38,7 @@
             </div>
           </div>
           <div class="balance-block">
-            <div class="balance-label">当前余额</div>
+            <div class="balance-label">{{ t('common.balance') }}</div>
             <div class="balance-value">¥{{ balance.toFixed(4) }}</div>
           </div>
         </div>
@@ -65,6 +66,51 @@
       </div>
     </el-drawer>
 
+    <!-- PC 侧边栏 (>= 769px) -->
+    <aside class="pc-sidebar">
+      <div class="pc-sidebar-header">
+        <span class="brand-icon-large">⚡</span>
+        <div>
+          <div class="drawer-brand-name">{{ t('brand.name') }}</div>
+          <div class="drawer-brand-sub">{{ t('brand.sub') }}</div>
+        </div>
+      </div>
+
+      <div class="user-card">
+        <div class="user-card-top">
+          <div class="user-avatar">{{ avatarLetter }}</div>
+          <div class="user-meta">
+            <div class="user-email">{{ user?.email }}</div>
+            <div class="user-tag" :class="tierClass">{{ tierLabel }}</div>
+          </div>
+        </div>
+        <div class="balance-block">
+          <div class="balance-label">{{ t('common.balance') }}</div>
+          <div class="balance-value">¥{{ balance.toFixed(4) }}</div>
+        </div>
+      </div>
+
+      <div class="drawer-menu">
+        <div
+          v-for="item in menuItems"
+          :key="'pc-' + item.path"
+          class="drawer-item"
+          :class="{ active: currentRoute === item.path }"
+          @click="navigateTo(item.path)"
+        >
+          <span class="item-emoji">{{ item.emoji }}</span>
+          <span class="item-label">{{ item.label }}</span>
+        </div>
+      </div>
+
+      <div class="drawer-footer">
+        <button class="pc-lang-toggle" @click="toggleLang">🌐 {{ lang === 'zh' ? 'English' : '中文' }}</button>
+        <el-button class="logout-btn" @click="handleLogout" type="danger" plain size="large">
+          退出登录
+        </el-button>
+      </div>
+    </aside>
+
     <!-- 主内容 -->
     <main class="main-area">
       <router-view />
@@ -76,25 +122,34 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { i18n, setLocale, currentLocale } from '@/i18n'
 import { dashboardAPI } from '@/utils/api'
 import { Expand, ArrowRight } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const t = (key) => i18n.global.t(key)
+const lang = ref(currentLocale())
+function toggleLang() {
+  const next = lang.value === 'zh' ? 'en' : 'zh'
+  setLocale(next)
+  lang.value = next
+}
 const balance = ref(0)
 const drawerOpen = ref(false)
 
-const menuItems = [
-  { path: '/dashboard',       emoji: '🏠', label: '首页' },
-  { path: '/api-keys',        emoji: '🔑', label: 'API Key 管理' },
-  { path: '/recharge',        emoji: '💳', label: '充值' },
-  { path: '/billing',         emoji: '📋', label: '消费明细' },
-  { path: '/models',          emoji: '🤖', label: '模型与价格' },
-  { path: '/playground',      emoji: '🎮', label: 'Playground' },
-  { path: '/api-docs',        emoji: '📖', label: 'API 文档' },
-  { path: '/change-password', emoji: '🔒', label: '修改密码' },
+const menuItemsRaw = [
+  { path: '/dashboard',       emoji: '🏠', key: 'menu.home' },
+  { path: '/api-keys',        emoji: '🔑', key: 'menu.apiKeys' },
+  { path: '/recharge',        emoji: '💳', key: 'menu.recharge' },
+  { path: '/billing',         emoji: '📋', key: 'menu.billing' },
+  { path: '/models',          emoji: '🤖', key: 'menu.models' },
+  { path: '/playground',      emoji: '🎮', key: 'menu.playground' },
+  { path: '/api-docs',        emoji: '📖', key: 'menu.apiDocs' },
+  { path: '/change-password', emoji: '🔒', key: 'menu.changePassword' },
 ]
+const menuItems = computed(() => menuItemsRaw.map(m => ({ ...m, label: t(m.key) })))
 
 const currentRoute = computed(() => route.path)
 const user = computed(() => auth.user)
@@ -338,5 +393,127 @@ if (auth.isLoggedIn) auth.fetchMe()
   flex: 1;
   overflow-y: auto;
   padding: 14px;
+  box-sizing: border-box;
 }
+.pc-sidebar { display: none; }
+
+@media (min-width: 769px) {
+  .topbar { display: none; }
+  .pc-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 240px;
+    height: 100vh;
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 16px;
+    box-sizing: border-box;
+    z-index: 100;
+  }
+  .pc-sidebar:hover { overflow-y: auto; }
+  .pc-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    margin-bottom: 16px;
+  }
+  .pc-sidebar .user-card { margin: 0 0 16px; }
+  .pc-sidebar .drawer-menu { flex: 1; padding: 0; }
+  .pc-sidebar .drawer-item .item-arrow { display: none; }
+  .pc-sidebar .drawer-footer { padding: 12px 0 0; border-top: 1px solid #f3f4f6; }
+  .main-area {
+    margin-left: 240px;
+    padding: 32px 48px;
+    width: calc(100vw - 240px);
+    box-sizing: border-box;
+  }
+
+  .user-layout > .el-drawer { display: none !important; }
+
+  /* PC 端通用网格美化: 列表类卡片自动多列 */
+  .main-area .key-list,
+  .main-area .model-list,
+  .main-area .order-list,
+  .main-area .record-list,
+  .main-area .bill-list,
+  .main-area .note-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+  }
+
+  /* 余额卡 + 快捷入口左右排 */
+  .main-area .quick-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  /* 套餐对比 PC 横向 */
+  .main-area .plan-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  /* 价格网格 PC 横向 */
+  .main-area .price-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* 表单 2 列 */
+  .main-area .form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* 余额统计横排 */
+  .main-area .balance-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* 卡片 hover 效果 */
+  .main-area .data-card:hover,
+  .main-area .model-card:hover,
+  .main-area .plan-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102,126,234,0.12);
+    transition: all 0.2s;
+  }
+}
+
+.lang-toggle {
+  margin-right: 8px;
+  background: rgba(102,126,234,0.08);
+  color: #667eea;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pc-lang-toggle {
+  width: 100%;
+  background: #f9fafb;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.pc-lang-toggle:hover { border-color: #667eea; color: #667eea; }
 </style>

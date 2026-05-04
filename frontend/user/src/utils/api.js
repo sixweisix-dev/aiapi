@@ -29,10 +29,14 @@ api.interceptors.response.use(
     const msg = error.response?.data?.error || error.message
 
     if (status === 401) {
-      localStorage.removeItem('user_token')
-      localStorage.removeItem('user_user')
-      router.push('/login')
-      ElMessage.error('登录已过期，请重新登录')
+      // 登录接口密码错误也返回 401，不弹"过期"提示，让页面自己处理
+      const isLoginRequest = error.config?.url?.includes('/auth/login')
+      if (!isLoginRequest) {
+        localStorage.removeItem('user_token')
+        localStorage.removeItem('user_user')
+        router.push('/login')
+        ElMessage.error('登录已过期，请重新登录')
+      }
     } else if (status === 403) {
       ElMessage.error('权限不足')
     } else if (status >= 500) {

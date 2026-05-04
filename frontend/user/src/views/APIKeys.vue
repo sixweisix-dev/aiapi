@@ -19,12 +19,12 @@
           <div>
             <label class="form-label">RPM 限制</label>
             <el-input-number v-model="createForm.rpm_limit" :min="0" :max="10000" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">每分钟请求数</div>
+            <div class="field-tip">每分钟请求数（留空=等级上限 {{ currentLimits().rpm }}，{{ currentLimits().label }}）</div>
           </div>
           <div>
             <label class="form-label">TPM 限制</label>
             <el-input-number v-model="createForm.tpm_limit" :min="0" :max="1000000" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">每分钟 token 数</div>
+            <div class="field-tip">每分钟 token 数（留空=等级上限 {{ currentLimits().tpm.toLocaleString() }}，{{ currentLimits().label }}）</div>
           </div>
         </div>
         <div class="form-row form-grid-2">
@@ -158,6 +158,7 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/stores/auth' 
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { apiKeysAPI } from '@/utils/api'
@@ -171,6 +172,20 @@ const total = ref(0)
 const showNewKey = ref(false)
 const showEdit = ref(false)
 const newKeyValue = ref('')
+
+const auth = useAuthStore()
+const tierLimitsMap = {
+  free: { rpm: 6, tpm: 10000, label: '免费版' },
+  pro: { rpm: 60, tpm: 100000, label: '专业版' },
+  enterprise: { rpm: 600, tpm: 1000000, label: '企业版' },
+}
+const userTier = () => {
+  const t = auth.user?.membership_tier || 'free'
+  const exp = auth.user?.membership_expires_at
+  if (t !== 'free' && exp && new Date(exp) < new Date()) return 'free'
+  return t
+}
+const currentLimits = () => tierLimitsMap[userTier()] || tierLimitsMap.free
 
 const createForm = ref({
   name: '',

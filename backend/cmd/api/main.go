@@ -90,6 +90,7 @@ func main() {
     handlers.SetGlobalDB(db)
 	chatHandler.SetMailCfg(&mailCfg)
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
+	usageByModelHandler := handlers.NewUsageByModelHandler(db)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
@@ -189,6 +190,7 @@ func main() {
 	{
 		// Dashboard
 		admin.GET("/dashboard", adminHandler.DashboardStats)
+		admin.GET("/usage/by-model", usageByModelHandler.AdminUsageByModel)
 		admin.GET("/profit", adminHandler.ProfitStats)
 
 		// Users
@@ -231,6 +233,7 @@ func main() {
 		user.GET("/billing/export", userHandler.ExportBilling)
 		user.GET("/models", userHandler.ListPublicModels)
 		user.GET("/usage", userHandler.UsageStats)
+		user.GET("/usage/by-model", usageByModelHandler.UserUsageByModel)
 		user.POST("/playground/chat", playgroundHandler.PlaygroundChat)
 	}
 

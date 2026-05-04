@@ -126,6 +126,8 @@
       </div>
     </div>
 
+    <UsageByModelChart />
+
     <!-- 最近账单 -->
     <div class="data-card">
       <div class="card-header">
@@ -156,6 +158,7 @@
 </template>
 
 <script setup>
+import UsageByModelChart from '@/components/UsageByModelChart.vue'
 import { ref, onMounted } from 'vue'
 import { dashboardAPI } from '@/utils/api'
 
@@ -437,4 +440,61 @@ function formatTPM(tpm) {
 .limit-label { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
 .limit-value { font-size: 14px; font-weight: 600; color: #1f2937; }
 
+
+@media (min-width: 769px) {
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: stretch;
+  }
+  /* 余额卡和会员卡左右各一半 */
+  .balance-card,
+  .member-card {
+    grid-column: span 1;
+    margin: 0;
+  }
+  /* 快捷入口跨两列 */
+  .quick-grid {
+    grid-column: 1 / -1;
+  }
+  /* 数据卡片(账单+用量)左右各一半 */
+  .data-card {
+    grid-column: span 1;
+    margin: 0;
+  }
+  /* 余额数字加大 */
+  .balance-amount { font-size: 36px; }
+  /* 卡片 hover 微动效 */
+  .balance-card:hover,
+  .member-card:hover,
+  .data-card:hover {
+    transition: transform 0.2s, box-shadow 0.2s;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102,126,234,0.12);
+  }
+}
+
+
+@media (min-width: 769px) {
+  .balance-card,
+  .member-card,
+  .data-card {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
+  /* 余额卡内部用 flex 撑满 */
+  .balance-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  /* 会员卡同理 */
+  .member-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+}
 </style>

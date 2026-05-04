@@ -71,6 +71,24 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    // 锚点跳转: 滚动到对应 id 元素
+    if (to.hash) {
+      return { el: to.hash, behavior: 'smooth', top: -50 }
+    }
+    // 浏览器后退/前进: 恢复位置
+    if (savedPosition) return savedPosition
+    // 普通路由切换: 回顶部
+    return { top: -50 }
+  },
+})
+
+router.afterEach((to) => {
+  if (to.hash) return  // 锚点跳转保持原行为
+  setTimeout(() => {
+    const ma = document.querySelector('.main-area')
+    if (ma) ma.scrollTop = 0
+  }, 0)
 })
 
 router.beforeEach((to, from, next) => {

@@ -105,7 +105,7 @@
         <li>会员有效期 30 天，到期后自动恢复免费版速率（已充值余额不受影响）</li>
         <li>在闲鱼购买兑换码后，输入上方兑换框即可激活会员和余额</li>
         <li>未到期续费会自动叠加时长，多月连续续费额度叠加</li>
-        <li>企业开票或定制 SLA，请联系：<a href="mailto:sixweisix@gmail.com" class="link">sixweisix@gmail.com</a></li>
+        <li>企业开票或定制 SLA，请联系微信：<b>SIXWEI_</b></li>
       </ul>
     </div>
 
@@ -404,4 +404,32 @@ onMounted(() => {
 .order-status.failed { background: #fee2e2; color: #dc2626; }
 .redeem-preview { margin-top: 8px; font-size: 13px; font-weight: 500; }
 .query-btn { min-width: 60px; }
+
+@media (min-width: 769px) {
+  .page {
+    max-width: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+    align-content: flex-start;
+  }
+  /* hero 全宽 */
+  .recharge-hero {
+    flex-basis: 100%;
+    margin: 0;
+  }
+  /* plan-grid (套餐对比) 全宽 */
+  .plan-grid {
+    flex-basis: 100%;
+    margin: 0;
+  }
+  /* 其他 data-card 自然宽度,内容多就多占 */
+  .current-card,
+  .redeem-top-card,
+  .data-card {
+    flex-basis: 100%;
+    margin: 0 !important;
+  }
+}
 </style>

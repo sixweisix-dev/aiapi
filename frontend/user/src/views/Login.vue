@@ -1,36 +1,37 @@
 <template>
   <div class="auth-page">
+    <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">⚡</div>
       <h1 class="auth-brand">TransitAI</h1>
-      <p class="auth-tagline">欢迎回来，请登录账号</p>
+      <p class="auth-tagline">{{ t('login.subtitle') }}</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
         <el-form-item prop="email">
-          <el-input v-model="form.email" placeholder="📧 邮箱" size="large" />
+          <el-input v-model="form.email" :placeholder="t('login.emailPlaceholder')" size="large" />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="🔒 密码" size="large" show-password
+          <el-input v-model="form.password" type="password" :placeholder="t('login.passwordPlaceholder')" size="large" show-password
             @keyup.enter="handleLogin" />
         </el-form-item>
         <div class="agree-row">
           <el-checkbox v-model="agreed" />
           <span class="agree-text">
-            登录即代表已阅读并同意
-            <router-link to="/terms" class="agree-link">《用户协议》</router-link>
-            和
-            <router-link to="/privacy" class="agree-link">《隐私政策》</router-link>
+            {{ t('login.agreeText') }}
+            <router-link to="/terms" class="agree-link">{{ t('login.agreementTitle') }}</router-link>
+            {{ t('login.and') }}
+            <router-link to="/privacy" class="agree-link">{{ t('login.privacyTitle') }}</router-link>
           </span>
         </div>
         <button type="button" class="auth-btn" :disabled="loading" @click="handleLogin">
-          {{ loading ? '登录中...' : '登 录' }}
+          {{ loading ? t('login.loggingIn') : t('login.loginBtn') }}
         </button>
       </el-form>
 
       <div class="auth-links">
-        <router-link to="/register" class="auth-link">注册账号</router-link>
+        <router-link to="/register" class="auth-link">{{ t('login.signupLink') }}</router-link>
         <span class="link-divider">·</span>
-        <router-link to="/forgot-password" class="auth-link">忘记密码</router-link>
+        <router-link to="/forgot-password" class="auth-link">{{ t('login.forgotPwd') }}</router-link>
       </div>
     </div>
   </div>
@@ -41,9 +42,19 @@ import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { setLocale, currentLocale } from '@/i18n'
+import { useI18n } from 'vue-i18n'
+
+const authPageLang = ref(currentLocale())
+function toggleAuthLang() {
+  const next = authPageLang.value === 'zh' ? 'en' : 'zh'
+  setLocale(next)
+  authPageLang.value = next
+}
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 const formRef = ref(null)
 const loading = ref(false)
 const agreed = ref(false)
@@ -57,26 +68,35 @@ async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!agreed.value) {
-    return ElMessage.warning('请先阅读并同意用户协议和隐私政策')
+    return ElMessage.warning(t('login.agreeWarning'))
   }
   loading.value = true
   try {
     await auth.login(form.email, form.password)
     router.push('/dashboard')
-  } catch {} finally { loading.value = false }
+  } catch (e) {
+    const msg = e?.response?.data?.error || t('login.wrongCreds')
+    ElMessage.error(msg)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style scoped>
 .auth-page {
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 .auth-page::before {
   content: '';
@@ -176,4 +196,22 @@ async function handleLogin() {
   text-decoration: none;
   font-weight: 500;
 }
+
+.auth-lang-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.auth-lang-toggle:hover { background: rgba(255,255,255,0.35); }
 </style>

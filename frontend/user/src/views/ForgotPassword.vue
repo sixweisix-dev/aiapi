@@ -1,5 +1,6 @@
 <template>
   <div class="auth-page">
+    <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">📮</div>
       <h1 class="auth-brand">找回密码</h1>
@@ -33,8 +34,16 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+import { setLocale, currentLocale } from '@/i18n'
 import api from '@/utils/api'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+
+const authPageLang = ref(currentLocale())
+function toggleAuthLang() {
+  const next = authPageLang.value === 'zh' ? 'en' : 'zh'
+  setLocale(next)
+  authPageLang.value = next
+}
 
 const formRef = ref(null)
 const tsRef = ref(null)
@@ -65,7 +74,20 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); position: relative; overflow: hidden; }
+.auth-page {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  overflow: hidden;
+  box-sizing: border-box;
+}
 .auth-page::before { content: ''; position: absolute; top: -100px; right: -100px; width: 300px; height: 300px; background: rgba(255,255,255,0.08); border-radius: 50%; }
 .auth-page::after { content: ''; position: absolute; bottom: -80px; left: -80px; width: 240px; height: 240px; background: rgba(255,255,255,0.06); border-radius: 50%; }
 .auth-card { width: 100%; max-width: 380px; background: #fff; border-radius: 24px; padding: 36px 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); position: relative; z-index: 1; }
@@ -82,4 +104,22 @@ async function handleSubmit() {
 .success-emoji { font-size: 56px; margin-bottom: 12px; }
 .success-title { font-size: 16px; color: #1f2937; font-weight: 600; margin-bottom: 4px; }
 .success-sub { font-size: 13px; color: #9ca3af; }
+
+.auth-lang-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.auth-lang-toggle:hover { background: rgba(255,255,255,0.35); }
 </style>

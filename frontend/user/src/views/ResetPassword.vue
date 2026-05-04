@@ -1,5 +1,6 @@
 <template>
   <div class="auth-page">
+    <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">🔐</div>
       <h1 class="auth-brand">重置密码</h1>
@@ -35,8 +36,16 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { setLocale, currentLocale } from '@/i18n'
 import { useRoute } from 'vue-router'
 import api from '@/utils/api'
+
+const authPageLang = ref(currentLocale())
+function toggleAuthLang() {
+  const next = authPageLang.value === 'zh' ? 'en' : 'zh'
+  setLocale(next)
+  authPageLang.value = next
+}
 
 const route = useRoute()
 const formRef = ref(null)
@@ -79,10 +88,18 @@ async function handleSubmit() {
 
 <style scoped>
 .auth-page {
-  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  position: relative; overflow: hidden;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .auth-page::before {
   content: ''; position: absolute; top: -100px; right: -100px;
@@ -121,4 +138,22 @@ async function handleSubmit() {
 .success-block { text-align: center; padding: 16px 0 8px; }
 .success-emoji { font-size: 56px; margin-bottom: 12px; }
 .success-title { font-size: 18px; color: #1f2937; font-weight: 700; }
+
+.auth-lang-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.auth-lang-toggle:hover { background: rgba(255,255,255,0.35); }
 </style>

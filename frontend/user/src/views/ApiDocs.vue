@@ -105,10 +105,11 @@ import { ref } from 'vue'
 const sdkTab = ref('python')
 
 const models = [
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'Anthropic', input: '¥0.054/1K', output: '¥0.27/1K' },
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'Anthropic', input: '¥0.054/1K', output: '¥0.27/1K' },
-  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', input: '¥0.0324/1K', output: '¥0.162/1K' },
-  { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', provider: 'Anthropic', input: '¥0.0108/1K', output: '¥0.054/1K' },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'Anthropic', input: '¥0.0216/1K', output: '¥0.108/1K' },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'Anthropic', input: '¥0.0216/1K', output: '¥0.108/1K' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
+  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
 ]
 
 const chatExample = JSON.stringify({
@@ -154,7 +155,13 @@ const modelsExample = `curl https://transitai.cloud/v1/models \\
       "owned_by": "anthropic"
     },
     {
-      "id": "claude-3-5-haiku-20241022",
+      "id": "claude-sonnet-4-6",
+      "object": "model",
+      "created": 1748000000,
+      "owned_by": "anthropic"
+    },
+    {
+      "id": "claude-haiku-4-5-20251001",
       "object": "model",
       "created": 1710000000,
       "owned_by": "anthropic"

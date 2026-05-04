@@ -48,7 +48,7 @@
         <div class="feature-card">
           <div class="feature-icon">🎯</div>
           <h3>原生官方模型</h3>
-          <p>直连 Anthropic 官方 API，使用真实模型版本（Claude Opus 4.7 / 4.6 / Sonnet 4.5）。不反代、不拼车、Token 不掺水。</p>
+          <p>直连 Anthropic 官方 API，使用真实模型版本（Claude Opus 4.7 / 4.6 / Sonnet 4.6 / 4.5 / Haiku 4.5）。不反代、不拼车、Token 不掺水。</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
@@ -69,7 +69,7 @@
     </section>
 
     <!-- 价格表 -->
-    <section id="pricing" class="pricing">
+    <section id="pricing" class="pricing" style="scroll-margin-top: 80px">
       <h2 class="section-title">透明价格</h2>
       <p class="section-sub">按使用量付费，没有隐藏费用</p>
 
@@ -140,12 +140,12 @@
       </div>
 
       <p class="pricing-note">
-        💡 统一计费规则：Opus 4.x ¥54/M 输入 ¥270/M 输出 · Sonnet 4.5 ¥32.4/M 输入 ¥162/M 输出 · 1.5x 倍率
+        💡 内测优惠价：Opus 4.x ¥21.6/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥3.456/M 输入 · 0.6x 倍率
       </p>
     </section>
 
     <!-- 对比表 -->
-    <section id="compare" class="compare">
+    <section id="compare" class="compare" style="scroll-margin-top: 80px">
       <h2 class="section-title">vs 灰产中转站</h2>
       <p class="section-sub">为什么 B 端业务不能用便宜的灰产通道</p>
 
@@ -200,7 +200,7 @@
     </section>
 
     <!-- FAQ -->
-    <section id="faq" class="faq">
+    <section id="faq" class="faq" style="scroll-margin-top: 80px">
       <h2 class="section-title">常见问题</h2>
       <div class="faq-list">
         <details class="faq-item">
@@ -209,7 +209,7 @@
         </details>
         <details class="faq-item">
           <summary>价格比灰产同行贵？</summary>
-          <p>是的，我们的倍率是 1.5x（官方价 × 1.5）。灰产通常 0.3-0.5x，因为他们使用反代 Pro 账号或拼车号，Token 掺水严重。一旦被封号或跑路，你的余额将血本无归。我们的价值是<strong>稳定、透明、可对账</strong>，不是最便宜。</p>
+          <p>我们的倍率是 0.6x（低于官方价），比大多数灰产还便宜。灰产通常使用反代 Pro 账号或拼车号，Token 掺水严重，随时跑路封号。我们的优势是<strong>稳定、透明、可对账</strong>，内测期间欢迎大家选购。</p>
         </details>
         <details class="faq-item">
           <summary>如何充值？</summary>
@@ -217,7 +217,7 @@
         </details>
         <details class="faq-item">
           <summary>支持哪些模型？</summary>
-          <p>当前上线：Claude Opus 4.7 / Claude Opus 4.6 / Claude Sonnet 4.5。后续将根据 Anthropic 发布节奏同步上线新模型。</p>
+          <p>当前上线：Claude Opus 4.7 / 4.6 / Sonnet 4.6 / 4.5 / Haiku 4.5。后续将根据 Anthropic 发布节奏同步上线新模型。</p>
         </details>
         <details class="faq-item">
           <summary>SDK 兼容吗？</summary>
@@ -284,9 +284,10 @@
 }
 .nav-inner {
   max-width: 1200px; margin: 0 auto;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 36px;
   padding: 14px 24px;
 }
+.nav-actions { margin-left: auto; }
 .logo { font-size: 18px; font-weight: 800; color: #6366f1; letter-spacing: -0.3px; }
 .nav-links { display: flex; gap: 28px; }
 .nav-links a { color: #6b7280; font-size: 14px; text-decoration: none; font-weight: 500; }

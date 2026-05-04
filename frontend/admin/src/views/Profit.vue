@@ -71,7 +71,8 @@
           <span class="card-title">🤖 分模型收益</span>
           <span class="card-tag">{{ (data.by_model || []).length }} 个模型</span>
         </div>
-      </template>
+        <UsageByModelChart />
+</template>
       <div v-if="(data.by_model || []).length === 0" class="empty-tip">暂无数据</div>
       <div v-else class="model-list">
         <div v-for="(m, i) in data.by_model" :key="i" class="model-item">
@@ -150,6 +151,7 @@
 </template>
 
 <script setup>
+import UsageByModelChart from '@/components/UsageByModelChart.vue'
 import { ref, onMounted } from 'vue'
 import api from '@/utils/api'
 
