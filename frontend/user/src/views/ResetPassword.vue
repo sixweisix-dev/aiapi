@@ -3,19 +3,19 @@
     <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">🔐</div>
-      <h1 class="auth-brand">重置密码</h1>
-      <p class="auth-tagline">设置一个新的密码</p>
+      <h1 class="auth-brand">{{ t('reset.title') }}</h1>
+      <p class="auth-tagline">{{ t('reset.subtitle') }}</p>
 
       <div v-if="!done">
         <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
           <el-form-item prop="new_password">
-            <el-input v-model="form.new_password" type="password" placeholder="🔒 新密码（8位+大小写+数字）" size="large" show-password />
+            <el-input v-model="form.new_password" type="password" :placeholder="t('reset.newPwdPlaceholder')" size="large" show-password />
           </el-form-item>
           <el-form-item prop="confirm_password">
-            <el-input v-model="form.confirm_password" type="password" placeholder="🔒 确认新密码" size="large" show-password />
+            <el-input v-model="form.confirm_password" type="password" :placeholder="t('reset.confirmPwdPlaceholder')" size="large" show-password />
           </el-form-item>
           <button class="auth-btn" :disabled="loading || !token" @click="handleSubmit">
-            {{ loading ? '提交中...' : '重置密码' }}
+            {{ loading ? t('reset.submitting') : t('reset.submitBtn') }}
           </button>
         </el-form>
         <p v-if="!token" class="error-tip">⚠️ 链接无效或已过期</p>
@@ -23,12 +23,12 @@
 
       <div v-else class="success-block">
         <div class="success-emoji">✅</div>
-        <div class="success-title">密码重置成功</div>
-        <button class="auth-btn" style="margin-top:18px" @click="$router.push('/login')">去登录</button>
+        <div class="success-title">{{ t('reset.successTitle') }}</div>
+        <button class="auth-btn" style="margin-top:18px" @click="$router.push('/login')">{{ t('reset.goLogin') }}</button>
       </div>
 
       <div v-if="!done" class="auth-links">
-        <router-link to="/login" class="auth-link">返回登录</router-link>
+        <router-link to="/login" class="auth-link">{{ t('reset.backLogin') }}</router-link>
       </div>
     </div>
   </div>
@@ -37,6 +37,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { setLocale, currentLocale } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import api from '@/utils/api'
 
@@ -49,6 +50,7 @@ function toggleAuthLang() {
 
 const route = useRoute()
 const formRef = ref(null)
+const { t } = useI18n()
 const loading = ref(false)
 const done = ref(false)
 const token = ref('')

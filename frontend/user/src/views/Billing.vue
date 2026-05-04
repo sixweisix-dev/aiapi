@@ -3,42 +3,42 @@
     <!-- 筛选 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">🔍 筛选</span>
-        <button class="export-btn" @click="handleExport">📥 导出 CSV</button>
+        <span class="card-title">{{ t('billing.filterTitle') }}</span>
+        <button class="export-btn" @click="handleExport">{{ t('billing.exportCsv') }}</button>
       </div>
       <div class="filter-grid">
         <div class="filter-row">
-          <label class="form-label">类型</label>
-          <el-select v-model="filters.type" placeholder="全部类型" size="large" style="width:100%" clearable>
-            <el-option label="全部" value="" />
-            <el-option label="消费" value="chat_completion" />
-            <el-option label="充值" value="recharge" />
-            <el-option label="调整" value="adjustment" />
-            <el-option label="退款" value="refund" />
+          <label class="form-label">{{ t('billing.typeLabel') }}</label>
+          <el-select v-model="filters.type" :placeholder="t('billing.allTypes')" size="large" style="width:100%" clearable>
+            <el-option :label="t('billing.all')" value="" />
+            <el-option :label="t('billing.typeChat')" value="chat_completion" />
+            <el-option :label="t('billing.typeRecharge')" value="recharge" />
+            <el-option :label="t('billing.typeAdjustment')" value="adjustment" />
+            <el-option :label="t('billing.typeRefund')" value="refund" />
           </el-select>
         </div>
         <div class="filter-row-2">
           <div>
-            <label class="form-label">开始日期</label>
-            <el-date-picker v-model="filters.start" type="date" placeholder="开始" value-format="YYYY-MM-DD" size="large" style="width:100%" />
+            <label class="form-label">{{ t('billing.startDate') }}</label>
+            <el-date-picker v-model="filters.start" type="date" :placeholder="t('billing.startPh')" value-format="YYYY-MM-DD" size="large" style="width:100%" />
           </div>
           <div>
-            <label class="form-label">结束日期</label>
-            <el-date-picker v-model="filters.end" type="date" placeholder="结束" value-format="YYYY-MM-DD" size="large" style="width:100%" />
+            <label class="form-label">{{ t('billing.endDate') }}</label>
+            <el-date-picker v-model="filters.end" type="date" :placeholder="t('billing.endPh')" value-format="YYYY-MM-DD" size="large" style="width:100%" />
           </div>
         </div>
-        <button class="primary-btn" @click="fetchData">🔎 查询</button>
+        <button class="primary-btn" @click="fetchData">{{ t('billing.queryBtn') }}</button>
       </div>
     </div>
 
     <!-- 列表 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">📋 账单明细</span>
-        <span class="card-tag">{{ total }} 条</span>
+        <span class="card-title">{{ t('billing.listTitle') }}</span>
+        <span class="card-tag">{{ total }} {{ t('billing.rowsUnit') }}</span>
       </div>
-      <div v-if="loading" class="empty-tip">加载中...</div>
-      <div v-else-if="items.length === 0" class="empty-tip">暂无账单记录</div>
+      <div v-if="loading" class="empty-tip">{{ t('billing.loading') }}</div>
+      <div v-else-if="items.length === 0" class="empty-tip">{{ t('billing.noBills') }}</div>
       <div v-else class="bill-list">
         <div v-for="(b, i) in items" :key="i" class="bill-item">
           <div class="bill-row">
@@ -49,7 +49,7 @@
           </div>
           <div class="bill-desc">{{ b.description || '-' }}</div>
           <div class="bill-meta">
-            <span>余额: ¥{{ Number(b.balance_after || 0).toFixed(4) }}</span>
+            <span>{{ t('billing.balancePrefix') }}: ¥{{ Number(b.balance_after || 0).toFixed(4) }}</span>
             <span>·</span>
             <span>{{ dayjs(b.created_at).format('YYYY-MM-DD HH:mm') }}</span>
           </div>
@@ -71,6 +71,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { billingAPI } from '@/utils/api'
@@ -115,22 +117,22 @@ async function handleExport() {
     const range = filters.start && filters.end
       ? `${filters.start}_${filters.end}`
       : dayjs().format('YYYY-MM')
-    a.download = `账单明细_${range}.csv`
+    a.download = `${t('billing.exportFilename')}_${range}.csv`
     a.click()
     URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
+    ElMessage.success(t('billing.exportSuccess'))
   } catch (e) {
     console.error(e)
-    ElMessage.error('导出失败')
+    ElMessage.error(t('billing.exportFail'))
   }
 }
 
-function typeLabel(t) {
-  const map = { chat_completion: '消费', recharge: '充值', adjustment: '调整', refund: '退款' }
-  return map[t] || t
+function typeLabel(tp) {
+  const map = { chat_completion: t('billing.typeChat'), recharge: t('billing.typeRecharge'), adjustment: t('billing.typeAdjustment'), refund: t('billing.typeRefund') }
+  return map[tp] || tp
 }
-function tagCls(t) {
-  return t === 'recharge' ? 'tag-in' : t === 'chat_completion' ? 'tag-out' : 'tag-other'
+function tagCls(tp) {
+  return tp === 'recharge' ? 'tag-in' : tp === 'chat_completion' ? 'tag-out' : 'tag-other'
 }
 </script>
 

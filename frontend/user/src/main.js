@@ -34,3 +34,17 @@ app.use(createPinia())
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 app.use(i18n).mount('#app')
+
+// Silence harmless ResizeObserver loop warnings (Element Plus / ECharts)
+const _roeMsg = 'ResizeObserver loop'
+window.addEventListener('error', (e) => {
+  if (e.message && e.message.includes(_roeMsg)) {
+    e.stopImmediatePropagation()
+    e.preventDefault()
+  }
+})
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason && String(e.reason).includes(_roeMsg)) {
+    e.preventDefault()
+  }
+})

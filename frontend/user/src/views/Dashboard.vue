@@ -5,22 +5,22 @@
       <div class="balance-bg-shape"></div>
       <div class="balance-header">
         <span class="balance-emoji">💰</span>
-        <span class="balance-tip">当前余额</span>
+        <span class="balance-tip">{{ t('dashboard.balanceTip') }}</span>
       </div>
       <div class="balance-amount">¥{{ stats.balance?.toFixed(4) ?? '0.0000' }}</div>
       <div class="balance-stats">
         <div class="stat-item">
-          <div class="stat-label">本月消费</div>
+          <div class="stat-label">{{ t('dashboard.monthSpentLabel') }}</div>
           <div class="stat-value">¥{{ stats.month_spent?.toFixed(2) ?? '0.00' }}</div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-label">本月请求</div>
+          <div class="stat-label">{{ t('dashboard.monthRequestsLabel') }}</div>
           <div class="stat-value">{{ stats.month_requests ?? 0 }}</div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <div class="stat-label">累计消费</div>
+          <div class="stat-label">{{ t('dashboard.totalSpentLabel') }}</div>
           <div class="stat-value">¥{{ stats.total_spent?.toFixed(2) ?? '0.00' }}</div>
         </div>
       </div>
@@ -34,17 +34,17 @@
             {{ stats.membership.effective === 'enterprise' ? '👑' : stats.membership.effective === 'pro' ? '⭐' : '🌱' }}
           </span>
           <div class="member-text">
-            <div class="member-tier">{{ stats.membership.display_name || '免费版' }}</div>
+            <div class="member-tier">{{ tierDisplay() }}</div>
             <div class="member-expires" v-if="stats.membership.expires_at && stats.membership.effective !== 'free'">
               {{ formatExpiry(stats.membership.expires_at) }}
             </div>
             <div class="member-expires" v-else>
-              永久免费 · 充值 ¥99 即升级
+              {{ t('dashboard.memberPermanent') }}
             </div>
           </div>
         </div>
         <button class="member-upgrade-btn" @click="$router.push('/recharge')">
-          {{ stats.membership.effective === 'free' ? '升级' : '续费' }}
+          {{ stats.membership.effective === 'free' ? t('dashboard.btnUpgrade') : t('dashboard.btnRenew') }}
         </button>
       </div>
 
@@ -58,11 +58,11 @@
           <div class="limit-value">{{ formatTPM(stats.membership.limits.TPM) }}</div>
         </div>
         <div class="limit-item">
-          <div class="limit-label">最大 Key</div>
+          <div class="limit-label">{{ t('dashboard.limitMaxKey') }}</div>
           <div class="limit-value">{{ stats.membership.limits.MaxAPIKeys || '∞' }}</div>
         </div>
         <div class="limit-item">
-          <div class="limit-label">发票</div>
+          <div class="limit-label">{{ t('dashboard.limitInvoice') }}</div>
           <div class="limit-value">{{ stats.membership.limits.InvoiceSupport ? '✓' : '✗' }}</div>
         </div>
       </div>
@@ -73,29 +73,29 @@
       <div class="quick-btn quick-key" @click="$router.push('/api-keys')">
         <div class="quick-icon">🔑</div>
         <div class="quick-text">
-          <div class="quick-title">创建 API Key</div>
-          <div class="quick-sub">立即获取 API 密钥</div>
+          <div class="quick-title">{{ t('dashboard.quickCreateKey') }}</div>
+          <div class="quick-sub">{{ t('dashboard.quickCreateKeySub') }}</div>
         </div>
       </div>
       <div class="quick-btn quick-recharge" @click="$router.push('/recharge')">
         <div class="quick-icon">💳</div>
         <div class="quick-text">
-          <div class="quick-title">立即充值</div>
-          <div class="quick-sub">闲鱼下单兑换</div>
+          <div class="quick-title">{{ t('dashboard.quickTopUp') }}</div>
+          <div class="quick-sub">{{ t('dashboard.quickTopUpSub') }}</div>
         </div>
       </div>
       <div class="quick-btn quick-play" @click="$router.push('/playground')">
         <div class="quick-icon">🎮</div>
         <div class="quick-text">
-          <div class="quick-title">在线测试</div>
-          <div class="quick-sub">Playground 体验</div>
+          <div class="quick-title">{{ t('dashboard.quickPlayground') }}</div>
+          <div class="quick-sub">{{ t('dashboard.quickPlaygroundSub') }}</div>
         </div>
       </div>
       <div class="quick-btn quick-doc" @click="$router.push('/api-docs')">
         <div class="quick-icon">📖</div>
         <div class="quick-text">
-          <div class="quick-title">API 文档</div>
-          <div class="quick-sub">接入指南</div>
+          <div class="quick-title">{{ t('dashboard.quickDocs') }}</div>
+          <div class="quick-sub">{{ t('dashboard.quickDocsSub') }}</div>
         </div>
       </div>
     </div>
@@ -103,12 +103,12 @@
     <!-- 最近请求 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">📡 最近请求</span>
-        <span class="card-link" @click="$router.push('/billing')">查看全部 ›</span>
+        <span class="card-title">{{ t('dashboard.recentReqTitle') }}</span>
+        <span class="card-link" @click="$router.push('/billing')">{{ t('dashboard.viewAll') }}</span>
       </div>
-      <div v-if="loading" class="empty-tip">加载中...</div>
+      <div v-if="loading" class="empty-tip">{{ t('dashboard.loadingTip') }}</div>
       <div v-else-if="!stats.recent_requests || stats.recent_requests.length === 0" class="empty-tip">
-        暂无请求记录
+        {{ t('dashboard.noRequestsTip') }}
       </div>
       <div v-else class="record-list">
         <div v-for="(r, i) in stats.recent_requests" :key="i" class="record-item">
@@ -119,7 +119,7 @@
           <div class="record-right">
             <div class="record-cost">−¥{{ Number(r.cost || 0).toFixed(6) }}</div>
             <span class="record-status" :class="r.status_code === 200 ? 'ok' : 'fail'">
-              {{ r.status_code === 200 ? '成功' : '失败' }}
+              {{ r.status_code === 200 ? t('dashboard.statusOk') : t('dashboard.statusFail') }}
             </span>
           </div>
         </div>
@@ -131,19 +131,19 @@
     <!-- 最近账单 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">📋 最近账单</span>
-        <span class="card-link" @click="$router.push('/billing')">查看全部 ›</span>
+        <span class="card-title">{{ t('dashboard.recentBillTitle') }}</span>
+        <span class="card-link" @click="$router.push('/billing')">{{ t('dashboard.viewAll') }}</span>
       </div>
-      <div v-if="loading" class="empty-tip">加载中...</div>
+      <div v-if="loading" class="empty-tip">{{ t('dashboard.loadingTip') }}</div>
       <div v-else-if="!stats.recent_billing || stats.recent_billing.length === 0" class="empty-tip">
-        暂无账单记录
+        {{ t('dashboard.noBillingTip') }}
       </div>
       <div v-else class="record-list">
         <div v-for="(b, i) in stats.recent_billing" :key="i" class="record-item">
           <div class="record-left">
             <div class="bill-type">
               <span class="bill-tag" :class="b.type === 'recharge' ? 'tag-in' : 'tag-out'">
-                {{ b.type === 'recharge' ? '充值' : '消费' }}
+                {{ b.type === 'recharge' ? t('dashboard.billRecharge') : t('dashboard.billConsume') }}
               </span>
             </div>
             <div class="record-meta">{{ b.description || '-' }}</div>
@@ -158,9 +158,16 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
 import UsageByModelChart from '@/components/UsageByModelChart.vue'
 import { ref, onMounted } from 'vue'
 import { dashboardAPI } from '@/utils/api'
+
+const { t } = useI18n()
+function tierDisplay() {
+  const eff = stats.value?.membership?.effective || 'free'
+  return t('dashboard.tier' + eff.charAt(0).toUpperCase() + eff.slice(1))
+}
 
 const loading = ref(true)
 const stats = ref({})
@@ -175,9 +182,10 @@ function formatExpiry(iso) {
   const d = new Date(iso)
   const now = new Date()
   const days = Math.ceil((d - now) / (1000 * 60 * 60 * 24))
-  if (days <= 0) return '已到期'
-  if (days <= 7) return `${days} 天后到期`
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} 到期`
+  if (days <= 0) return t('dashboard.expired')
+  if (days <= 7) return t('dashboard.daysToExpire', { n: days })
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  return t('dashboard.expireDate', { date: dateStr })
 }
 function formatTPM(tpm) {
   if (!tpm || tpm === 0) return '∞'

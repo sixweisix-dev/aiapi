@@ -26,21 +26,31 @@ api.interceptors.response.use(
   },
   (error) => {
     const status = error.response?.status
-    const msg = error.response?.data?.error || error.message
+    let msg = error.response?.data?.error || error.message
+
+    // 友好化 Go validator 报错
+    if (typeof msg === 'string' && msg.includes('Field validation') && msg.includes('email')) {
+      msg = (localStorage.getItem('user_lang') === 'en') ? 'Invalid email format' : '邮箱格式不正确'
+    } else if (typeof msg === 'string' && msg.includes('Field validation') && msg.includes('required')) {
+      msg = (localStorage.getItem('user_lang') === 'en') ? 'Required field is missing' : '请填写必填字段'
+    } else if (typeof msg === 'string' && msg.startsWith('Key:') && msg.includes('Error:Field validation')) {
+      msg = (localStorage.getItem('user_lang') === 'en') ? 'Invalid input' : '输入格式不正确'
+    }
+
+    const isEn = localStorage.getItem('user_lang') === 'en'
 
     if (status === 401) {
-      // 登录接口密码错误也返回 401，不弹"过期"提示，让页面自己处理
       const isLoginRequest = error.config?.url?.includes('/auth/login')
       if (!isLoginRequest) {
         localStorage.removeItem('user_token')
         localStorage.removeItem('user_user')
         router.push('/login')
-        ElMessage.error('登录已过期，请重新登录')
+        ElMessage.error(isEn ? 'Session expired, please sign in again' : '登录已过期，请重新登录')
       }
     } else if (status === 403) {
-      ElMessage.error('权限不足')
+      ElMessage.error(isEn ? 'Permission denied' : '权限不足')
     } else if (status >= 500) {
-      ElMessage.error('服务器错误: ' + msg)
+      ElMessage.error((isEn ? 'Server error: ' : '服务器错误: ') + msg)
     } else {
       ElMessage.error(msg)
     }

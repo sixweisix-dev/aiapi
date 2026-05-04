@@ -3,52 +3,52 @@
     <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">⚡</div>
-      <h1 class="auth-brand">创建账号</h1>
-      <p class="auth-tagline">几秒钟完成注册，立即开始</p>
+      <h1 class="auth-brand">{{ t('register.title') }}</h1>
+      <p class="auth-tagline">{{ t('register.subtitle') }}</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
         <el-form-item prop="email">
-          <el-input v-model="form.email" placeholder="📧 邮箱" size="large" :disabled="codeSent" />
+          <el-input v-model="form.email" :placeholder="t('register.emailPlaceholder')" size="large" :disabled="codeSent" />
         </el-form-item>
         <el-form-item prop="emailCode">
           <div style="display:flex;gap:8px;width:100%">
-            <el-input v-model="form.emailCode" placeholder="✉️ 邮箱验证码（6位）" size="large" maxlength="6" style="flex:1" />
+            <el-input v-model="form.emailCode" :placeholder="t('register.codePlaceholder')" size="large" maxlength="6" style="flex:1" />
             <button type="button" class="code-btn" :disabled="codeBtnDisabled" @click="onClickSendCode">
               {{ codeBtnText }}
             </button>
           </div>
         </el-form-item>
         <el-form-item prop="password">
-          <el-input v-model="form.password" type="password" placeholder="🔒 密码（8位+大小写+数字）" size="large" show-password />
+          <el-input v-model="form.password" type="password" :placeholder="t('register.passwordPlaceholder')" size="large" show-password />
         </el-form-item>
         <el-form-item prop="confirmPassword">
-          <el-input v-model="form.confirmPassword" type="password" placeholder="🔒 确认密码" size="large" show-password />
+          <el-input v-model="form.confirmPassword" type="password" :placeholder="t('register.confirmPwdPlaceholder')" size="large" show-password />
         </el-form-item>
 
         <!-- Turnstile 在弹窗里按需渲染 -->
-        <el-dialog v-model="tsDialogVisible" title="人机验证" width="340px" :close-on-click-modal="false" align-center>
+        <el-dialog v-model="tsDialogVisible" :title="t('register.tsTitle')" width="340px" :close-on-click-modal="false" align-center>
           <div style="display:flex;justify-content:center;padding:8px 0 4px">
             <TurnstileWidget v-if="tsDialogVisible" ref="tsRef" v-model="turnstileToken" />
           </div>
-          <p style="text-align:center;color:#9ca3af;font-size:12px;margin:0">完成验证后将自动发送邮件</p>
+          <p style="text-align:center;color:#9ca3af;font-size:12px;margin:0">{{ t('register.tsHint') }}</p>
         </el-dialog>
 
         <div class="agree-row">
           <el-checkbox v-model="agreed" />
           <span class="agree-text">
-            我已阅读并同意
-            <router-link to="/terms" class="agree-link">《用户协议》</router-link>
-            和
-            <router-link to="/privacy" class="agree-link">《隐私政策》</router-link>
+            {{ t('register.agreeText') }}
+            <router-link to="/terms" class="agree-link">{{ t('register.agreementLink') }}</router-link>
+            {{ t('register.and') }}
+            <router-link to="/privacy" class="agree-link">{{ t('register.privacyLink') }}</router-link>
           </span>
         </div>
         <button type="button" class="auth-btn" :disabled="loading" @click="handleRegister">
-          {{ loading ? '注册中...' : '注 册' }}
+          {{ loading ? t('register.registering') : t('register.registerBtn') }}
         </button>
       </el-form>
 
       <div class="auth-links">
-        已有账号？<router-link to="/login" class="auth-link">立即登录</router-link>
+        {{ t('register.haveAccount') }}<router-link to="/login" class="auth-link">{{ t('register.loginNow') }}</router-link>
       </div>
     </div>
   </div>
@@ -60,6 +60,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { setLocale, currentLocale } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import api from '@/utils/api'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 
@@ -71,6 +72,7 @@ function toggleAuthLang() {
 }
 
 const router = useRouter()
+const { t } = useI18n()
 const auth = useAuthStore()
 const formRef = ref(null)
 const tsRef = ref(null)
@@ -83,36 +85,36 @@ const turnstileToken = ref('')
 const form = reactive({ email: '', emailCode: '', password: '', confirmPassword: '' })
 
 const passwordStrength = (v) => {
-  if (v.length < 8) return '至少8位'
-  if (!/[a-z]/.test(v)) return '需含小写字母'
-  if (!/[A-Z]/.test(v)) return '需含大写字母'
-  if (!/[0-9]/.test(v)) return '需含数字'
+  if (v.length < 8) return t('register.pwdRequired')
+  if (!/[a-z]/.test(v)) return t('register.pwdLower')
+  if (!/[A-Z]/.test(v)) return t('register.pwdUpper')
+  if (!/[0-9]/.test(v)) return t('register.pwdDigit')
   return null
 }
 
-const rules = {
+const rules = computed(() => ({
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+    { required: true, message: t('register.emailRequired'), trigger: 'blur' },
+    { type: 'email', message: t('register.emailInvalid'), trigger: 'blur' },
   ],
   emailCode: [
-    { required: true, message: '请输入邮箱验证码', trigger: 'blur' },
-    { len: 6, message: '验证码为 6 位', trigger: 'blur' },
+    { required: true, message: t('register.codeRequired'), trigger: 'blur' },
+    { len: 6, message: t('register.codeLength'), trigger: 'blur' },
   ],
   password: [
-    { required: true, trigger: 'blur' },
+    { required: true, message: t('register.pwdRequired'), trigger: 'blur' },
     { validator: (r, v, cb) => { const e = passwordStrength(v); e ? cb(new Error(e)) : cb() }, trigger: 'blur' }
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    { validator: (r, v, cb) => v !== form.password ? cb(new Error('两次密码不一致')) : cb(), trigger: 'blur' }
+    { required: true, message: t('register.confirmRequired'), trigger: 'blur' },
+    { validator: (r, v, cb) => v !== form.password ? cb(new Error(t('register.pwdMismatch'))) : cb(), trigger: 'blur' }
   ],
-}
+}))
 
 const codeBtnDisabled = computed(() => cooldown.value > 0 || loading.value)
 const codeBtnText = computed(() => {
   if (cooldown.value > 0) return cooldown.value + 's'
-  return codeSent.value ? '重新发送' : '发送验证码'
+  return codeSent.value ? t('register.resendCode') : t('register.sendCode')
 })
 
 function onClickSendCode() {
@@ -132,7 +134,7 @@ watch(turnstileToken, async (tok) => {
       turnstile_token: tok,
       purpose: 'register',
     })
-    ElMessage.success('验证码已发送，请查收邮件')
+    ElMessage.success(t('register.codeSent'))
     codeSent.value = true
     cooldown.value = 60
     const timer = setInterval(() => {
@@ -149,12 +151,12 @@ async function handleRegister() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!agreed.value) {
-    return ElMessage.warning('请先阅读并同意用户协议和隐私政策')
+    return ElMessage.warning(t('register.registerAgreeWarn'))
   }
   loading.value = true
   try {
     await auth.register(form.email, form.password, undefined, form.emailCode)
-    ElMessage.success('注册成功')
+    ElMessage.success(t('register.registerOk'))
     router.push('/dashboard')
   } catch {
     // 错误消息已在拦截器中弹出

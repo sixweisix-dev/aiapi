@@ -5,48 +5,48 @@
       <div class="card-header"><span class="card-title">🎮 Playground</span></div>
 
       <div class="form-row">
-        <label class="form-label">模型</label>
-        <el-select v-model="selectedModel" placeholder="选择模型" size="large" style="width:100%">
+        <label class="form-label">{{ t('playground.modelLabel') }}</label>
+        <el-select v-model="selectedModel" :placeholder="t('playground.selectModel')" size="large" style="width:100%">
           <el-option v-for="m in models" :key="m.id" :label="m.display_name" :value="m.name" />
         </el-select>
       </div>
 
       <div class="form-row">
         <label class="form-label">API Key</label>
-        <el-select v-model="selectedKey" placeholder="选择 API Key" size="large" style="width:100%">
+        <el-select v-model="selectedKey" :placeholder="t('playground.selectKey')" size="large" style="width:100%">
           <el-option v-for="k in apiKeys" :key="k.id" :label="`${k.name} - sk-${k.prefix}…`" :value="k.id" />
         </el-select>
       </div>
 
       <div class="toggle-row">
-        <span class="toggle-label">流式响应</span>
+        <span class="toggle-label">{{ t('playground.streamMode') }}</span>
         <el-switch v-model="streamMode" />
       </div>
     </div>
 
     <!-- 输入卡 -->
     <div class="data-card">
-      <div class="card-header"><span class="card-title">✏️ 输入</span></div>
+      <div class="card-header"><span class="card-title">{{ t('playground.inputCard') }}</span></div>
       <div class="form-row">
-        <label class="form-label">系统提示（可选）</label>
+        <label class="form-label">{{ t('playground.systemPrompt') }}</label>
         <el-input v-model="systemPrompt" type="textarea" :rows="2" placeholder="You are a helpful assistant." />
       </div>
       <div class="form-row">
-        <label class="form-label">用户消息</label>
-        <el-input v-model="userMessage" type="textarea" :rows="6" placeholder="输入你的消息..." />
+        <label class="form-label">{{ t('playground.userMessage') }}</label>
+        <el-input v-model="userMessage" type="textarea" :rows="6" :placeholder="t('playground.userMessagePh')" />
       </div>
       <div class="btn-row">
         <button class="primary-btn" :disabled="sending || !selectedKey || !selectedModel" @click="handleSend">
-          {{ sending ? '请求中...' : '🚀 发送' }}
+          {{ sending ? t('playground.sending') : t('playground.sendBtn') }}
         </button>
-        <button class="secondary-btn" @click="handleClear">清空</button>
+        <button class="secondary-btn" @click="handleClear">{{ t('playground.clearBtn') }}</button>
       </div>
     </div>
 
     <!-- 响应卡 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">💬 响应</span>
+        <span class="card-title">{{ t('playground.responseCard') }}</span>
         <div class="status-bar">
           <span :class="statusClass">{{ statusText }}</span>
           <span v-if="latency > 0" class="status-meta">{{ latency }}ms</span>
@@ -54,7 +54,7 @@
         </div>
       </div>
       <div ref="responseRef" class="response-box">
-        <span v-if="!response" class="response-placeholder">点击"发送"测试模型...</span>
+        <span v-if="!response" class="response-placeholder">{{ t('playground.responsePh') }}</span>
         <template v-else>{{ response }}</template>
       </div>
     </div>
@@ -62,6 +62,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { userModelsAPI, apiKeysAPI } from '@/utils/api'
@@ -75,15 +77,19 @@ const sending = ref(false)
 const systemPrompt = ref('You are a helpful assistant.')
 const userMessage = ref('')
 const response = ref('')
-const statusText = ref('就绪')
+const statusCode = ref('ready')
+const statusText = computed(() => {
+  const map = { ready: t('playground.statusReady'), pending: t('playground.statusPending'), done: t('playground.statusDone'), fail: t('playground.statusFail') }
+  return map[statusCode.value] || ''
+})
 const latency = ref(0)
 const tokenCount = ref(0)
 const responseRef = ref(null)
 
 const statusClass = computed(() => {
-  if (statusText.value === '完成') return 'status-ok'
-  if (statusText.value === '错误') return 'status-fail'
-  if (statusText.value === '请求中...') return 'status-pending'
+  if (statusCode.value === 'done') return 'status-ok'
+  if (statusCode.value === 'fail') return 'status-fail'
+  if (statusCode.value === 'pending') return 'status-pending'
   return 'status-idle'
 })
 
@@ -102,12 +108,12 @@ onMounted(async () => {
 })
 
 async function handleSend() {
-  if (!selectedModel.value || !selectedKey.value) return ElMessage.warning('请选择模型和 API Key')
-  if (!userMessage.value.trim()) return ElMessage.warning('请输入消息')
+  if (!selectedModel.value || !selectedKey.value) return ElMessage.warning(t('playground.needModelKey'))
+  if (!userMessage.value.trim()) return ElMessage.warning(t('playground.needMessage'))
 
   sending.value = true
   response.value = ''
-  statusText.value = '请求中...'
+  statusCode.value = 'pending'
   tokenCount.value = 0
   const start = performance.now()
 
@@ -149,7 +155,7 @@ async function handleSend() {
           }
         }
       }
-      statusText.value = '完成'
+      statusCode.value = 'done'
       window.dispatchEvent(new Event('balance-changed'))
     } else {
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
@@ -164,12 +170,12 @@ async function handleSend() {
       const data = await res.json()
       response.value = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2)
       tokenCount.value = data.usage?.total_tokens || 0
-      statusText.value = '完成'
+      statusCode.value = 'done'
       window.dispatchEvent(new Event('balance-changed'))
     }
   } catch (err) {
     response.value = `Error: ${err.message}`
-    statusText.value = '错误'
+    statusCode.value = 'fail'
   } finally {
     sending.value = false
     latency.value = Math.round(performance.now() - start)
@@ -180,7 +186,7 @@ async function handleSend() {
 function handleClear() {
   response.value = ''
   userMessage.value = ''
-  statusText.value = '就绪'
+  statusCode.value = 'ready'
   latency.value = 0
   tokenCount.value = 0
 }

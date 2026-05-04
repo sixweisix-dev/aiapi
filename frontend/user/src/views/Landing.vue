@@ -5,13 +5,14 @@
       <div class="nav-inner">
         <div class="logo">⚡ TransitAI</div>
         <nav class="nav-links">
-          <a href="#pricing">价格</a>
-          <a href="#compare">对比</a>
+          <a href="#pricing">{{ t('landing.navPricing') }}</a>
+          <a href="#compare">{{ t('landing.navCompare') }}</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div class="nav-actions">
-          <router-link to="/login" class="btn-ghost">登录</router-link>
-          <router-link to="/register" class="btn-primary">免费注册</router-link>
+          <button class="lang-switch" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中' }}</button>
+          <router-link to="/login" class="btn-ghost">{{ t('landing.navLogin') }}</router-link>
+          <router-link to="/register" class="btn-primary">{{ t('landing.navRegister') }}</router-link>
         </div>
       </div>
     </header>
@@ -19,180 +20,180 @@
     <!-- Hero -->
     <section class="hero">
       <div class="hero-inner">
-        <div class="badge">🚀 稳定直连 · 极速响应 · 即开即用</div>
+        <div class="badge">{{ t('landing.heroBadge') }}</div>
         <h1 class="hero-title">
-          开发者首选的 <span class="hl">Claude API</span> 平台
+          {{ t('landing.heroTitle1') }} <span class="hl">{{ t('landing.heroTitleHl') }}</span> {{ t('landing.heroTitle2') }}
         </h1>
         <p class="hero-subtitle">
-          为个人开发者和企业团队提供稳定、透明、可对账的<strong> Claude API 接入服务</strong>。<br/>
-          告别不稳定与跑路风险，专注构建你的产品。
+          {{ t('landing.heroSub1') }}<strong> {{ t('landing.heroSubBold') }}</strong>。<br/>
+          {{ t('landing.heroSub2') }}
         </p>
         <div class="hero-cta">
-          <router-link to="/register" class="btn-cta-primary">立即免费试用 →</router-link>
-          <a href="#pricing" class="btn-cta-ghost">查看价格</a>
+          <router-link to="/register" class="btn-cta-primary">{{ t('landing.heroCtaTry') }}</router-link>
+          <a href="#pricing" class="btn-cta-ghost">{{ t('landing.heroCtaPricing') }}</a>
         </div>
         <div class="hero-trust">
-          <span>✅ 官方原生模型</span>
-          <span>✅ 按量计费无月费</span>
-          <span>✅ 多上游故障转移</span>
-          <span>✅ 完整对账明细</span>
+          <span>{{ t('landing.trust1') }}</span>
+          <span>{{ t('landing.trust2') }}</span>
+          <span>{{ t('landing.trust3') }}</span>
+          <span>{{ t('landing.trust4') }}</span>
         </div>
       </div>
     </section>
 
     <!-- 核心优势 -->
     <section class="features">
-      <h2 class="section-title">为什么选择 TransitAI</h2>
-      <p class="section-sub">解决开发者使用 Claude API 真正会遇到的问题</p>
+      <h2 class="section-title">{{ t('landing.featuresTitle') }}</h2>
+      <p class="section-sub">{{ t('landing.featuresSub') }}</p>
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon">🎯</div>
-          <h3>原生官方模型</h3>
-          <p>直连 Anthropic 官方 API，使用真实模型版本（Claude Opus 4.7 / 4.6 / Sonnet 4.6 / 4.5 / Haiku 4.5）。不反代、不拼车、Token 不掺水。</p>
+          <h3>{{ t('landing.feat1Title') }}</h3>
+          <p>{{ t('landing.feat1Desc') }}</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3>多上游故障转移</h3>
-          <p>单通道宕机 0.1 秒内自动切换备用通道，永远不让你的业务因 API 中断而停摆。</p>
+          <h3>{{ t('landing.feat2Title') }}</h3>
+          <p>{{ t('landing.feat2Desc') }}</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📊</div>
-          <h3>项目级对账</h3>
-          <p>每个 API Key 可绑定项目名 + 月度预算。CSV 导出含费用、模型、IP、扣费后余额，财务做账无忧。</p>
+          <h3>{{ t('landing.feat3Title') }}</h3>
+          <p>{{ t('landing.feat3Desc') }}</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
-          <h3>安全透明</h3>
-          <p>余额实时同步 + 数据库全量审计，每一笔消费有据可查，资金安全有保障。</p>
+          <h3>{{ t('landing.feat4Title') }}</h3>
+          <p>{{ t('landing.feat4Desc') }}</p>
         </div>
       </div>
     </section>
 
     <!-- 价格表 -->
     <section id="pricing" class="pricing" style="scroll-margin-top: 80px">
-      <h2 class="section-title">透明价格</h2>
-      <p class="section-sub">按使用量付费，没有隐藏费用</p>
+      <h2 class="section-title">{{ t('landing.pricingTitle') }}</h2>
+      <p class="section-sub">{{ t('landing.pricingSub') }}</p>
 
       <div class="pricing-grid">
         <!-- 入门版 -->
         <div class="price-card">
           <div class="price-header">
-            <h3>入门版</h3>
-            <p class="price-tagline">个人开发者起步</p>
+            <h3>{{ t('landing.starterName') }}</h3>
+            <p class="price-tagline">{{ t('landing.starterTag') }}</p>
           </div>
           <div class="price-amount">
-            <span class="price-num">免费</span>
-            <span class="price-unit">充多少到账多少</span>
+            <span class="price-num">{{ t('landing.starterPrice') }}</span>
+            <span class="price-unit">{{ t('landing.starterUnit') }}</span>
           </div>
           <ul class="price-features">
-            <li>✓ 全部 Claude 4.x 模型</li>
-            <li>✓ 充值即用，无月费</li>
-            <li>✓ Playground 在线调试</li>
-            <li>✓ 基础对账明细</li>
-            <li>✓ 1 个 API Key</li>
-            <li>✓ 兑换码直接充值</li>
+            <li>{{ t('landing.starterF1') }}</li>
+            <li>{{ t('landing.starterF2') }}</li>
+            <li>{{ t('landing.starterF3') }}</li>
+            <li>{{ t('landing.starterF4') }}</li>
+            <li>{{ t('landing.starterF5') }}</li>
+            <li>{{ t('landing.starterF6') }}</li>
           </ul>
-          <router-link to="/register" class="price-cta">免费注册</router-link>
+          <router-link to="/register" class="price-cta">{{ t('landing.starterCta') }}</router-link>
         </div>
 
         <!-- 专业版（推荐）-->
         <div class="price-card featured">
-          <div class="featured-badge">推荐</div>
+          <div class="featured-badge">{{ t('landing.proBadge') }}</div>
           <div class="price-header">
-            <h3>专业版</h3>
-            <p class="price-tagline">中小团队 / SaaS 项目</p>
+            <h3>{{ t('landing.proName') }}</h3>
+            <p class="price-tagline">{{ t('landing.proTag') }}</p>
           </div>
           <div class="price-amount">
             <span class="price-num">¥99</span>
-            <span class="price-unit">/月</span>
+            <span class="price-unit">{{ t('landing.proUnit') }}</span>
           </div>
           <ul class="price-features">
-            <li>✓ 充 ¥99 <strong>实际到账 ¥120</strong></li>
-            <li>✓ 5 个独立项目 API Key</li>
-            <li>✓ RPM 60 / TPM 100k</li>
-            <li>✓ 项目维度 CSV 导出</li>
-            <li>✓ 预算告警通知</li>
-            <li>✓ 邮件工单支持</li>
+            <li>{{ t('landing.proF1Pre') }} <strong>{{ t('landing.proF1Bold') }}</strong></li>
+            <li>{{ t('landing.proF2') }}</li>
+            <li>{{ t('landing.proF3') }}</li>
+            <li>{{ t('landing.proF4') }}</li>
+            <li>{{ t('landing.proF5') }}</li>
+            <li>{{ t('landing.proF6') }}</li>
           </ul>
-          <router-link to="/register" class="price-cta primary">立即开通</router-link>
+          <router-link to="/register" class="price-cta primary">{{ t('landing.proCta') }}</router-link>
         </div>
 
         <!-- 企业版 -->
         <div class="price-card">
           <div class="price-header">
-            <h3>企业版</h3>
-            <p class="price-tagline">上下游集成 / 大客户</p>
+            <h3>{{ t('landing.entName') }}</h3>
+            <p class="price-tagline">{{ t('landing.entTag') }}</p>
           </div>
           <div class="price-amount">
             <span class="price-num">¥499</span>
-            <span class="price-unit">/月起</span>
+            <span class="price-unit">{{ t('landing.entUnit') }}</span>
           </div>
           <ul class="price-features">
-            <li>✓ 充 ¥499 <strong>实际到账 ¥600</strong></li>
-            <li>✓ 无限项目 API Key</li>
-            <li>✓ RPM 600 / TPM 1M</li>
-            <li>✓ 专属客服 + 技术对接</li>
-            <li>✓ SLA 99.5% 保障</li>
-            <li>✓ 私有化部署可议</li>
+            <li>{{ t('landing.entF1Pre') }} <strong>{{ t('landing.entF1Bold') }}</strong></li>
+            <li>{{ t('landing.entF2') }}</li>
+            <li>{{ t('landing.entF3') }}</li>
+            <li>{{ t('landing.entF4') }}</li>
+            <li>{{ t('landing.entF5') }}</li>
+            <li>{{ t('landing.entF6') }}</li>
           </ul>
-          <a href="mailto:sixweisix@gmail.com" class="price-cta">联系销售</a>
+          <a href="mailto:sixweisix@gmail.com" class="price-cta">{{ t('landing.entCta') }}</a>
         </div>
       </div>
 
       <p class="pricing-note">
-        💡 内测优惠价：Opus 4.x ¥21.6/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥3.456/M 输入 · 0.6x 倍率
+        {{ t('landing.pricingNote') }}
       </p>
     </section>
 
     <!-- 对比表 -->
     <section id="compare" class="compare" style="scroll-margin-top: 80px">
-      <h2 class="section-title">vs 灰产中转站</h2>
-      <p class="section-sub">为什么 B 端业务不能用便宜的灰产通道</p>
+      <h2 class="section-title">{{ t('landing.compareTitle') }}</h2>
+      <p class="section-sub">{{ t('landing.compareSub') }}</p>
 
       <div class="compare-table-wrap">
         <table class="compare-table">
           <thead>
             <tr>
               <th></th>
-              <th class="us">TransitAI</th>
-              <th>灰产中转站</th>
+              <th class="us">{{ t('landing.compareUs') }}</th>
+              <th>{{ t('landing.compareThem') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td class="row-label">资金安全</td>
-              <td class="us">✅ 余额实时同步 + 审计日志</td>
-              <td class="them">❓ 后台任意调整</td>
+              <td class="row-label">{{ t('landing.cmpRow1') }}</td>
+              <td class="us">{{ t('landing.cmpUs1') }}</td>
+              <td class="them">{{ t('landing.cmpThem1') }}</td>
             </tr>
             <tr>
-              <td class="row-label">对账明细</td>
-              <td class="us">✅ CSV / 项目筛选 / 月度</td>
-              <td class="them">❌ 只看到余额</td>
+              <td class="row-label">{{ t('landing.cmpRow2') }}</td>
+              <td class="us">{{ t('landing.cmpUs2') }}</td>
+              <td class="them">{{ t('landing.cmpThem2') }}</td>
             </tr>
             <tr>
-              <td class="row-label">模型来源</td>
-              <td class="us">✅ Anthropic 官方原生</td>
-              <td class="them">⚠️ 反代 Pro 套餐 / 拼车号</td>
+              <td class="row-label">{{ t('landing.cmpRow3') }}</td>
+              <td class="us">{{ t('landing.cmpUs3') }}</td>
+              <td class="them">{{ t('landing.cmpThem3') }}</td>
             </tr>
             <tr>
-              <td class="row-label">Token 计费</td>
-              <td class="us">✅ 按官方规则准确计费</td>
-              <td class="them">⚠️ 可能掺水（多扣 30-50%）</td>
+              <td class="row-label">{{ t('landing.cmpRow4') }}</td>
+              <td class="us">{{ t('landing.cmpUs4') }}</td>
+              <td class="them">{{ t('landing.cmpThem4') }}</td>
             </tr>
             <tr>
-              <td class="row-label">故障转移</td>
-              <td class="us">✅ 多上游自动切换</td>
-              <td class="them">❌ 单点宕机就罢工</td>
+              <td class="row-label">{{ t('landing.cmpRow5') }}</td>
+              <td class="us">{{ t('landing.cmpUs5') }}</td>
+              <td class="them">{{ t('landing.cmpThem5') }}</td>
             </tr>
             <tr>
-              <td class="row-label">运营连续性</td>
-              <td class="us">✅ 长期稳定运营</td>
-              <td class="them">❓ 随时跑路风险</td>
+              <td class="row-label">{{ t('landing.cmpRow6') }}</td>
+              <td class="us">{{ t('landing.cmpUs6') }}</td>
+              <td class="them">{{ t('landing.cmpThem6') }}</td>
             </tr>
             <tr>
-              <td class="row-label">数据安全</td>
-              <td class="us">✅ 独立账户隔离</td>
-              <td class="them">❌ 共享账号数据混用</td>
+              <td class="row-label">{{ t('landing.cmpRow7') }}</td>
+              <td class="us">{{ t('landing.cmpUs7') }}</td>
+              <td class="them">{{ t('landing.cmpThem7') }}</td>
             </tr>
           </tbody>
         </table>
@@ -201,40 +202,40 @@
 
     <!-- FAQ -->
     <section id="faq" class="faq" style="scroll-margin-top: 80px">
-      <h2 class="section-title">常见问题</h2>
+      <h2 class="section-title">{{ t('landing.faqTitle') }}</h2>
       <div class="faq-list">
         <details class="faq-item">
-          <summary>如何开始使用？</summary>
-          <p>注册账号后，通过兑换码充值余额，即可在控制台创建 API Key 开始使用。全流程 5 分钟内完成，无需任何海外信用卡。</p>
+          <summary>{{ t('landing.faqQ1') }}</summary>
+          <p>{{ t('landing.faqA1') }}</p>
         </details>
         <details class="faq-item">
-          <summary>价格比灰产同行贵？</summary>
-          <p>我们的倍率是 0.6x（低于官方价），比大多数灰产还便宜。灰产通常使用反代 Pro 账号或拼车号，Token 掺水严重，随时跑路封号。我们的优势是<strong>稳定、透明、可对账</strong>，内测期间欢迎大家选购。</p>
+          <summary>{{ t('landing.faqQ2') }}</summary>
+          <p>{{ t('landing.faqA2Pre') }}<strong>{{ t('landing.faqA2Bold') }}</strong>{{ t('landing.faqA2Post') }}</p>
         </details>
         <details class="faq-item">
-          <summary>如何充值？</summary>
-          <p>在闲鱼购买对应档位的兑换码，登录后进入「充值 & 会员」页面输入兑换码，余额立即到账。支持 ¥100 / ¥300 / ¥500 / ¥1000 / ¥3000 多个档位。</p>
+          <summary>{{ t('landing.faqQ3') }}</summary>
+          <p>{{ t('landing.faqA3') }}</p>
         </details>
         <details class="faq-item">
-          <summary>支持哪些模型？</summary>
-          <p>当前上线：Claude Opus 4.7 / 4.6 / Sonnet 4.6 / 4.5 / Haiku 4.5。后续将根据 Anthropic 发布节奏同步上线新模型。</p>
+          <summary>{{ t('landing.faqQ4') }}</summary>
+          <p>{{ t('landing.faqA4') }}</p>
         </details>
         <details class="faq-item">
-          <summary>SDK 兼容吗？</summary>
-          <p>完全兼容 OpenAI SDK 格式（即 <code>chat/completions</code> 接口）。原有代码只需修改 base_url 和 api_key 两个参数即可切换。</p>
+          <summary>{{ t('landing.faqQ5') }}</summary>
+          <p>{{ t('landing.faqA5Pre') }}<code>chat/completions</code>{{ t('landing.faqA5Post') }}</p>
         </details>
         <details class="faq-item">
-          <summary>会员和普通充值有什么区别？</summary>
-          <p>普通充值按量计费，适合轻量使用。会员套餐额外解锁更高 RPM/TPM 速率限制和更多 API Key，适合有批量请求需求的团队。</p>
+          <summary>{{ t('landing.faqQ6') }}</summary>
+          <p>{{ t('landing.faqA6') }}</p>
         </details>
       </div>
     </section>
 
     <!-- 底部 CTA -->
     <section class="cta-bottom">
-      <h2>准备开始？</h2>
-      <p>注册即送试用余额，无需信用卡</p>
-      <router-link to="/register" class="btn-cta-primary">立即免费注册 →</router-link>
+      <h2>{{ t('landing.ctaBottomTitle') }}</h2>
+      <p>{{ t('landing.ctaBottomSub') }}</p>
+      <router-link to="/register" class="btn-cta-primary">{{ t('landing.ctaBottomBtn') }}</router-link>
     </section>
 
     <!-- Footer -->
@@ -242,33 +243,44 @@
       <div class="footer-inner">
         <div class="footer-brand">
           <div class="logo">⚡ TransitAI</div>
-          <p class="footer-meta">稳定 · 透明 · 可对账</p>
+          <p class="footer-meta">{{ t('landing.footerTagline') }}</p>
         </div>
         <div class="footer-col">
-          <h4>产品</h4>
-          <a href="#pricing">价格</a>
-          <a href="#compare">对比</a>
-          <router-link to="/login">登录</router-link>
-          <router-link to="/register">注册</router-link>
+          <h4>{{ t('landing.footerProduct') }}</h4>
+          <a href="#pricing">{{ t('landing.navPricing') }}</a>
+          <a href="#compare">{{ t('landing.navCompare') }}</a>
+          <router-link to="/login">{{ t('landing.navLogin') }}</router-link>
+          <router-link to="/register">{{ t('landing.navRegister') }}</router-link>
         </div>
         <div class="footer-col">
-          <h4>条款</h4>
-          <router-link to="/terms">用户协议</router-link>
-          <router-link to="/privacy">隐私政策</router-link>
+          <h4>{{ t('landing.footerTerms') }}</h4>
+          <router-link to="/terms">{{ t('landing.footerTermsLink') }}</router-link>
+          <router-link to="/privacy">{{ t('landing.footerPrivacyLink') }}</router-link>
         </div>
         <div class="footer-col">
-          <h4>联系</h4>
+          <h4>{{ t('landing.footerContact') }}</h4>
           <a href="mailto:sixweisix@gmail.com">sixweisix@gmail.com</a>
         </div>
       </div>
       <div class="footer-bottom">
-        © 2026 TransitAI · All rights reserved.
+        {{ t('landing.footerCopyright') }}
       </div>
     </footer>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
+import { setLocale, currentLocale } from '@/i18n'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+const lang = ref(currentLocale())
+function toggleLang() {
+  const next = lang.value === 'zh' ? 'en' : 'zh'
+  setLocale(next)
+  lang.value = next
+}
 // 纯静态页，无需脚本逻辑
 </script>
 
@@ -535,4 +547,17 @@
   .faq { padding: 70px 20px; }
   .section-title { font-size: 26px; }
 }
+
+.lang-switch {
+  background: rgba(102,126,234,0.1);
+  color: #667eea;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.lang-switch:hover { background: rgba(102,126,234,0.2); }
 </style>

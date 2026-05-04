@@ -3,29 +3,29 @@
     <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">📮</div>
-      <h1 class="auth-brand">找回密码</h1>
-      <p class="auth-tagline">输入注册邮箱，我们将发送重置链接</p>
+      <h1 class="auth-brand">{{ t('forgot.title') }}</h1>
+      <p class="auth-tagline">{{ t('forgot.subtitle') }}</p>
 
       <div v-if="!sent">
         <el-form ref="formRef" :model="form" :rules="rules" class="auth-form">
           <el-form-item prop="email">
-            <el-input v-model="form.email" placeholder="📧 注册邮箱" size="large" />
+            <el-input v-model="form.email" :placeholder="t('forgot.emailPlaceholder')" size="large" />
           </el-form-item>
           <TurnstileWidget ref="tsRef" v-model="turnstileToken" />
           <button type="button" class="auth-btn" :disabled="loading" @click="handleSubmit">
-            {{ loading ? '发送中...' : '发送重置链接' }}
+            {{ loading ? t('forgot.submitting') : t('forgot.submitBtn') }}
           </button>
         </el-form>
       </div>
 
       <div v-else class="success-block">
         <div class="success-emoji">✉️</div>
-        <div class="success-title">重置链接已发送</div>
+        <div class="success-title">{{ t('forgot.successTitle') }}</div>
         <div class="success-sub">请检查收件箱（包括垃圾邮件）</div>
       </div>
 
       <div class="auth-links">
-        <router-link to="/login" class="auth-link">返回登录</router-link>
+        <router-link to="/login" class="auth-link">{{ t('forgot.backLogin') }}</router-link>
       </div>
     </div>
   </div>
@@ -35,6 +35,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { setLocale, currentLocale } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import api from '@/utils/api'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 
@@ -47,6 +48,7 @@ function toggleAuthLang() {
 
 const formRef = ref(null)
 const tsRef = ref(null)
+const { t } = useI18n()
 const loading = ref(false)
 const sent = ref(false)
 const turnstileToken = ref('')
@@ -59,7 +61,7 @@ async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!turnstileToken.value) {
-    return ElMessage.warning('请完成人机验证')
+    return ElMessage.warning(t('forgot.completeTs'))
   }
   loading.value = true
   try {

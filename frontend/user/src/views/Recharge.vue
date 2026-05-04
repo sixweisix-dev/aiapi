@@ -4,27 +4,27 @@
     <div class="recharge-hero">
       <div class="hero-bg-shape"></div>
       <div class="hero-emoji">💳</div>
-      <div class="hero-title">充值 & 会员</div>
-      <div class="hero-sub">兑换码直接到账 · 会员解锁更高速率</div>
+      <div class="hero-title">{{ t('recharge.heroTitle') }}</div>
+      <div class="hero-sub">{{ t('recharge.heroSub') }}</div>
     </div>
 
     <!-- 当前等级 -->
     <div v-if="me" class="current-card">
-      <div class="current-label">当前等级</div>
+      <div class="current-label">{{ t('recharge.currentTier') }}</div>
       <div class="current-tier">
         <span class="tier-badge" :class="me.membership_tier || 'free'">
           {{ tierLabel(me.membership_tier) }}
         </span>
       </div>
       <div v-if="me.membership_expires_at && me.membership_tier !== 'free'" class="current-expire">
-        到期时间：{{ dayjs(me.membership_expires_at).format('YYYY-MM-DD HH:mm') }}
+        {{ t('recharge.expiresAt') }}：{{ dayjs(me.membership_expires_at).format('YYYY-MM-DD HH:mm') }}
       </div>
     </div>
 
     <!-- 兑换码（置顶） -->
     <div class="data-card redeem-top-card">
-      <div class="redeem-header">🎁 兑换码</div>
-      <div class="redeem-sub">输入购买的兑换码，余额或会员权益即刻到账</div>
+      <div class="redeem-header">{{ t('recharge.redeemHeader') }}</div>
+      <div class="redeem-sub">{{ t('recharge.redeemSub') }}</div>
       <div class="redeem-row">
         <el-input
           v-model="redeemCode"
@@ -42,7 +42,7 @@
           :loading="redeeming"
           @click="doRedeem"
           class="redeem-btn"
-        >立即兑换</el-button>
+        >{{ t('recharge.redeemBtn') }}</el-button>
       </div>
       <div class="redeem-status">
         <span v-if="redeemMsg" :style="{ color: redeemOk ? '#67c23a' : '#f56c6c' }">{{ redeemMsg }}</span>
@@ -54,66 +54,66 @@
     <div class="plan-grid">
       <!-- 专业版 -->
       <div class="plan-card pro">
-        <div class="plan-badge">最受欢迎</div>
+        <div class="plan-badge">{{ t('recharge.popular') }}</div>
         <div class="plan-icon">💼</div>
-        <div class="plan-name">专业版</div>
+        <div class="plan-name">{{ t('recharge.planPro') }}</div>
         <div class="plan-price">
           <span class="price-num">¥99</span>
-          <span class="price-unit">/ 月</span>
+          <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
-        <div class="plan-bonus">充 ¥99 → 到账 ¥120（送 ¥21）</div>
+        <div class="plan-bonus">{{ t('recharge.proBonus') }}</div>
         <ul class="plan-features">
-          <li><span class="ok">✓</span> 充值到账 <b>¥120</b></li>
-          <li><span class="ok">✓</span> RPM <b>60</b>（10 倍提速）</li>
-          <li><span class="ok">✓</span> TPM <b>10 万</b></li>
-          <li><span class="ok">✓</span> API Key 数量 <b>5 个</b></li>
-          <li><span class="ok">✓</span> 预算告警</li>
-          <li><span class="ok">✓</span> CSV 账单导出</li>
-          <li><span class="muted">✗</span> SLA 保障（企业版独享）</li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.proLi1')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.proLi2')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.proLi3')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.proLi4')"></span></li>
+          <li><span class="ok">✓</span> {{ t('recharge.budgetAlert') }}</li>
+          <li><span class="ok">✓</span> {{ t('recharge.csvExport') }}</li>
+          <li><span class="muted">✗</span> {{ t('recharge.slaExclusive') }}</li>
         </ul>
-        <div class="plan-redeem-tip">购买专业版兑换码后在上方输入</div>
+        <div class="plan-redeem-tip">{{ t('recharge.proRedeemTip') }}</div>
       </div>
 
       <!-- 企业版 -->
       <div class="plan-card enterprise">
-        <div class="plan-badge premium">尊享旗舰</div>
+        <div class="plan-badge premium">{{ t('recharge.premium') }}</div>
         <div class="plan-icon">👑</div>
-        <div class="plan-name">企业版</div>
+        <div class="plan-name">{{ t('recharge.planEnterprise') }}</div>
         <div class="plan-price">
           <span class="price-num">¥499</span>
-          <span class="price-unit">/ 月</span>
+          <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
-        <div class="plan-bonus">充 ¥499 → 到账 ¥600（送 ¥101）</div>
+        <div class="plan-bonus">{{ t('recharge.entBonus') }}</div>
         <ul class="plan-features">
-          <li><span class="ok">✓</span> 充值到账 <b>¥600</b></li>
-          <li><span class="ok">✓</span> RPM <b>600</b>（100 倍提速）</li>
-          <li><span class="ok">✓</span> TPM <b>100 万</b></li>
-          <li><span class="ok">✓</span> API Key <b>不限数量</b></li>
-          <li><span class="ok">✓</span> 预算告警</li>
-          <li><span class="ok">✓</span> CSV 账单导出</li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.entLi1')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.entLi2')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.entLi3')"></span></li>
+          <li><span class="ok">✓</span> <span v-html="t('recharge.entLi4')"></span></li>
+          <li><span class="ok">✓</span> {{ t('recharge.budgetAlert') }}</li>
+          <li><span class="ok">✓</span> {{ t('recharge.csvExport') }}</li>
           <li><span class="ok">✓</span> <b>SLA 99.5%</b></li>
-          <li><span class="ok">✓</span> 优先技术支持</li>
+          <li><span class="ok">✓</span> {{ t('recharge.prioritySupport') }}</li>
         </ul>
-        <div class="plan-redeem-tip">购买企业版兑换码后在上方输入</div>
+        <div class="plan-redeem-tip">{{ t('recharge.entRedeemTip') }}</div>
       </div>
     </div>
 
     <!-- 说明 -->
     <div class="note-card">
-      <div class="note-title">💡 说明</div>
+      <div class="note-title">{{ t('recharge.notesTitle') }}</div>
       <ul class="note-list">
-        <li>会员有效期 30 天，到期后自动恢复免费版速率（已充值余额不受影响）</li>
-        <li>在闲鱼购买兑换码后，输入上方兑换框即可激活会员和余额</li>
-        <li>未到期续费会自动叠加时长，多月连续续费额度叠加</li>
-        <li>企业开票或定制 SLA，请联系微信：<b>SIXWEI_</b></li>
+        <li>{{ t('recharge.note1') }}</li>
+        <li>{{ t('recharge.note2') }}</li>
+        <li>{{ t('recharge.note3') }}</li>
+        <li>{{ t('recharge.note4') }}：<b>SIXWEI_</b></li>
       </ul>
     </div>
 
     <!-- 充值记录 -->
     <div class="data-card">
-      <div class="card-header"><span class="card-title">📜 充值记录</span></div>
-      <div v-if="loadingOrders" class="empty-tip">加载中...</div>
-      <div v-else-if="orders.length === 0" class="empty-tip">暂无充值记录</div>
+      <div class="card-header"><span class="card-title">{{ t('recharge.ordersTitle') }}</span></div>
+      <div v-if="loadingOrders" class="empty-tip">{{ t('recharge.loading') }}</div>
+      <div v-else-if="orders.length === 0" class="empty-tip">{{ t('recharge.noOrders') }}</div>
       <div v-else class="order-list">
         <div v-for="o in orders" :key="o.order_no" class="order-item">
           <div class="order-left">
@@ -122,7 +122,7 @@
             <div class="order-no">{{ o.order_no }}</div>
           </div>
           <span class="order-status" :class="o.payment_status">
-            {{ { paid: '已到账', pending: '待支付', failed: '失败' }[o.payment_status] || o.payment_status }}
+            {{ { paid: t('recharge.statusPaid'), pending: t('recharge.statusPending'), failed: t('recharge.statusFailed') }[o.payment_status] || o.payment_status }}
           </span>
         </div>
       </div>
@@ -131,6 +131,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { rechargeAPI, dashboardAPI } from '@/utils/api'
@@ -143,9 +145,9 @@ const me = ref(null)
 const orders = ref([])
 const loadingOrders = ref(true)
 
-function tierLabel(t) {
-  const m = { free: '免费版', pro: '专业版', enterprise: '企业版' }
-  return m[t] || '免费版'
+function tierLabel(tier) {
+  const m = { free: t('recharge.planFree'), pro: t('recharge.planPro'), enterprise: t('recharge.planEnterprise') }
+  return m[tier] || t('recharge.planFree')
 }
 
 async function fetchUserInfo() {
@@ -195,7 +197,7 @@ watch(redeemCode, (val) => {
   const code = (val || '').trim().toUpperCase()
   if (code.length < 19) return
   previewing.value = true
-  previewDisplay.value = '查询中...'
+  previewDisplay.value = t('recharge.searching')
   previewDisplayColor.value = '#999'
   previewTimer = setTimeout(async () => {
     try {
@@ -203,22 +205,22 @@ watch(redeemCode, (val) => {
       previewInfo.value = res
       const d = res
       if (!d.valid) {
-        previewDisplay.value = d.error || '兑换码无效'
+        previewDisplay.value = d.error || t('recharge.invalidCode')
         previewDisplayColor.value = '#f56c6c'
       } else if (d.type === 'membership') {
-        const tm = { pro: '专业版', enterprise: '企业版' }
-        let txt = '✅ 开通 ' + (tm[d.membership_tier] || d.membership_tier) + ' ' + d.membership_days + ' 天'
-        if (d.balance_amount > 0) txt += ' + 余额 +¥' + d.balance_amount.toFixed(2)
+        const tm = { pro: t('recharge.planPro'), enterprise: t('recharge.planEnterprise') }
+        let txt = t('recharge.activatePreview', { tier: (tm[d.membership_tier] || d.membership_tier), days: d.membership_days })
+        if (d.balance_amount > 0) txt += t('recharge.plusBalance', { amount: d.balance_amount.toFixed(2) })
         previewDisplay.value = txt
         previewDisplayColor.value = '#67c23a'
       } else {
-        let txt = '✅ 余额 +¥' + d.balance_amount.toFixed(2)
-        if (d.is_first_recharge && d.first_bonus > 0) txt += ' + 首充礼 +¥' + d.first_bonus.toFixed(2)
+        let txt = t('recharge.balancePreview', { amount: d.balance_amount.toFixed(2) })
+        if (d.is_first_recharge && d.first_bonus > 0) txt += t('recharge.plusFirstBonus', { amount: d.first_bonus.toFixed(2) })
         previewDisplay.value = txt
         previewDisplayColor.value = '#67c23a'
       }
     } catch {
-      previewDisplay.value = '兑换码无效'
+      previewDisplay.value = t('recharge.invalidCode')
       previewDisplayColor.value = '#f56c6c'
     } finally {
       previewing.value = false
@@ -229,17 +231,17 @@ watch(redeemCode, (val) => {
 const previewText = computed(() => {
   if (!previewInfo.value) return ''
   const p = previewInfo.value
-  if (!p.valid) return p.error || '兑换码无效'
+  if (!p.valid) return p.error || t('recharge.invalidCode')
   if (p.type === 'membership') {
-    const tierMap = { pro: '专业版', enterprise: '企业版' }
-    const parts = [`开通 ${tierMap[p.membership_tier] || p.membership_tier} ${p.membership_days} 天`]
-    if (p.balance_amount > 0) parts.push(`余额 +¥${p.balance_amount.toFixed(2)}`)
+    const tierMap = { pro: t('recharge.planPro'), enterprise: t('recharge.planEnterprise') }
+    const parts = [t('recharge.activateText', { tier: (tierMap[p.membership_tier] || p.membership_tier), days: p.membership_days })]
+    if (p.balance_amount > 0) parts.push(t('recharge.balanceText', { amount: p.balance_amount.toFixed(2) }))
     return '✅ ' + parts.join(' + ')
   }
   // balance 类型
-  const parts = [`余额 +¥${p.balance_amount.toFixed(2)}`]
+  const parts = [t('recharge.balanceText', { amount: p.balance_amount.toFixed(2) })]
   if (p.is_first_recharge && p.first_bonus > 0) {
-    parts.push(`首充礼 +¥${p.first_bonus.toFixed(2)}`)
+    parts.push(t('recharge.firstBonusText', { amount: p.first_bonus.toFixed(2) }))
   }
   return '✅ ' + parts.join(' + ')
 })
@@ -256,7 +258,7 @@ const doRedeem = async () => {
   try {
     const res = await api.post('/user/redeem', { code: redeemCode.value.trim().toUpperCase() })
     redeemOk.value = true
-    const msg = res.message || '兑换成功！'
+    const msg = res.message || t('recharge.redeemSuccess')
     redeemMsg.value = msg
     ElMessage.success(msg)
     previewDisplay.value = ''
@@ -267,7 +269,7 @@ const doRedeem = async () => {
     await fetchOrders()
   } catch (e) {
     redeemOk.value = false
-    const errMsg = e.response?.data?.error || '兑换失败，请检查兑换码'
+    const errMsg = e.response?.data?.error || t('recharge.redeemFail')
     redeemMsg.value = errMsg
     ElMessage.error(errMsg)
   } finally {

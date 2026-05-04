@@ -3,58 +3,58 @@
     <!-- 创建表单 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">🔑 创建 API Key</span>
+        <span class="card-title">{{ t('apiKeys.createTitleFull') }}</span>
       </div>
       <div class="form-body">
         <div class="form-row">
-          <label class="form-label">Key 名称 <span class="required">*</span></label>
-          <el-input v-model="createForm.name" placeholder="例如: 营销系统-生产环境" size="large" />
+          <label class="form-label">{{ t('apiKeys.keyName') }} <span class="required">*</span></label>
+          <el-input v-model="createForm.name" :placeholder="t('apiKeys.keyNamePlaceholder')" size="large" />
         </div>
         <div class="form-row">
-          <label class="form-label">项目名称 <span class="optional">(B 端推荐)</span></label>
-          <el-input v-model="createForm.project_name" placeholder="例如: 客服 Bot / 内容分析" size="large" />
-          <div class="field-tip">便于按项目区分用量与计费</div>
+          <label class="form-label">{{ t('apiKeys.projectName') }} <span class="optional">{{ t('apiKeys.optional') }}</span></label>
+          <el-input v-model="createForm.project_name" :placeholder="t('apiKeys.projectNamePlaceholder')" size="large" />
+          <div class="field-tip">{{ t('apiKeys.projectTip') }}</div>
         </div>
         <div class="form-row form-grid-2">
           <div>
-            <label class="form-label">RPM 限制</label>
+            <label class="form-label">{{ t('apiKeys.rpmLimit') }}</label>
             <el-input-number v-model="createForm.rpm_limit" :min="0" :max="10000" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">每分钟请求数（留空=等级上限 {{ currentLimits().rpm }}，{{ currentLimits().label }}）</div>
+            <div class="field-tip">{{ t('apiKeys.rpmTipDetail', { rpm: currentLimits().rpm, label: t(currentLimits().label) }) }}</div>
           </div>
           <div>
-            <label class="form-label">TPM 限制</label>
+            <label class="form-label">{{ t('apiKeys.tpmLimit') }}</label>
             <el-input-number v-model="createForm.tpm_limit" :min="0" :max="1000000" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">每分钟 token 数（留空=等级上限 {{ currentLimits().tpm.toLocaleString() }}，{{ currentLimits().label }}）</div>
+            <div class="field-tip">{{ t('apiKeys.tpmTipDetail', { tpm: currentLimits().tpm.toLocaleString(), label: t(currentLimits().label) }) }}</div>
           </div>
         </div>
         <div class="form-row form-grid-2">
           <div>
-            <label class="form-label">月度预算 (¥)</label>
+            <label class="form-label">{{ t('apiKeys.budgetWithUnit') }}</label>
             <el-input-number v-model="createForm.monthly_budget" :min="0" :precision="2" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">超额自动禁用</div>
+            <div class="field-tip">{{ t('apiKeys.budgetAutoDisable') }}</div>
           </div>
           <div>
-            <label class="form-label">告警阈值 (%)</label>
+            <label class="form-label">{{ t('apiKeys.alertThreshold') }}</label>
             <el-input-number v-model="createForm.budget_alert_pct" :min="0" :max="100" size="large" :controls="false" style="width:100%" />
-            <div class="field-tip">默认 80%</div>
+            <div class="field-tip">{{ t('apiKeys.alertDefault') }}</div>
           </div>
         </div>
         <button class="primary-btn" :disabled="creating" @click="handleCreate">
-          <span v-if="creating">创建中...</span>
-          <span v-else>＋ 创建 API Key</span>
+          <span v-if="creating">{{ t('apiKeys.creating') }}</span>
+          <span v-else>{{ t('apiKeys.createBtnFull') }}</span>
         </button>
-        <div class="form-tip">所有限制设为 0 表示不限制</div>
+        <div class="form-tip">{{ t('apiKeys.allZeroNote') }}</div>
       </div>
     </div>
 
     <!-- Key 列表 -->
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">📦 我的 API Key</span>
-        <span class="card-tag">{{ total }} 个</span>
+        <span class="card-title">{{ t('apiKeys.myKeysTitle') }}</span>
+        <span class="card-tag">{{ total }} {{ t('apiKeys.countUnit') }}</span>
       </div>
-      <div v-if="loading" class="empty-tip">加载中...</div>
-      <div v-else-if="keys.length === 0" class="empty-tip">暂无 API Key，请先创建</div>
+      <div v-if="loading" class="empty-tip">{{ t('apiKeys.loadingTip') }}</div>
+      <div v-else-if="keys.length === 0" class="empty-tip">{{ t('apiKeys.noKeysHint') }}</div>
       <div v-else class="key-list">
         <div v-for="k in keys" :key="k.id" class="key-item">
           <div class="key-top">
@@ -63,7 +63,7 @@
               {{ k.name }}
             </div>
             <span class="key-status" :class="k.is_active ? 'active' : 'inactive'">
-              {{ k.is_active ? '启用' : '禁用' }}
+              {{ k.is_active ? t('apiKeys.enable') : t('apiKeys.disable') }}
             </span>
           </div>
           <div class="key-prefix">sk-{{ k.prefix }}••••••••</div>
@@ -72,13 +72,13 @@
           <div class="key-limits">
             <span class="limit-chip">RPM {{ k.rpm_limit || '∞' }}</span>
             <span class="limit-chip">TPM {{ k.tpm_limit || '∞' }}</span>
-            <span class="limit-chip">📊 {{ k.total_used || 0 }} 次</span>
+            <span class="limit-chip">📊 {{ k.total_used || 0 }} {{ t('apiKeys.timesUnit') }}</span>
           </div>
 
           <!-- 预算进度条 -->
           <div v-if="k.monthly_budget" class="budget-section">
             <div class="budget-header">
-              <span class="budget-label">月度预算</span>
+              <span class="budget-label">{{ t('apiKeys.monthlyBudget') }}</span>
               <span class="budget-amount" :class="getBudgetClass(k)">
                 ¥{{ Number(k.budget_used || 0).toFixed(2) }} / ¥{{ Number(k.monthly_budget).toFixed(2) }}
                 ({{ getBudgetPct(k) }}%)
@@ -92,18 +92,18 @@
 
           <!-- 最后使用 -->
           <div class="key-meta">
-            {{ k.last_used_at ? '最近使用 ' + dayjs(k.last_used_at).format('MM-DD HH:mm') : '从未使用' }}
+            {{ k.last_used_at ? t('apiKeys.recentUsePrefix') + ' ' + dayjs(k.last_used_at).format('MM-DD HH:mm') : t('apiKeys.neverUsed') }}
           </div>
 
           <!-- 操作按钮 -->
           <div class="key-actions">
-            <button class="action-btn btn-edit" @click="openEdit(k)">编辑</button>
+            <button class="action-btn btn-edit" @click="openEdit(k)">{{ t('apiKeys.edit') }}</button>
             <button class="action-btn" :class="k.is_active ? 'btn-warn' : 'btn-success'" @click="handleToggle(k)">
               {{ k.is_active ? '禁用' : '启用' }}
             </button>
-            <el-popconfirm title="确定删除此 Key？" @confirm="handleDelete(k.id)">
+            <el-popconfirm :title="t('apiKeys.confirmDeleteShort')" @confirm="handleDelete(k.id)">
               <template #reference>
-                <button class="action-btn btn-danger">删除</button>
+                <button class="action-btn btn-danger">{{ t('apiKeys.delete') }}</button>
               </template>
             </el-popconfirm>
           </div>
@@ -112,22 +112,22 @@
     </div>
 
     <!-- 新 Key 弹窗 -->
-    <el-dialog v-model="showNewKey" title="🎉 创建成功" width="92%" style="max-width:480px">
-      <div class="warn-box">⚠️ 请立即复制并妥善保存！关闭后将无法再次查看完整 Key。</div>
+    <el-dialog v-model="showNewKey" :title="t('apiKeys.successCreate')" width="92%" style="max-width:480px">
+      <div class="warn-box">{{ t('apiKeys.copyWarning') }}</div>
       <el-input v-model="newKeyValue" type="textarea" :rows="3" readonly style="margin-top:12px" />
-      <button class="primary-btn" style="margin-top:14px" @click="copyKey">📋 一键复制</button>
+      <button class="primary-btn" style="margin-top:14px" @click="copyKey">{{ t('apiKeys.oneClickCopy') }}</button>
     </el-dialog>
 
     <!-- 编辑弹窗 -->
-    <el-dialog v-model="showEdit" title="✏️ 编辑 API Key" width="92%" style="max-width:480px">
+    <el-dialog v-model="showEdit" :title="t('apiKeys.editKeyTitle')" width="92%" style="max-width:480px">
       <div class="form-body">
         <div class="form-row">
-          <label class="form-label">Key 名称</label>
+          <label class="form-label">{{ t('apiKeys.keyName') }}</label>
           <el-input v-model="editForm.name" size="large" />
         </div>
         <div class="form-row">
-          <label class="form-label">项目名称</label>
-          <el-input v-model="editForm.project_name" size="large" placeholder="可选" />
+          <label class="form-label">{{ t('apiKeys.projectName') }}</label>
+          <el-input v-model="editForm.project_name" size="large" :placeholder="t('apiKeys.projectOptionalPh')" />
         </div>
         <div class="form-row form-grid-2">
           <div>
@@ -141,16 +141,16 @@
         </div>
         <div class="form-row form-grid-2">
           <div>
-            <label class="form-label">月度预算 (¥)</label>
+            <label class="form-label">{{ t('apiKeys.budgetWithUnit') }}</label>
             <el-input-number v-model="editForm.monthly_budget" :min="0" :precision="2" size="large" :controls="false" style="width:100%" />
           </div>
           <div>
-            <label class="form-label">告警阈值 (%)</label>
+            <label class="form-label">{{ t('apiKeys.alertThreshold') }}</label>
             <el-input-number v-model="editForm.budget_alert_pct" :min="0" :max="100" size="large" :controls="false" style="width:100%" />
           </div>
         </div>
         <button class="primary-btn" :disabled="saving" @click="handleUpdate">
-          {{ saving ? '保存中...' : '💾 保存修改' }}
+          {{ saving ? t('apiKeys.saving') : t('apiKeys.saveModify') }}
         </button>
       </div>
     </el-dialog>
@@ -158,6 +158,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { useAuthStore } from '@/stores/auth' 
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -175,9 +177,9 @@ const newKeyValue = ref('')
 
 const auth = useAuthStore()
 const tierLimitsMap = {
-  free: { rpm: 6, tpm: 10000, label: '免费版' },
-  pro: { rpm: 60, tpm: 100000, label: '专业版' },
-  enterprise: { rpm: 600, tpm: 1000000, label: '企业版' },
+  free: { rpm: 6, tpm: 10000, label: 'apiKeys.planFree' },
+  pro: { rpm: 60, tpm: 100000, label: 'apiKeys.planPro' },
+  enterprise: { rpm: 600, tpm: 1000000, label: 'apiKeys.planEnterprise' },
 }
 const userTier = () => {
   const t = auth.user?.membership_tier || 'free'
@@ -230,7 +232,7 @@ function getBudgetClass(k) {
 }
 
 async function handleCreate() {
-  if (!createForm.value.name) return ElMessage.warning('请输入 Key 名称')
+  if (!createForm.value.name) return ElMessage.warning(t('apiKeys.needKeyName'))
   creating.value = true
   try {
     const f = createForm.value
@@ -245,7 +247,7 @@ async function handleCreate() {
     newKeyValue.value = data.key
     showNewKey.value = true
     createForm.value = { name: '', project_name: '', rpm_limit: 0, tpm_limit: 0, monthly_budget: 0, budget_alert_pct: 80 }
-    ElMessage.success('创建成功')
+    ElMessage.success(t('apiKeys.created'))
     await fetchKeys()
   } catch {} finally { creating.value = false }
 }
@@ -273,20 +275,20 @@ async function handleUpdate() {
       budget_alert_pct: editForm.budget_alert_pct,
     }
     await apiKeysAPI.update(editForm.id, payload)
-    ElMessage.success('已保存')
+    ElMessage.success(t('apiKeys.saved'))
     showEdit.value = false
     await fetchKeys()
   } catch {} finally { saving.value = false }
 }
 
 async function handleToggle(row) {
-  try { await apiKeysAPI.toggle(row.id); ElMessage.success(row.is_active ? '已禁用' : '已启用'); await fetchKeys() } catch {}
+  try { await apiKeysAPI.toggle(row.id); ElMessage.success(row.is_active ? t('apiKeys.disabledMsg') : t('apiKeys.enabledMsg')); await fetchKeys() } catch {}
 }
 async function handleDelete(id) {
-  try { await apiKeysAPI.delete(id); ElMessage.success('已删除'); await fetchKeys() } catch {}
+  try { await apiKeysAPI.delete(id); ElMessage.success(t('apiKeys.deleted')); await fetchKeys() } catch {}
 }
 function copyKey() {
-  navigator.clipboard.writeText(newKeyValue.value).then(() => ElMessage.success('已复制'))
+  navigator.clipboard.writeText(newKeyValue.value).then(() => ElMessage.success(t('apiKeys.copiedMsg')))
 }
 </script>
 

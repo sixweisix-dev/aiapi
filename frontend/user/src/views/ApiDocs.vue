@@ -2,24 +2,24 @@
   <div>
     <el-card shadow="hover" class="mb-6">
       <template #header>
-        <span class="font-medium">API 概述</span>
+        <span class="font-medium">{{ t('apiDocs.overview') }}</span>
       </template>
       <p class="text-gray-600 mb-2">
-        本平台提供 Claude 系列模型的 API 中转服务，接口格式兼容 OpenAI SDK。您可以使用 OpenAI SDK 或直接 HTTP 请求调用 Claude 模型，无需修改现有代码。
+        {{ t('apiDocs.overviewDesc') }}
       </p>
       <el-alert type="info" :closable="false">
         <template #title>
-          基础 URL: <code class="bg-blue-100 px-2 py-0.5 rounded">https://transitai.cloud/v1</code>
+          {{ t('apiDocs.baseUrlPrefix') }}: <code class="bg-blue-100 px-2 py-0.5 rounded">https://transitai.cloud/v1</code>
         </template>
       </el-alert>
     </el-card>
 
     <el-card shadow="hover" class="mb-6">
       <template #header>
-        <span class="font-medium">鉴权方式</span>
+        <span class="font-medium">{{ t('apiDocs.auth') }}</span>
       </template>
       <p class="text-gray-600 mb-3">
-        所有 API 请求需要在 HTTP Header 中携带 API Key:
+        {{ t('apiDocs.authDesc') }}
       </p>
       <el-input
         :model-value="'Authorization: Bearer sk-xxxxxxxxxxxxxxxx'"
@@ -28,46 +28,46 @@
       >
         <template #prepend>Header</template>
       </el-input>
-      <p class="text-sm text-gray-500">你可以在"API Key 管理"页面创建和管理你的 API Key。</p>
+      <p class="text-sm text-gray-500">{{ t('apiDocs.authTip') }}</p>
     </el-card>
 
     <!-- Chat Completions -->
     <el-card shadow="hover" class="mb-6">
       <template #header>
-        <span class="font-medium">聊天补全</span>
+        <span class="font-medium">{{ t('apiDocs.chatCompletion') }}</span>
       </template>
       <el-descriptions :column="1" border class="mb-4">
-        <el-descriptions-item label="端点">POST /v1/chat/completions</el-descriptions-item>
+        <el-descriptions-item :label="t('apiDocs.endpoint')">POST /v1/chat/completions</el-descriptions-item>
         <el-descriptions-item label="Content-Type">application/json</el-descriptions-item>
       </el-descriptions>
 
-      <h4 class="font-medium mb-2">请求示例:</h4>
+      <h4 class="font-medium mb-2">{{ t('apiDocs.requestExample') }}</h4>
       <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm mb-4"><code>{{ chatExample }}</code></pre>
 
-      <h4 class="font-medium mb-2">流式请求:</h4>
-      <p class="text-gray-600 mb-2">添加 <code>stream: true</code> 即可启用 SSE 流式响应。</p>
+      <h4 class="font-medium mb-2">{{ t('apiDocs.streamRequest') }}</h4>
+      <p class="text-gray-600 mb-2" v-html="t('apiDocs.streamDesc')"></p>
       <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm mb-4"><code>{{ streamExample }}</code></pre>
 
-      <h4 class="font-medium mb-2">CURL 示例:</h4>
+      <h4 class="font-medium mb-2">{{ t('apiDocs.curlExample') }}</h4>
       <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ curlExample }}</code></pre>
     </el-card>
 
     <!-- Models -->
     <el-card shadow="hover" class="mb-6">
       <template #header>
-        <span class="font-medium">模型列表</span>
+        <span class="font-medium">{{ t('apiDocs.modelList') }}</span>
       </template>
       <el-descriptions :column="1" border class="mb-4">
-        <el-descriptions-item label="端点">GET /v1/models</el-descriptions-item>
+        <el-descriptions-item :label="t('apiDocs.endpoint')">GET /v1/models</el-descriptions-item>
       </el-descriptions>
-      <p class="text-gray-600 mb-2">获取所有可用模型的列表，返回格式兼容 OpenAI。</p>
+      <p class="text-gray-600 mb-2">{{ t('apiDocs.modelListDesc') }}</p>
       <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ modelsExample }}</code></pre>
     </el-card>
 
     <!-- SDK Examples -->
     <el-card shadow="hover" class="mb-6">
       <template #header>
-        <span class="font-medium">SDK 使用示例</span>
+        <span class="font-medium">{{ t('apiDocs.sdkExample') }}</span>
       </template>
 
       <el-tabs v-model="sdkTab">
@@ -86,20 +86,22 @@
     <!-- Pricing Note -->
     <el-card shadow="hover">
       <template #header>
-        <span class="font-medium">计费说明</span>
+        <span class="font-medium">{{ t('apiDocs.billing') }}</span>
       </template>
       <ul class="list-disc list-inside text-gray-600 space-y-2">
-        <li>所有价格以 <strong>USD</strong> 计价，按每 1,000 tokens 计算</li>
-        <li>实际扣费 = (输入tokens/1000 × 输入单价 + 输出tokens/1000 × 输出单价) × 倍率</li>
-        <li>具体模型的单价和倍率请在"模型与价格"页面查看</li>
-        <li>余额不足时请求将返回 402 Payment Required</li>
-        <li>消费记录可在"消费明细"页面实时查看并导出 CSV</li>
+        <li v-html="t('apiDocs.billLi1')"></li>
+        <li>{{ t('apiDocs.billLi2') }}</li>
+        <li>{{ t('apiDocs.billLi3') }}</li>
+        <li>{{ t('apiDocs.billLi4') }}</li>
+        <li>{{ t('apiDocs.billLi5') }}</li>
       </ul>
     </el-card>
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref } from 'vue'
 
 const sdkTab = ref('python')

@@ -3,83 +3,90 @@
     <div class="hero">
       <div class="hero-bg"></div>
       <div class="hero-emoji">🔒</div>
-      <div class="hero-title">修改密码</div>
-      <div class="hero-sub">为账号安全，建议定期更换密码</div>
+      <div class="hero-title">{{ t('changePwd.heroTitle') }}</div>
+      <div class="hero-sub">{{ t('changePwd.heroSub') }}</div>
     </div>
 
     <div class="data-card">
-      <div class="card-header"><span class="card-title">🔑 设置新密码</span></div>
+      <div class="card-header"><span class="card-title">{{ t('changePwd.cardTitle') }}</span></div>
       <el-form :model="form" :rules="rules" ref="formRef" class="form-body">
         <el-form-item prop="old_password">
-          <el-input v-model="form.old_password" type="password" placeholder="🔒 当前密码" size="large" show-password />
+          <el-input v-model="form.old_password" type="password" :placeholder="t('changePwd.oldPh')" size="large" show-password />
         </el-form-item>
         <el-form-item prop="new_password">
-          <el-input v-model="form.new_password" type="password" placeholder="✨ 新密码（8位+大小写+数字）" size="large" show-password />
+          <el-input v-model="form.new_password" type="password" :placeholder="t('changePwd.newPh')" size="large" show-password />
         </el-form-item>
         <el-form-item prop="confirm_password">
-          <el-input v-model="form.confirm_password" type="password" placeholder="✅ 确认新密码" size="large" show-password />
+          <el-input v-model="form.confirm_password" type="password" :placeholder="t('changePwd.confirmPh')" size="large" show-password />
         </el-form-item>
-        <button class="primary-btn" :disabled="loading" @click="handleSubmit">
-          {{ loading ? '提交中...' : '确认修改' }}
+        <button type="button" class="primary-btn" :disabled="loading" @click="handleSubmit">
+          {{ loading ? t('changePwd.submitting') : t('changePwd.submitBtn') }}
         </button>
-        <button class="secondary-btn" @click="$router.push('/')">取消</button>
+        <button class="secondary-btn" @click="$router.push('/')">{{ t('changePwd.cancelBtn') }}</button>
       </el-form>
     </div>
 
     <div class="data-card tip-card">
       <div class="tip-emoji">💡</div>
       <div class="tip-text">
-        <div class="tip-title">密码要求</div>
-        <div class="tip-content">至少 8 位 · 包含大小写字母 · 包含数字</div>
+        <div class="tip-title">{{ t('changePwd.tipTitle') }}</div>
+        <div class="tip-content">{{ t('changePwd.tipContent') }}</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 
+const { t } = useI18n()
 const router = useRouter()
 const formRef = ref()
 const loading = ref(false)
 const form = ref({ old_password: '', new_password: '', confirm_password: '' })
 
 const passwordStrength = (value) => {
-  if (value.length < 8) return '至少8位'
-  if (!/[a-z]/.test(value)) return '需包含小写字母'
-  if (!/[A-Z]/.test(value)) return '需包含大写字母'
-  if (!/[0-9]/.test(value)) return '需包含数字'
+  if (value.length < 8) return t('changePwd.errMin8')
+  if (!/[a-z]/.test(value)) return t('changePwd.errLower')
+  if (!/[A-Z]/.test(value)) return t('changePwd.errUpper')
+  if (!/[0-9]/.test(value)) return t('changePwd.errDigit')
   return null
 }
 
-const rules = {
-  old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
+const rules = computed(() => ({
+  old_password: [{ required: true, message: t('changePwd.ruleOldRequired'), trigger: 'blur' }],
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { required: true, message: t('changePwd.ruleNewRequired'), trigger: 'blur' },
     { validator: (rule, value, callback) => { const err = passwordStrength(value); err ? callback(new Error(err)) : callback() }, trigger: 'blur' }
   ],
   confirm_password: [
-    { required: true, message: '请确认新密码', trigger: 'blur' },
-    { validator: (rule, value, callback) => { value !== form.value.new_password ? callback(new Error('两次密码不一致')) : callback() }, trigger: 'blur' }
+    { required: true, message: t('changePwd.ruleConfirmRequired'), trigger: 'blur' },
+    { validator: (rule, value, callback) => { value !== form.value.new_password ? callback(new Error(t('changePwd.ruleMismatch'))) : callback() }, trigger: 'blur' }
   ]
-}
+}))
 
 async function handleSubmit() {
-  await formRef.value.validate()
+  let ok = false
+  try { ok = await formRef.value.validate() } catch { ok = false }
+  if (!ok) return
   loading.value = true
   try {
     await api.post('/auth/change-password', {
       old_password: form.value.old_password,
       new_password: form.value.new_password
     })
-    ElMessage.success('密码修改成功，请重新登录')
+    ElMessage.success(t('changePwd.successMsg'))
     localStorage.removeItem('user_token')
     localStorage.removeItem('user_user')
     router.push('/login')
-  } catch {} finally { loading.value = false }
+  } catch (e) {
+    const msg = e?.response?.data?.error || t('changePwd.submitFail')
+    ElMessage.error(msg)
+  } finally { loading.value = false }
 }
 </script>
 

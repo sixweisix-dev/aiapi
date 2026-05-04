@@ -3,17 +3,17 @@
     <div class="hero">
       <div class="hero-bg"></div>
       <div class="hero-emoji">🤖</div>
-      <div class="hero-title">模型与价格</div>
-      <div class="hero-sub">Claude 系列模型 · OpenAI 兼容接口</div>
+      <div class="hero-title">{{ t('models.heroTitle') }}</div>
+      <div class="hero-sub">{{ t('models.heroSub') }}</div>
     </div>
 
     <div class="data-card">
       <div class="card-header">
-        <span class="card-title">📋 可用模型</span>
-        <span class="card-tag">{{ models.length }} 个</span>
+        <span class="card-title">{{ t('models.listTitle') }}</span>
+        <span class="card-tag">{{ models.length }} {{ t('models.countUnit') }}</span>
       </div>
-      <div v-if="loading" class="empty-tip">加载中...</div>
-      <div v-else-if="models.length === 0" class="empty-tip">暂无可用模型</div>
+      <div v-if="loading" class="empty-tip">{{ t('models.loading') }}</div>
+      <div v-else-if="models.length === 0" class="empty-tip">{{ t('models.noModels') }}</div>
       <div v-else class="model-list">
         <div v-for="m in models" :key="m.id" class="model-card">
           <div class="model-head">
@@ -25,20 +25,20 @@
           </div>
           <div class="price-grid">
             <div class="price-block">
-              <div class="price-label">📥 输入</div>
+              <div class="price-label">{{ t('models.input') }}</div>
               <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier)).toFixed(4) }}</div>
               <div class="price-unit">/ 1K tokens</div>
             </div>
             <div class="price-block">
-              <div class="price-label">📤 输出</div>
+              <div class="price-label">{{ t('models.output') }}</div>
               <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier)).toFixed(4) }}</div>
               <div class="price-unit">/ 1K tokens</div>
             </div>
           </div>
           <div class="model-meta">
-            <span>📐 上下文 {{ (m.context_length / 1000).toFixed(0) }}K</span>
+            <span>{{ t('models.context') }} {{ (m.context_length / 1000).toFixed(0) }}K</span>
             <span>·</span>
-            <span>倍率 {{ m.multiplier }}x</span>
+            <span>{{ t('models.multiplier') }} {{ m.multiplier }}x</span>
           </div>
           <div v-if="m.description" class="model-desc">{{ m.description }}</div>
         </div>
@@ -48,9 +48,9 @@
     <div class="data-card tip-card">
       <div class="tip-emoji">💡</div>
       <div class="tip-text">
-        <div class="tip-title">价格说明</div>
+        <div class="tip-title">{{ t('models.tipTitle') }}</div>
         <div class="tip-content">
-          所有价格以人民币计价 · 按实际 tokens 用量扣费 · 余额不足时返回 402
+          {{ t('models.tipText') }}
         </div>
       </div>
     </div>
@@ -58,6 +58,8 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, onMounted } from 'vue'
 import { userModelsAPI } from '@/utils/api'
 

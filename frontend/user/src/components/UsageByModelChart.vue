@@ -1,20 +1,22 @@
 <template>
   <div class="data-card">
     <div class="card-header">
-      <span class="card-title">📊 每日模型消耗</span>
+      <span class="card-title">{{ t('chart.title') }}</span>
       <div class="metric-tabs">
         <button v-for="m in metrics" :key="m.key"
           :class="['tab', { active: metric === m.key }]"
           @click="metric = m.key">{{ m.label }}</button>
       </div>
     </div>
-    <div v-if="loading" class="loading-tip">加载中...</div>
-    <div v-else-if="!hasData" class="empty-tip">最近 7 天暂无消耗数据</div>
+    <div v-if="loading" class="loading-tip">{{ t('chart.loading') }}</div>
+    <div v-else-if="!hasData" class="empty-tip">{{ t('chart.noData') }}</div>
     <v-chart v-else :option="chartOption" autoresize style="height: 320px" />
   </div>
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -30,9 +32,9 @@ const rawData = ref([])
 const metric = ref('cost')
 
 const metrics = [
-  { key: 'cost', label: '金额(¥)' },
+  { key: 'cost', label: t('chart.amount') },
   { key: 'tokens', label: 'Token' },
-  { key: 'requests', label: '请求数' },
+  { key: 'requests', label: t('chart.requests') },
 ]
 
 const colorPalette = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#f6d365', '#fa709a', '#30cfd0']

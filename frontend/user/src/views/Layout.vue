@@ -155,11 +155,12 @@ const currentRoute = computed(() => route.path)
 const user = computed(() => auth.user)
 const avatarLetter = computed(() => (user.value?.email?.[0] || 'U').toUpperCase())
 const tierLabel = computed(() => {
-  const t = user.value?.membership_tier
+  currentLocale.value  // track locale for reactivity
+  const tier = user.value?.membership_tier
   const exp = user.value?.membership_expires_at
-  if (t === 'pro' && exp && new Date(exp) > new Date()) return '⭐ 专业版'
-  if (t === 'enterprise' && exp && new Date(exp) > new Date()) return '💎 企业版'
-  return '普通用户'
+  if (tier === 'pro' && exp && new Date(exp) > new Date()) return i18n.global.t('layout.tierPro')
+  if (tier === 'enterprise' && exp && new Date(exp) > new Date()) return i18n.global.t('layout.tierEnterprise')
+  return i18n.global.t('layout.tierNormal')
 })
 const tierClass = computed(() => {
   const t = user.value?.membership_tier
