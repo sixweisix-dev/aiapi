@@ -91,6 +91,7 @@ func main() {
 	chatHandler.SetMailCfg(&mailCfg)
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	usageByModelHandler := handlers.NewUsageByModelHandler(db)
+	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
@@ -161,6 +162,8 @@ func main() {
 	v1.Use(middleware.APIKeyAuth(db))
 	{
 		v1.POST("/chat/completions", middleware.APIKeyRateLimit(rateLimiter), chatHandler.Handle)
+	v1.POST("/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle)
+	v1.POST("/v1/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle) // 兼容 base_url=/v1 的错误配置
 		v1.GET("/models", modelsHandler.List)
 	}
 

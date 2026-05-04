@@ -1,94 +1,321 @@
 <template>
-  <div>
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.overview') }}</span>
-      </template>
-      <p class="text-gray-600 mb-2">
-        {{ t('apiDocs.overviewDesc') }}
-      </p>
-      <el-alert type="info" :closable="false">
-        <template #title>
-          {{ t('apiDocs.baseUrlPrefix') }}: <code class="bg-blue-100 px-2 py-0.5 rounded">https://transitai.cloud/v1</code>
-        </template>
-      </el-alert>
+  <div class="api-docs">
+
+    <!-- 快速开始 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.quickstart') }}</span></template>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">{{ t('apiDocs.quickstep1') }}</div>
+            <div class="step-desc">{{ t('apiDocs.quickstep1desc') }}</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">{{ t('apiDocs.quickstep2') }}</div>
+            <div class="step-desc">{{ t('apiDocs.quickstep2desc') }}</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">{{ t('apiDocs.quickstep3') }}</div>
+            <div class="step-desc">{{ t('apiDocs.quickstep3desc') }}</div>
+          </div>
+        </div>
+      </div>
     </el-card>
 
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.auth') }}</span>
-      </template>
-      <p class="text-gray-600 mb-3">
-        {{ t('apiDocs.authDesc') }}
-      </p>
-      <el-input
-        :model-value="'Authorization: Bearer sk-xxxxxxxxxxxxxxxx'"
-        readonly
-        class="mb-3"
-      >
-        <template #prepend>Header</template>
-      </el-input>
-      <p class="text-sm text-gray-500">{{ t('apiDocs.authTip') }}</p>
+    <!-- 接口概览 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.overview') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.overviewDesc') }}</p>
+      <div class="url-block">
+        <div class="url-label">{{ t('apiDocs.baseUrlOpenAI') }}</div>
+        <code class="url-code">https://transitai.cloud/v1</code>
+      </div>
+      <div class="url-block">
+        <div class="url-label">{{ t('apiDocs.baseUrlAnthropic') }}</div>
+        <code class="url-code">https://transitai.cloud</code>
+      </div>
     </el-card>
 
-    <!-- Chat Completions -->
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.chatCompletion') }}</span>
-      </template>
-      <el-descriptions :column="1" border class="mb-4">
-        <el-descriptions-item :label="t('apiDocs.endpoint')">POST /v1/chat/completions</el-descriptions-item>
-        <el-descriptions-item label="Content-Type">application/json</el-descriptions-item>
-      </el-descriptions>
-
-      <h4 class="font-medium mb-2">{{ t('apiDocs.requestExample') }}</h4>
-      <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm mb-4"><code>{{ chatExample }}</code></pre>
-
-      <h4 class="font-medium mb-2">{{ t('apiDocs.streamRequest') }}</h4>
-      <p class="text-gray-600 mb-2" v-html="t('apiDocs.streamDesc')"></p>
-      <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm mb-4"><code>{{ streamExample }}</code></pre>
-
-      <h4 class="font-medium mb-2">{{ t('apiDocs.curlExample') }}</h4>
-      <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ curlExample }}</code></pre>
+    <!-- 鉴权 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.auth') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.authDesc') }}</p>
+      <pre class="code-block">Authorization: Bearer YOUR_API_KEY</pre>
+      <p class="desc-text mt-2">{{ t('apiDocs.authDescAnthropic') }}</p>
+      <pre class="code-block">x-api-key: YOUR_API_KEY
+anthropic-version: 2023-06-01</pre>
+      <p class="tip-text">{{ t('apiDocs.authTip') }}</p>
     </el-card>
 
-    <!-- Models -->
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.modelList') }}</span>
-      </template>
-      <el-descriptions :column="1" border class="mb-4">
-        <el-descriptions-item :label="t('apiDocs.endpoint')">GET /v1/models</el-descriptions-item>
-      </el-descriptions>
-      <p class="text-gray-600 mb-2">{{ t('apiDocs.modelListDesc') }}</p>
-      <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ modelsExample }}</code></pre>
+    <!-- OpenAI 兼容格式 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.openaiFormat') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.openaiFormatDesc') }}</p>
+
+      <div class="endpoint-row">
+        <span class="method-badge">POST</span>
+        <code>https://transitai.cloud/v1/chat/completions</code>
+      </div>
+
+      <div class="section-label">{{ t('apiDocs.sdkOpenAI') }} - Python</div>
+      <pre class="code-block">{{ pythonOpenAI }}</pre>
+
+      <div class="section-label">{{ t('apiDocs.sdkOpenAI') }} - Node.js</div>
+      <pre class="code-block">{{ nodeOpenAI }}</pre>
+
+      <div class="section-label">{{ t('apiDocs.streamRequest') }}</div>
+      <p class="desc-text" v-html="t('apiDocs.streamDesc')"></p>
+      <pre class="code-block">{{ streamExample }}</pre>
+
+      <div class="section-label">cURL</div>
+      <pre class="code-block">{{ curlOpenAI }}</pre>
     </el-card>
 
-    <!-- SDK Examples -->
-    <el-card shadow="hover" class="mb-6">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.sdkExample') }}</span>
-      </template>
+    <!-- Anthropic 原生格式 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.anthropicFormat') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.anthropicFormatDesc') }}</p>
+      <el-alert type="warning" :closable="false" class="mb-4">{{ t('apiDocs.anthropicNote') }}</el-alert>
 
-      <el-tabs v-model="sdkTab">
-        <el-tab-pane label="Python (OpenAI SDK)" name="python">
-          <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ pythonExample }}</code></pre>
+      <div class="endpoint-row">
+        <span class="method-badge">POST</span>
+        <code>https://transitai.cloud/v1/messages</code>
+      </div>
+
+      <div class="section-label">Python (Anthropic SDK)</div>
+      <pre class="code-block">{{ pythonAnthropic }}</pre>
+
+      <div class="section-label">cURL</div>
+      <pre class="code-block">{{ curlAnthropic }}</pre>
+    </el-card>
+
+    <!-- 查询模型 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.modelList') }}</span></template>
+      <div class="endpoint-row">
+        <span class="method-badge get">GET</span>
+        <code>https://transitai.cloud/v1/models</code>
+      </div>
+      <p class="desc-text">{{ t('apiDocs.modelListDesc') }}</p>
+      <pre class="code-block">{{ modelsExample }}</pre>
+    </el-card>
+
+    <!-- 错误码 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.errorCodes') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.errorsDesc') }}</p>
+      <pre class="code-block">{
+  "error": {
+    "message": "insufficient balance",
+    "type": "billing_error"
+  }
+}</pre>
+      <el-table :data="errorCodes" border class="mt-4">
+        <el-table-column label="HTTP Code" width="120" prop="code" />
+        <el-table-column :label="t('apiDocs.endpoint')" prop="desc" />
+      </el-table>
+    </el-card>
+
+
+    <!-- 工具集成教程 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.tutorials') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.tutorialsDesc') }}</p>
+
+      <el-tabs v-model="tutTab">
+
+        <!-- Claude Code 完整保姆级 -->
+        <el-tab-pane label="Claude Code" name="cc">
+          <h4 class="tut-title">{{ t('apiDocs.tutCC') }}</h4>
+          <p class="desc-text">{{ t('apiDocs.tutCCdesc') }}</p>
+
+          <!-- Step 1: Node.js -->
+          <div class="tut-step">{{ t('apiDocs.ccFull1Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull1Desc') }}</p>
+          <p class="desc-text">📥 <a href="https://nodejs.org" target="_blank" class="link">https://nodejs.org</a></p>
+          <p class="desc-text">{{ t('apiDocs.ccFull1Verify') }}</p>
+          <pre class="code-block">node -v
+# 应输出 v18.x.x 或更高</pre>
+
+          <!-- Step 2: Install CC -->
+          <div class="tut-step">{{ t('apiDocs.ccFull2Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull2Desc') }}</p>
+          <pre class="code-block">npm install -g @anthropic-ai/claude-code</pre>
+          <p class="desc-text">{{ t('apiDocs.ccFull2Verify') }}</p>
+          <pre class="code-block">cc --version</pre>
+
+          <!-- Step 3: Config -->
+          <div class="tut-step">{{ t('apiDocs.ccFull3Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull3Desc') }}</p>
+
+          <div class="section-label">🍎 {{ t('apiDocs.ccFull3Mac') }}</div>
+          <pre class="code-block">echo 'export ANTHROPIC_API_KEY="YOUR_API_KEY"' >> ~/.zshrc
+echo 'export ANTHROPIC_BASE_URL="https://transitai.cloud"' >> ~/.zshrc
+source ~/.zshrc</pre>
+
+          <div class="section-label">🪟 {{ t('apiDocs.ccFull3WinPS') }}</div>
+          <pre class="code-block">$env:ANTHROPIC_API_KEY = "YOUR_API_KEY"
+$env:ANTHROPIC_BASE_URL = "https://transitai.cloud"</pre>
+
+          <div class="section-label">🪟 {{ t('apiDocs.ccFull3WinPerm') }}</div>
+          <pre class="code-block">[Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "YOUR_API_KEY", "User")
+[Environment]::SetEnvironmentVariable("ANTHROPIC_BASE_URL", "https://transitai.cloud", "User")
+# 重启 PowerShell 后生效</pre>
+
+          <!-- Step 4: Start -->
+          <div class="tut-step">{{ t('apiDocs.ccFull4Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull4Desc') }}</p>
+          <pre class="code-block">cd ~/your-project
+cc</pre>
+
+          <!-- Step 5: Usage -->
+          <div class="tut-step">{{ t('apiDocs.ccFull5Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull5Desc') }}</p>
+          <ul class="config-list">
+            <li><code>/help</code> — {{ t('apiDocs.ccFull5Cmd1').split('—')[1] }}</li>
+            <li><code>/clear</code> — {{ t('apiDocs.ccFull5Cmd2').split('—')[1] }}</li>
+            <li><code>/model claude-opus-4-7</code> — {{ t('apiDocs.ccFull5Cmd3').split('—')[1] }}</li>
+            <li><code>/exit</code> — {{ t('apiDocs.ccFull5Cmd4').split('—')[1] }}</li>
+          </ul>
+          <p class="tip-text">💡 {{ t('apiDocs.ccFull5Tip') }}</p>
+
+          <!-- Step 6: Verify billing -->
+          <div class="tut-step">{{ t('apiDocs.ccFull6Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.ccFull6Desc') }}</p>
+
+          <p class="success-text">✅ {{ t('apiDocs.tutCCStep4') }}</p>
         </el-tab-pane>
-        <el-tab-pane label="Node.js" name="node">
-          <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ nodeExample }}</code></pre>
+
+        <!-- CCSwitch 完整保姆级 -->
+        <el-tab-pane label="CCSwitch" name="switch">
+          <h4 class="tut-title">{{ t('apiDocs.tutSwitch') }}</h4>
+          <p class="desc-text">{{ t('apiDocs.tutSwitchDesc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.swFull1Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.swFull1Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.swFull2Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.swFull2Desc') }}</p>
+          <pre class="code-block">npm install -g ccswitch</pre>
+          <p class="desc-text">{{ t('apiDocs.swFull2Verify') }}</p>
+          <pre class="code-block">ccswitch --version</pre>
+
+          <div class="tut-step">{{ t('apiDocs.swFull3Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.swFull3Desc') }}</p>
+          <pre class="code-block">ccswitch add transitai \
+  --base-url https://transitai.cloud \
+  --api-key YOUR_API_KEY</pre>
+
+          <div class="tut-step">{{ t('apiDocs.swFull4Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.swFull4Desc') }}</p>
+          <pre class="code-block">ccswitch add official \
+  --base-url https://api.anthropic.com \
+  --api-key sk-ant-xxx</pre>
+
+          <div class="tut-step">{{ t('apiDocs.swFull5Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.swFull5Desc') }}</p>
+          <pre class="code-block">ccswitch use transitai
+cc  # 走 TransitAI
+
+ccswitch use official
+cc  # 走官方</pre>
+
+          <div class="tut-step">{{ t('apiDocs.swFull6Title') }}</div>
+          <ul class="config-list">
+            <li><code>ccswitch list</code> — {{ t('apiDocs.swFull6Cmd1').split('—')[1] }}</li>
+            <li><code>ccswitch current</code> — {{ t('apiDocs.swFull6Cmd2').split('—')[1] }}</li>
+            <li><code>ccswitch remove transitai</code> — {{ t('apiDocs.swFull6Cmd3').split('—')[1] }}</li>
+          </ul>
+
+          <p class="tip-text">💡 {{ t('apiDocs.tutSwitchHint') }}</p>
         </el-tab-pane>
-        <el-tab-pane label="cURL" name="curl">
-          <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-sm"><code>{{ curlExample }}</code></pre>
+
+        <!-- Cline 完整保姆级 -->
+        <el-tab-pane label="VS Code Cline" name="cline">
+          <h4 class="tut-title">{{ t('apiDocs.tutCline') }}</h4>
+          <p class="desc-text">{{ t('apiDocs.tutClineDesc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.clFull1Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.clFull1Desc') }}</p>
+          <p class="desc-text">📥 <a href="https://code.visualstudio.com" target="_blank" class="link">https://code.visualstudio.com</a></p>
+
+          <div class="tut-step">{{ t('apiDocs.clFull2Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.clFull2Desc') }}</p>
+          <p class="tip-text">{{ t('apiDocs.clFull2Note') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.clFull3Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.clFull3Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.clFull4Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.clFull4Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.clFull5Title') }}</div>
+          <ul class="config-list">
+            <li>{{ t('apiDocs.clFull5Cfg1') }}</li>
+            <li>{{ t('apiDocs.clFull5Cfg2') }}</li>
+            <li>{{ t('apiDocs.clFull5Cfg3') }}</li>
+            <li><code>{{ t('apiDocs.clFull5Cfg4').split('：')[1] || t('apiDocs.clFull5Cfg4').split(':')[1] }}</code></li>
+            <li>{{ t('apiDocs.clFull5Cfg5') }}</li>
+          </ul>
+
+          <div class="tut-step">{{ t('apiDocs.clFull6Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.clFull6Desc') }}</p>
+          <p class="tip-text">{{ t('apiDocs.clFull6Note') }}</p>
         </el-tab-pane>
+
+        <!-- Cursor 完整保姆级 -->
+        <el-tab-pane label="Cursor" name="cursor">
+          <h4 class="tut-title">{{ t('apiDocs.tutCursor') }}</h4>
+          <p class="desc-text">{{ t('apiDocs.tutCursorDesc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull1Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.cuFull1Desc') }}</p>
+          <p class="desc-text">📥 <a href="https://cursor.com" target="_blank" class="link">https://cursor.com</a></p>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull2Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.cuFull2Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull3Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.cuFull3Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull4Title') }}</div>
+          <ul class="config-list">
+            <li>{{ t('apiDocs.cuFull4Cfg1') }}</li>
+            <li>{{ t('apiDocs.cuFull4Cfg2') }}</li>
+            <li><code>{{ t('apiDocs.cuFull4Cfg3').split('：')[1] || t('apiDocs.cuFull4Cfg3').split(':')[1] }}</code></li>
+          </ul>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull5Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.cuFull5Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.cuFull6Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.cuFull6Desc') }}</p>
+          <p class="tip-text">{{ t('apiDocs.cuFull6Note') }}</p>
+        </el-tab-pane>
+
       </el-tabs>
+
+      <el-alert type="info" :closable="false" class="mt-4">{{ t('apiDocs.tutCommonNote') }}</el-alert>
     </el-card>
 
-    <!-- Pricing Note -->
-    <el-card shadow="hover">
-      <template #header>
-        <span class="font-medium">{{ t('apiDocs.billing') }}</span>
-      </template>
-      <ul class="list-disc list-inside text-gray-600 space-y-2">
+    <!-- MCP -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.mcp') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.mcpDesc') }}</p>
+      <pre class="code-block">{{ mcpExample }}</pre>
+    </el-card>
+
+    <!-- 计费 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.billing') }}</span></template>
+      <ul class="bill-list">
         <li v-html="t('apiDocs.billLi1')"></li>
         <li>{{ t('apiDocs.billLi2') }}</li>
         <li>{{ t('apiDocs.billLi3') }}</li>
@@ -96,127 +323,250 @@
         <li>{{ t('apiDocs.billLi5') }}</li>
       </ul>
     </el-card>
+
   </div>
 </template>
 
 <script setup>
 import { useI18n } from 'vue-i18n'
+import { ref, computed } from 'vue'
 const { t } = useI18n()
-import { ref } from 'vue'
+const tutTab = ref('cc')
 
-const sdkTab = ref('python')
-
-const models = [
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'Anthropic', input: '¥0.0216/1K', output: '¥0.108/1K' },
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'Anthropic', input: '¥0.0216/1K', output: '¥0.108/1K' },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
-  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'Anthropic', input: '¥0.01296/1K', output: '¥0.0648/1K' },
-]
-
-const chatExample = JSON.stringify({
-  model: 'claude-opus-4-7',
-  messages: [
-    { role: 'system', content: 'You are a helpful assistant.' },
-    { role: 'user', content: 'Hello!' },
-  ],
-  max_tokens: 1024,
-  temperature: 0.7,
-}, null, 2)
-
-const streamExample = JSON.stringify({
-  model: 'claude-opus-4-7',
-  messages: [
-    { role: 'user', content: 'Hello!' },
-  ],
-  stream: true,
-}, null, 2)
-
-const modelsExample = `curl https://transitai.cloud/v1/models \\
-  -H "Authorization: Bearer sk-xxxxxxxxxxxxxxxx"
-
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "claude-opus-4-7",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "anthropic"
-    },
-    {
-      "id": "claude-opus-4-6",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "anthropic"
-    },
-    {
-      "id": "claude-sonnet-4-5",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "anthropic"
-    },
-    {
-      "id": "claude-sonnet-4-6",
-      "object": "model",
-      "created": 1748000000,
-      "owned_by": "anthropic"
-    },
-    {
-      "id": "claude-haiku-4-5-20251001",
-      "object": "model",
-      "created": 1710000000,
-      "owned_by": "anthropic"
-    }
-  ]
-}`
-
-const curlExample = `curl https://transitai.cloud/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer sk-xxxxxxxxxxxxxxxx" \\
-  -d '{
-    "model": "claude-opus-4-7",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'`
-
-const pythonExample = `from openai import OpenAI
+const pythonOpenAI = `from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://transitai.cloud/v1",
-    api_key="sk-xxxxxxxxxxxxxxxx"
+    api_key="YOUR_API_KEY",
+    base_url="https://transitai.cloud/v1"
 )
 
 response = client.chat.completions.create(
-    model="claude-opus-4-7",
+    model="claude-sonnet-4-5",
     messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Hello!"}
-    ]
+        {"role": "user", "content": "Hello, Claude!"}
+    ],
+    max_tokens=1024
 )
-
 print(response.choices[0].message.content)`
 
-const nodeExample = `import OpenAI from 'openai';
+const nodeOpenAI = `import OpenAI from 'openai';
 
 const client = new OpenAI({
+  apiKey: 'YOUR_API_KEY',
   baseURL: 'https://transitai.cloud/v1',
-  apiKey: 'sk-xxxxxxxxxxxxxxxx',
 });
 
 const response = await client.chat.completions.create({
-  model: 'claude-opus-4-7',
-  messages: [
-    { role: 'system', content: 'You are a helpful assistant.' },
-    { role: 'user', content: 'Hello!' },
-  ],
+  model: 'claude-sonnet-4-5',
+  messages: [{ role: 'user', content: 'Hello, Claude!' }],
+  max_tokens: 1024,
 });
-
 console.log(response.choices[0].message.content);`
+
+const streamExample = `from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="https://transitai.cloud/v1"
+)
+
+with client.chat.completions.stream(
+    model="claude-sonnet-4-5",
+    messages=[{"role": "user", "content": "写一首诗"}],
+    max_tokens=1024,
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)`
+
+const curlOpenAI = `curl https://transitai.cloud/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "max_tokens": 1024
+  }'`
+
+const pythonAnthropic = `import anthropic
+
+client = anthropic.Anthropic(
+    api_key="YOUR_API_KEY",
+    base_url="https://transitai.cloud"  # 不带 /v1
+)
+
+message = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    system="You are a helpful assistant.",
+    messages=[
+        {"role": "user", "content": "Hello, Claude!"}
+    ]
+)
+print(message.content[0].text)`
+
+const curlAnthropic = `curl https://transitai.cloud/v1/messages \
+  -H "x-api-key: YOUR_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-5",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'`
+
+const modelsExample = `curl https://transitai.cloud/v1/models \
+  -H "Authorization: Bearer YOUR_API_KEY"`
+
+const mcpExample = `# ~/.claude_desktop_config.json (MacOS)
+# ~/AppData/Roaming/Claude/claude_desktop_config.json (Windows)
+
+{
+  "mcpServers": {
+    "transitai": {
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/mcp-server-claude"],
+      "env": {
+        "ANTHROPIC_API_KEY": "YOUR_API_KEY",
+        "ANTHROPIC_BASE_URL": "https://transitai.cloud"
+      }
+    }
+  }
+}`
+
+const errorCodes = computed(() => [
+  { code: '401', desc: t('apiDocs.errorTable401') },
+  { code: '402', desc: t('apiDocs.errorTable402') },
+  { code: '429', desc: t('apiDocs.errorTable429') },
+  { code: '500', desc: t('apiDocs.errorTable500') },
+  { code: '503', desc: t('apiDocs.errorTable503') },
+])
 </script>
 
 <style scoped>
-pre {
-  max-height: 400px;
-  overflow: auto;
+.api-docs { display: flex; flex-direction: column; gap: 16px; }
+.doc-card { border-radius: 16px; }
+.card-title { font-size: 15px; font-weight: 700; }
+.desc-text { color: #4b5563; font-size: 14px; margin-bottom: 12px; line-height: 1.6; }
+.tip-text { color: #9ca3af; font-size: 13px; margin-top: 8px; }
+.code-block {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  margin-bottom: 12px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
 }
+.url-block { margin-bottom: 12px; }
+.url-label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+.url-code {
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  display: inline-block;
+}
+.endpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+.method-badge {
+  background: #6366f1;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.method-badge.get { background: #10b981; }
+.section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin: 16px 0 6px;
+}
+.bill-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bill-list li {
+  padding: 10px 14px;
+  background: #f9fafb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #374151;
+  border-left: 3px solid #6366f1;
+}
+.steps { display: flex; flex-direction: column; gap: 16px; }
+.step { display: flex; gap: 16px; align-items: flex-start; }
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.step-title { font-weight: 600; color: #1f2937; margin-bottom: 4px; }
+.step-desc { font-size: 14px; color: #6b7280; line-height: 1.5; }
+.mt-2 { margin-top: 8px; }
+.mb-4 { margin-bottom: 16px; }
+
+.tut-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #1f2937; }
+.tut-step {
+  background: #eff6ff;
+  border-left: 3px solid #6366f1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e40af;
+  font-weight: 500;
+  margin: 12px 0 8px;
+}
+.success-text {
+  background: #ecfdf5;
+  color: #059669;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 12px;
+}
+.config-list {
+  list-style: none;
+  padding: 12px 16px;
+  margin: 12px 0;
+  background: #f9fafb;
+  border-radius: 10px;
+}
+.config-list li {
+  font-size: 14px;
+  padding: 6px 0;
+  color: #374151;
+}
+.config-list li code {
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.mt-4 { margin-top: 16px; }
+.link { color: #6366f1; text-decoration: underline; }
 </style>
