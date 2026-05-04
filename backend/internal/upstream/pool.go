@@ -18,16 +18,19 @@ import (
 
 // Channel wraps a DB upstream channel with runtime state.
 type Channel struct {
-	ID             string
-	Name           string
-	Provider       string
-	APIKey         string
-	BaseURL        string
-	Weight         int
-	MaxConcurrent  int
-	HealthStatus   string  // healthy / unhealthy / unknown
-	concurrent     int64
-	ErrorCount     int64
+	ID                string
+	Name              string
+	Provider          string
+	APIKey            string
+	BaseURL           string
+	Weight            int
+	MaxConcurrent     int
+	HealthStatus      string  // healthy / unhealthy / unknown
+	QuotaStatus       string  // normal / warning / critical / exhausted
+	IsDedicated       bool
+	DedicatedUserIDs  string  // 逗号分隔
+	concurrent        int64
+	ErrorCount        int64
 }
 
 // Pool manages upstream channels with load balancing.
@@ -108,14 +111,17 @@ func (p *Pool) Refresh() {
 			baseURL = *r.BaseURL
 		}
 		channels = append(channels, &Channel{
-			ID:            r.ID.String(),
-			Name:          r.Name,
-			Provider:      r.Provider,
-			APIKey:        r.APIKeyEncrypted,
-			BaseURL:       baseURL,
-			Weight:        r.Weight,
-			MaxConcurrent: r.MaxConcurrent,
-			HealthStatus:  r.HealthStatus,
+			ID:               r.ID.String(),
+			Name:             r.Name,
+			Provider:         r.Provider,
+			APIKey:           r.APIKeyEncrypted,
+			BaseURL:          baseURL,
+			Weight:           r.Weight,
+			MaxConcurrent:    r.MaxConcurrent,
+			HealthStatus:     r.HealthStatus,
+			QuotaStatus:      r.QuotaStatus,
+			IsDedicated:      r.IsDedicated,
+			DedicatedUserIDs: r.DedicatedUserIDs,
 		})
 	}
 
@@ -132,10 +138,12 @@ func (p *Pool) Select(provider string) *Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		// 过滤：provider 匹配 && 并发未满 && 健康状态非 unhealthy
+		// 过滤: provider/并发/健康/额度状态/非专属
 		if strings.EqualFold(c.Provider, provider) &&
 			c.concurrent < int64(c.MaxConcurrent) &&
-			c.HealthStatus != "unhealthy" {
+			c.HealthStatus != "unhealthy" &&
+			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
+			!c.IsDedicated {
 			candidates = append(candidates, c)
 		}
 	}
@@ -167,11 +175,26 @@ func (p *Pool) Select(provider string) *Channel {
 // SelectSticky 基于 userID 一致性哈希选择上游, 失败时回退到 weighted Select
 func (p *Pool) SelectSticky(provider, userID string) *Channel {
 	p.mu.RLock()
+	// 0. 优先看是否在某专属渠道列表中
+	if userID != "" {
+		for _, c := range p.channels {
+			if c.IsDedicated && strings.EqualFold(c.Provider, provider) &&
+				c.concurrent < int64(c.MaxConcurrent) &&
+				c.HealthStatus != "unhealthy" &&
+				c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
+				containsUserID(c.DedicatedUserIDs, userID) {
+				p.mu.RUnlock()
+				return c
+			}
+		}
+	}
 	var healthy []*Channel
 	for _, c := range p.channels {
 		if strings.EqualFold(c.Provider, provider) &&
 			c.concurrent < int64(c.MaxConcurrent) &&
-			c.HealthStatus != "unhealthy" {
+			c.HealthStatus != "unhealthy" &&
+			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
+			!c.IsDedicated {
 			healthy = append(healthy, c)
 		}
 	}
@@ -495,3 +518,16 @@ func (p *Pool) markUnhealthy(channelID string) {
 	}
 }
 
+
+// containsUserID 检查逗号分隔的 user IDs 列表是否包含目标 ID
+func containsUserID(list, target string) bool {
+if list == "" {
+return false
+}
+for _, id := range strings.Split(list, ",") {
+if strings.TrimSpace(id) == target {
+return true
+}
+}
+return false
+}
