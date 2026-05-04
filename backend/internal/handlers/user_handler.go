@@ -120,6 +120,7 @@ type billingQuery struct {
 	Type     string `form:"type"`
 	Start    string `form:"start"`
 	End      string `form:"end"`
+	Keyword  string `form:"keyword"`
 }
 
 func (h *UserHandler) ListBilling(c *gin.Context) {
@@ -151,6 +152,9 @@ func (h *UserHandler) ListBilling(c *gin.Context) {
 	if q.End != "" {
 		query = query.Where("created_at <= ?", q.End)
 	}
+	if q.Keyword != "" {
+		query = query.Where("description ILIKE ?", "%"+q.Keyword+"%")
+	}
 
 	var total int64
 	query.Count(&total)
@@ -181,11 +185,20 @@ func (h *UserHandler) ListBilling(c *gin.Context) {
 		})
 	}
 
+	// 当页消费总计
+	var pageSpent float64
+	for _, r := range records {
+		if r.Amount < 0 {
+			pageSpent += -r.Amount
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"items": items,
-		"total": total,
-		"page":  q.Page,
-		"size":  q.PageSize,
+		"items":      items,
+		"total":      total,
+		"page":       q.Page,
+		"size":       q.PageSize,
+		"page_spent": pageSpent,
 	})
 }
 

@@ -344,8 +344,8 @@ onMounted(() => {
   border-radius: 16px; padding: 16px 12px;
   position: relative; overflow: hidden;
 }
-.plan-card.pro { background: linear-gradient(145deg, #667eea 0%, #764ba2 100%); color: #fff; }
-.plan-card.enterprise { background: linear-gradient(145deg, #f093fb 0%, #f5576c 100%); color: #fff; }
+.plan-card.pro { background: linear-gradient(145deg, #6366f1 0%, #4338ca 100%); color: #fff; }
+.plan-card.enterprise { background: linear-gradient(145deg, #fbbf24 0%, #d97706 100%); color: #fff; }
 .plan-badge {
   font-size: 10px; font-weight: 700; padding: 2px 8px;
   border-radius: 10px; background: rgba(255,255,255,0.25); color: #fff;

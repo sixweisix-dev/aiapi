@@ -452,7 +452,10 @@
     "balancePrefix": "Balance",
     "exportFilename": "bills",
     "exportSuccess": "Exported",
-    "exportFail": "Export failed"
+    "exportFail": "Export failed",
+    "keyword": "Keyword",
+    "keywordPh": "Search description / model",
+    "pageSpent": "Page Spent"
   },
   "models": {
     "heroTitle": "Models & Pricing",

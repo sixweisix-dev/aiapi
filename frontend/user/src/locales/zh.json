@@ -452,7 +452,10 @@
     "balancePrefix": "余额",
     "exportFilename": "账单明细",
     "exportSuccess": "导出成功",
-    "exportFail": "导出失败"
+    "exportFail": "导出失败",
+    "keyword": "关键字",
+    "keywordPh": "搜索描述/模型名",
+    "pageSpent": "当页消费"
   },
   "models": {
     "heroTitle": "模型与价格",

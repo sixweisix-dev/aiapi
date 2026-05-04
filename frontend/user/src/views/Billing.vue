@@ -8,6 +8,10 @@
       </div>
       <div class="filter-grid">
         <div class="filter-row">
+          <label class="form-label">{{ t('billing.keyword') }}</label>
+          <el-input v-model="filters.keyword" :placeholder="t('billing.keywordPh')" size="large" clearable @keyup.enter="onSearch" />
+        </div>
+        <div class="filter-row">
           <label class="form-label">{{ t('billing.typeLabel') }}</label>
           <el-select v-model="filters.type" :placeholder="t('billing.allTypes')" size="large" style="width:100%" clearable>
             <el-option :label="t('billing.all')" value="" />
@@ -35,7 +39,7 @@
     <div class="data-card">
       <div class="card-header">
         <span class="card-title">{{ t('billing.listTitle') }}</span>
-        <span class="card-tag">{{ total }} {{ t('billing.rowsUnit') }}</span>
+        <span class="card-tag">{{ total }} {{ t('billing.rowsUnit') }} · {{ t('billing.pageSpent') }}: ¥{{ pageSpent.toFixed(4) }}</span>
       </div>
       <div v-if="loading" class="empty-tip">{{ t('billing.loading') }}</div>
       <div v-else-if="items.length === 0" class="empty-tip">{{ t('billing.noBills') }}</div>
@@ -83,7 +87,9 @@ const items = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
-const filters = reactive({ type: '', start: '', end: '' })
+const filters = reactive({ type: '', start: '', end: '', keyword: '' })
+const pageSpent = ref(0)
+function onSearch() { page.value = 1; fetchData() }
 
 onMounted(fetchData)
 
@@ -96,9 +102,11 @@ async function fetchData() {
       type: filters.type || undefined,
       start: filters.start || undefined,
       end: filters.end || undefined,
+      keyword: filters.keyword || undefined,
     })
     items.value = data.items || []
     total.value = data.total || 0
+    pageSpent.value = Number(data.page_spent || 0)
   } catch {} finally { loading.value = false }
 }
 

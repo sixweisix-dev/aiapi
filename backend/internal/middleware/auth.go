@@ -91,17 +91,21 @@ func AdminRequired() gin.HandlerFunc {
 func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer sk-") {
+		xAPIKey := c.GetHeader("x-api-key")
+		var apiKey string
+		if strings.HasPrefix(authHeader, "Bearer sk-") {
+			apiKey = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if strings.HasPrefix(xAPIKey, "sk-") {
+			apiKey = xAPIKey
+		} else {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": gin.H{
-					"message": "missing or invalid API key, use: Authorization: Bearer sk-xxx",
+					"message": "missing or invalid API key, use: Authorization: Bearer sk-xxx OR x-api-key: sk-xxx",
 					"type":    "auth_error",
 				},
 			})
 			return
 		}
-
-		apiKey := strings.TrimPrefix(authHeader, "Bearer ")
 		keyHash := hashKey(apiKey)
 
 		type result struct {

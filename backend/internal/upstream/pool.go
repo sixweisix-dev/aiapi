@@ -163,6 +163,53 @@ func (p *Pool) Select(provider string) *Channel {
 	return candidates[len(candidates)-1]
 }
 
+
+// SelectSticky 基于 userID 一致性哈希选择上游, 失败时回退到 weighted Select
+func (p *Pool) SelectSticky(provider, userID string) *Channel {
+	p.mu.RLock()
+	var healthy []*Channel
+	for _, c := range p.channels {
+		if strings.EqualFold(c.Provider, provider) &&
+			c.concurrent < int64(c.MaxConcurrent) &&
+			c.HealthStatus != "unhealthy" {
+			healthy = append(healthy, c)
+		}
+	}
+	p.mu.RUnlock()
+	if len(healthy) == 0 {
+		return nil
+	}
+	if len(healthy) == 1 || userID == "" {
+		return healthy[0]
+	}
+	// 按 weight 排序后用 userID hash 选, 让 weight 大的被选中概率更高
+	// 简单方案: 把 userID hash 后对 totalWeight 取模
+	totalWeight := 0
+	for _, c := range healthy {
+		w := c.Weight
+		if w <= 0 {
+			w = 1
+		}
+		totalWeight += w
+	}
+	h := uint32(0)
+	for i := 0; i < len(userID); i++ {
+		h = h*31 + uint32(userID[i])
+	}
+	pick := int(h) % totalWeight
+	for _, c := range healthy {
+		w := c.Weight
+		if w <= 0 {
+			w = 1
+		}
+		pick -= w
+		if pick < 0 {
+			return c
+		}
+	}
+	return healthy[len(healthy)-1]
+}
+
 // Do sends a request through the selected channel and handles retry.
 func (p *Pool) Do(ctx context.Context, ch *Channel, method, path string, reqBody []byte) (*http.Response, error) {
 	atomic.AddInt64(&ch.concurrent, 1)

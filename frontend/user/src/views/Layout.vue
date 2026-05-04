@@ -29,7 +29,7 @@
         </div>
 
         <!-- 用户卡片 -->
-        <div class="user-card">
+        <div class="user-card" :class="`tier-${tierClass}`">
           <div class="user-card-top">
             <div class="user-avatar">{{ avatarLetter }}</div>
             <div class="user-meta">
@@ -76,7 +76,7 @@
         </div>
       </div>
 
-      <div class="user-card">
+      <div class="user-card" :class="`tier-${tierClass}`">
         <div class="user-card-top">
           <div class="user-avatar">{{ avatarLetter }}</div>
           <div class="user-meta">
@@ -165,9 +165,9 @@ const tierLabel = computed(() => {
 const tierClass = computed(() => {
   const t = user.value?.membership_tier
   const exp = user.value?.membership_expires_at
-  if (t === 'pro' && exp && new Date(exp) > new Date()) return 'tag-pro'
-  if (t === 'enterprise' && exp && new Date(exp) > new Date()) return 'tag-enterprise'
-  return ''
+  if (t === 'pro' && exp && new Date(exp) > new Date()) return 'pro'
+  if (t === 'enterprise' && exp && new Date(exp) > new Date()) return 'enterprise'
+  return 'free'
 })
 
 function navigateTo(path) {
@@ -299,9 +299,65 @@ if (auth.isLoggedIn) auth.fetchMe()
   margin: 16px;
   padding: 18px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
+  transition: all 0.2s;
+}
+/* 免费版 - 灰色 */
+.user-card.tier-free {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #374151;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  border: 1px solid #e5e7eb;
+}
+.user-card.tier-free .user-avatar {
+  background: rgba(107,114,128,0.15);
+  color: #4b5563;
+}
+.user-card.tier-free .user-card-top {
+  border-bottom-color: rgba(0,0,0,0.08);
+}
+.user-card.tier-free .balance-label,
+.user-card.tier-free .user-tag {
+  color: #6b7280;
+  opacity: 1;
+}
+/* 专业版 - 蓝色 */
+.user-card.tier-pro {
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.18);
+}
+.user-card.tier-pro .user-avatar {
+  background: rgba(99,102,241,0.18);
+  color: #4338ca;
+}
+.user-card.tier-pro .user-card-top {
+  border-bottom-color: rgba(99,102,241,0.15);
+}
+.user-card.tier-pro .balance-label,
+.user-card.tier-pro .user-tag {
+  color: #6366f1;
+  opacity: 1;
+}
+/* 企业版 - 金色 */
+.user-card.tier-enterprise {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  color: #78350f;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.25);
+}
+.user-card.tier-enterprise .user-avatar {
+  background: rgba(245,158,11,0.2);
+  color: #92400e;
+}
+.user-card.tier-enterprise .user-card-top {
+  border-bottom-color: rgba(180,83,9,0.15);
+}
+.user-card.tier-enterprise .balance-label,
+.user-card.tier-enterprise .user-tag {
+  color: #92400e;
+  opacity: 1;
 }
 .user-card-top {
   display: flex;
