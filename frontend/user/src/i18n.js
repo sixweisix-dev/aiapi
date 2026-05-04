@@ -6,6 +6,7 @@ const stored = localStorage.getItem('user_lang') || 'zh'
 
 export const i18n = createI18n({
   legacy: false,
+  warnHtmlMessage: false,
   globalInjection: true,
   locale: stored,
   fallbackLocale: 'zh',
