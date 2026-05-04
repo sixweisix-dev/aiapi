@@ -23,16 +23,26 @@
             </div>
             <span class="provider-tag">{{ m.provider }}</span>
           </div>
-          <div class="price-grid">
+          <div class="price-grid four-col">
             <div class="price-block">
               <div class="price-label">{{ t('models.input') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier)).toFixed(4) }}</div>
-              <div class="price-unit">/ 1K tokens</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.output') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier)).toFixed(4) }}</div>
-              <div class="price-unit">/ 1K tokens</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-unit">{{ t('models.perMillion') }}</div>
+            </div>
+            <div class="price-block">
+              <div class="price-label">{{ t('models.cacheRead') }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000 * 0.1).toFixed(4) }}</div>
+              <div class="price-unit">{{ t('models.perMillion') }}</div>
+            </div>
+            <div class="price-block">
+              <div class="price-label">{{ t('models.cacheWrite') }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000 * 1.25).toFixed(4) }}</div>
+              <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
           </div>
           <div class="model-meta">
@@ -209,4 +219,6 @@ onMounted(async () => {
 .tip-text { flex: 1; }
 .tip-title { font-size: 13px; font-weight: 700; color: #78350f; margin-bottom: 4px; }
 .tip-content { font-size: 12px; color: #92400e; line-height: 1.5; }
+.price-grid.four-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (min-width: 600px) { .price-grid.four-col { grid-template-columns: repeat(4, 1fr); } }
 </style>

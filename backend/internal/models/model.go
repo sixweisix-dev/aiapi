@@ -94,6 +94,32 @@ type UpstreamChannel struct {
 	TotalRequests    int       `gorm:"not null;default:0"`
 	TotalTokens      int       `gorm:"not null;default:0"`
 	ErrorCount       int       `gorm:"not null;default:0"`
+
+	// === 额度管理 (Phase 1 新增) ===
+	DailyQuotaUSD       float64    `gorm:"type:decimal(10,4);not null;default:0"`        // 每日额度 USD (0=不限制)
+	QuotaUsedTodayUSD   float64    `gorm:"type:decimal(10,4);not null;default:0"`        // 今日已用 USD
+	QuotaResetAt        *time.Time `gorm:""`                                              // 上次重置时间
+	SubscriptionStart   *time.Time `gorm:""`                                              // 订阅开始
+	SubscriptionEnd     *time.Time `gorm:""`                                              // 订阅结束
+	QuotaStatus         string     `gorm:"type:varchar(20);not null;default:'normal'"`   // normal/warning/critical/exhausted
+	ErrorStreak         int        `gorm:"not null;default:0"`                            // 连续失败次数(达阈值自动禁用)
+
+	// === 成本统计 ===
+	DailyCostCNY        float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 今日成本(CNY)
+	MonthlyCostCNY      float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 本月成本(CNY)
+
+	// === 缓存命中率 ===
+	CacheHitTokens      int64      `gorm:"not null;default:0"`                            // 累计 cache_read tokens
+	CacheTotalTokens    int64      `gorm:"not null;default:0"`                            // 累计 input+cache_read tokens
+
+	// === 延迟统计 (近 1 小时滑窗, 由 cron 计算) ===
+	AvgLatencyMs        int        `gorm:"not null;default:0"`
+	P95LatencyMs        int        `gorm:"not null;default:0"`
+
+	// === 专属渠道 ===
+	IsDedicated         bool       `gorm:"not null;default:false"`                        // 是否专属渠道
+	DedicatedUserIDs    string     `gorm:"type:text;not null;default:''"`                // 逗号分隔 UUID
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`

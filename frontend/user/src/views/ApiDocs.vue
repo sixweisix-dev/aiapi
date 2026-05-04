@@ -43,6 +43,36 @@
       </div>
     </el-card>
 
+
+    <!-- 两种格式对比 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.compareTitle') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.compareDesc') }}</p>
+
+      <el-table :data="compareRows" border class="compare-table">
+        <el-table-column :label="t('apiDocs.compareTableFeature')" prop="feature" min-width="140" />
+        <el-table-column :label="t('apiDocs.compareTableOpenAI')" prop="openai" min-width="180">
+          <template #default="{ row }"><span v-html="row.openai" /></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.compareTableAnthropic')" prop="anthropic" min-width="180">
+          <template #default="{ row }"><span v-html="row.anthropic" /></template>
+        </el-table-column>
+      </el-table>
+
+      <div class="choose-section">
+        <h4 class="choose-title">{{ t('apiDocs.compareWhich') }}</h4>
+        <div class="choose-block">
+          <strong>{{ t('apiDocs.compareUseOpenAI') }}</strong>
+          <p>{{ t('apiDocs.compareUseOpenAIDesc') }}</p>
+        </div>
+        <div class="choose-block">
+          <strong>{{ t('apiDocs.compareUseAnthropic') }}</strong>
+          <p>{{ t('apiDocs.compareUseAnthropicDesc') }}</p>
+        </div>
+        <p class="tip-text">{{ t('apiDocs.compareTip') }}</p>
+      </div>
+    </el-card>
+
     <!-- 鉴权 -->
     <el-card shadow="hover" class="doc-card">
       <template #header><span class="card-title">{{ t('apiDocs.auth') }}</span></template>
@@ -433,6 +463,22 @@ const mcpExample = `# ~/.claude_desktop_config.json (MacOS)
   }
 }`
 
+const compareRows = computed(() => {
+  const Y = t('apiDocs.compareYes')
+  const N = t('apiDocs.compareNo')
+  const L = t('apiDocs.compareLimited')
+  return [
+    { feature: t('apiDocs.comparePath'), openai: '<code>/v1/chat/completions</code>', anthropic: '<code>/v1/messages</code>' },
+    { feature: t('apiDocs.compareAuth'), openai: 'Authorization: Bearer', anthropic: 'x-api-key 或 Bearer' },
+    { feature: t('apiDocs.compareStream'), openai: Y, anthropic: Y },
+    { feature: t('apiDocs.compareCache'), openai: N, anthropic: Y },
+    { feature: t('apiDocs.compareThinking'), openai: N, anthropic: Y },
+    { feature: t('apiDocs.compareTool'), openai: L, anthropic: Y },
+    { feature: t('apiDocs.compareVision'), openai: L, anthropic: Y },
+    { feature: t('apiDocs.compareCompat'), openai: t('apiDocs.compareCompatOpenAI'), anthropic: t('apiDocs.compareCompatAnthropic') },
+  ]
+})
+
 const errorCodes = computed(() => [
   { code: '401', desc: t('apiDocs.errorTable401') },
   { code: '402', desc: t('apiDocs.errorTable402') },
@@ -569,4 +615,12 @@ const errorCodes = computed(() => [
 }
 .mt-4 { margin-top: 16px; }
 .link { color: #6366f1; text-decoration: underline; }
+
+.compare-table { margin: 12px 0; font-size: 13px; }
+.compare-table code { background: #eef2ff; color: #4338ca; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.choose-section { margin-top: 16px; padding: 14px 16px; background: #f9fafb; border-radius: 10px; }
+.choose-title { font-size: 14px; font-weight: 700; margin: 0 0 10px; color: #1f2937; }
+.choose-block { margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+.choose-block strong { color: #4338ca; }
+.choose-block p { margin: 4px 0 0; color: #4b5563; }
 </style>
