@@ -1,6 +1,7 @@
 package channelmetrics
 
 import (
+	"strings"
 	"fmt"
 	"log"
 	"time"
@@ -23,12 +24,13 @@ const (
 
 // Tracker 跟踪渠道指标
 type Tracker struct {
-	db       *gorm.DB
-	alerter  *monitoring.TelegramAlerter
+	db      *gorm.DB
+	alerter *monitoring.TelegramAlerter
+	bark    *monitoring.BarkNotifier
 }
 
-func New(db *gorm.DB, alerter *monitoring.TelegramAlerter) *Tracker {
-	return &Tracker{db: db, alerter: alerter}
+func New(db *gorm.DB, alerter *monitoring.TelegramAlerter, bark *monitoring.BarkNotifier) *Tracker {
+	return &Tracker{db: db, alerter: alerter, bark: bark}
 }
 
 // RecordSuccess 记录一次成功请求 (扣费成功后调用)
@@ -152,6 +154,16 @@ func (t *Tracker) checkQuotaThreshold(channelID string) {
 func (t *Tracker) notify(msg string) {
 	if t.alerter != nil {
 		t.alerter.Send(msg)
+	}
+	if t.bark != nil {
+		level := "active"
+		if strings.Contains(msg, "🔴") {
+			level = "timeSensitive" // 锁屏强提醒
+		} else if strings.Contains(msg, "🟠") {
+			level = "timeSensitive"
+		}
+		title := "TransitAI 渠道告警"
+		t.bark.SendWithLevel(title, msg, level)
 	}
 	log.Printf("[channelmetrics] %s", msg)
 }
