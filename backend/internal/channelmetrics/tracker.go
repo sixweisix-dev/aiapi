@@ -43,9 +43,10 @@ func (t *Tracker) RecordSuccess(channelID string, costCNY float64, cacheReadToke
 	// 2. 累加成本与额度
 	costUSD := costCNY / cnyPerUSD
 	updates := map[string]interface{}{
-		"daily_cost_cny":     gorm.Expr("daily_cost_cny + ?", costCNY),
-		"monthly_cost_cny":   gorm.Expr("monthly_cost_cny + ?", costCNY),
+		"daily_cost_cny":       gorm.Expr("daily_cost_cny + ?", costCNY),
+		"monthly_cost_cny":     gorm.Expr("monthly_cost_cny + ?", costCNY),
 		"quota_used_today_usd": gorm.Expr("quota_used_today_usd + ?", costUSD),
+		"used_total_usd":       gorm.Expr("used_total_usd + ?", costUSD),
 		"cache_hit_tokens":   gorm.Expr("cache_hit_tokens + ?", cacheReadTokens),
 		"cache_total_tokens": gorm.Expr("cache_total_tokens + ?", totalInputTokens),
 		"error_streak":       0,
@@ -110,10 +111,21 @@ func (t *Tracker) checkQuotaThreshold(channelID string) {
 	if err := t.db.First(&ch, "id = ?", channelID).Error; err != nil {
 		return
 	}
-	if ch.DailyQuotaUSD <= 0 {
-		return // 不限额渠道
+	var ratio float64
+	switch ch.QuotaType {
+	case "daily":
+		if ch.DailyQuotaUSD <= 0 {
+			return
+		}
+		ratio = ch.QuotaUsedTodayUSD / ch.DailyQuotaUSD
+	case "fixed":
+		if ch.TotalQuotaUSD <= 0 {
+			return
+		}
+		ratio = ch.UsedTotalUSD / ch.TotalQuotaUSD
+	default:
+		return // unlimited
 	}
-	ratio := ch.QuotaUsedTodayUSD / ch.DailyQuotaUSD
 	newStatus := "normal"
 	switch {
 	case ratio >= ExhaustedThreshold:

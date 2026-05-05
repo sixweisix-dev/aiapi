@@ -96,8 +96,11 @@ type UpstreamChannel struct {
 	ErrorCount       int       `gorm:"not null;default:0"`
 
 	// === 额度管理 (Phase 1 新增) ===
-	DailyQuotaUSD       float64    `gorm:"type:decimal(10,4);not null;default:0"`        // 每日额度 USD (0=不限制)
+	QuotaType           string     `gorm:"type:varchar(20);not null;default:'unlimited'"` // unlimited/daily/fixed
+	DailyQuotaUSD       float64    `gorm:"type:decimal(10,4);not null;default:0"`        // 每日额度 USD (daily 模式)
 	QuotaUsedTodayUSD   float64    `gorm:"type:decimal(10,4);not null;default:0"`        // 今日已用 USD
+	TotalQuotaUSD       float64    `gorm:"type:decimal(12,4);not null;default:0"`        // 固定总额 USD (fixed 模式)
+	UsedTotalUSD        float64    `gorm:"type:decimal(12,4);not null;default:0"`        // 累计已用 USD (永不重置)
 	QuotaResetAt        *time.Time `gorm:""`                                              // 上次重置时间
 	SubscriptionStart   *time.Time `gorm:""`                                              // 订阅开始
 	SubscriptionEnd     *time.Time `gorm:""`                                              // 订阅结束

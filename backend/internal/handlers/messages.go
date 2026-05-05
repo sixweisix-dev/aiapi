@@ -77,6 +77,9 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 	}
 
 	ch := h.pool.SelectSticky(model.Provider, userIDStr)
+	if ch != nil {
+		log.Printf("[messages] route user=%s -> ch=%s name=%s", userIDStr, ch.ID, ch.Name)
+	}
 	if ch == nil {
 		c.JSON(503, gin.H{"error": gin.H{"message": "no available upstream channel", "type": "api_error"}})
 		return

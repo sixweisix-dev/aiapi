@@ -20,36 +20,33 @@
         </el-table-column>
         <el-table-column prop="weight" label="权重" width="70" align="center" />
 
-        <!-- 余额进度条 -->
-        <el-table-column label="今日额度" min-width="220">
+        <el-table-column label="额度使用" min-width="240">
           <template #default="{ row }">
-            <div v-if="row.daily_quota_usd > 0">
+            <div v-if="row.quota_type === 'daily' && row.daily_quota_usd > 0">
               <div class="flex justify-between text-xs mb-1">
-                <span>{{ formatUSD(row.quota_used_today_usd) }} / {{ formatUSD(row.daily_quota_usd) }}</span>
+                <span>每日 {{ formatUSD(row.quota_used_today_usd) }} / {{ formatUSD(row.daily_quota_usd) }}</span>
                 <span :style="{color: quotaColor(row)}">{{ quotaPercent(row) }}%</span>
               </div>
-              <el-progress
-                :percentage="Math.min(100, quotaPercent(row))"
-                :color="quotaColor(row)"
-                :stroke-width="8"
-                :show-text="false"
-              />
+              <el-progress :percentage="Math.min(100, quotaPercent(row))" :color="quotaColor(row)" :stroke-width="8" :show-text="false" />
+            </div>
+            <div v-else-if="row.quota_type === 'fixed' && row.total_quota_usd > 0">
+              <div class="flex justify-between text-xs mb-1">
+                <span>固定 {{ formatUSD(row.used_total_usd) }} / {{ formatUSD(row.total_quota_usd) }}</span>
+                <span :style="{color: quotaColor(row)}">{{ quotaPercent(row) }}%</span>
+              </div>
+              <el-progress :percentage="Math.min(100, quotaPercent(row))" :color="quotaColor(row)" :stroke-width="8" :show-text="false" />
             </div>
             <span v-else class="text-gray-400 text-xs">不限额</span>
           </template>
         </el-table-column>
 
-        <!-- 状态: health + quota_status 合并显示 -->
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            <el-tag :type="quotaTagType(row.quota_status)" size="small">
-              {{ quotaLabel(row.quota_status) }}
-            </el-tag>
+            <el-tag :type="quotaTagType(row.quota_status)" size="small">{{ quotaLabel(row.quota_status) }}</el-tag>
             <el-tag v-if="row.health_status === 'unhealthy'" type="danger" size="small" class="ml-1">不健康</el-tag>
           </template>
         </el-table-column>
 
-        <!-- 缓存命中率 -->
         <el-table-column label="缓存命中" width="100" align="center">
           <template #default="{ row }">
             <span v-if="row.cache_total_tokens > 0">{{ (row.cache_hit_rate * 100).toFixed(1) }}%</span>
@@ -87,7 +84,6 @@
       </el-table>
     </el-card>
 
-    <!-- Create/Edit Dialog -->
     <el-dialog v-model="dialogVisible" :title="isEditing ? '编辑渠道' : '添加渠道'" width="640px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-form-item label="名称" prop="name">
@@ -115,15 +111,27 @@
 
         <el-divider>额度管理</el-divider>
 
-        <el-form-item label="每日额度 USD">
+        <el-form-item label="额度模式">
+          <el-radio-group v-model="form.quota_type">
+            <el-radio value="unlimited">不限额</el-radio>
+            <el-radio value="daily">每日刷新型</el-radio>
+            <el-radio value="fixed">固定总额型</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="每日额度 USD" v-if="form.quota_type === 'daily'">
           <el-input-number v-model="form.daily_quota_usd" :min="0" :step="10" />
-          <span class="ml-2 text-xs text-gray-400">0=不限额; 例如 100/200</span>
+          <span class="ml-2 text-xs text-gray-400">每天 UTC 0 点自动重置, 例如 100/200</span>
         </el-form-item>
-        <el-form-item label="订阅开始">
-          <el-date-picker v-model="form.subscription_start" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
+        <el-form-item label="固定总额 USD" v-if="form.quota_type === 'fixed'">
+          <el-input-number v-model="form.total_quota_usd" :min="0" :step="50" />
+          <span class="ml-2 text-xs text-gray-400">用完即止, 不重置</span>
         </el-form-item>
-        <el-form-item label="订阅结束">
-          <el-date-picker v-model="form.subscription_end" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
+
+        <el-form-item label="订阅开始" v-if="form.quota_type === 'daily'">
+          <el-date-picker v-model="form.subscription_start" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="订阅结束" v-if="form.quota_type === 'daily'">
+          <el-date-picker v-model="form.subscription_end" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
 
         <el-divider>专属配置</el-divider>
@@ -165,7 +173,8 @@ const editingId = ref(null)
 
 const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
-  daily_quota_usd: 0, subscription_start: '', subscription_end: '',
+  quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
+  subscription_start: '', subscription_end: '',
   is_dedicated: false, dedicated_user_ids: ''
 })
 
@@ -181,12 +190,17 @@ async function fetchData() {
   try {
     const data = await channelsAPI.list()
     channels.value = data.items || []
-  } catch (e) { ElMessage.error('加载失败') } finally { loading.value = false }
+  } catch { ElMessage.error('加载失败') } finally { loading.value = false }
 }
 
 function quotaPercent(row) {
-  if (!row.daily_quota_usd) return 0
-  return Number((row.quota_used_today_usd / row.daily_quota_usd * 100).toFixed(1))
+  if (row.quota_type === 'daily' && row.daily_quota_usd > 0) {
+    return Number((row.quota_used_today_usd / row.daily_quota_usd * 100).toFixed(1))
+  }
+  if (row.quota_type === 'fixed' && row.total_quota_usd > 0) {
+    return Number((row.used_total_usd / row.total_quota_usd * 100).toFixed(1))
+  }
+  return 0
 }
 function quotaColor(row) {
   const p = quotaPercent(row)
@@ -195,17 +209,13 @@ function quotaColor(row) {
   if (p >= 50) return '#3b82f6'
   return '#10b981'
 }
-function quotaTagType(s) {
-  return { normal: 'success', warning: 'warning', critical: 'danger', exhausted: 'info' }[s] || ''
-}
-function quotaLabel(s) {
-  return { normal: '正常', warning: '预警 80%', critical: '紧急 90%', exhausted: '已耗尽' }[s] || s
-}
+function quotaTagType(s) { return { normal:'success', warning:'warning', critical:'danger', exhausted:'info' }[s] || '' }
+function quotaLabel(s) { return { normal:'正常', warning:'预警 80%', critical:'紧急 90%', exhausted:'已耗尽' }[s] || s }
 function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, daily_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'' })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'' })
   dialogVisible.value = true
 }
 
@@ -214,7 +224,9 @@ function openEdit(row) {
   Object.assign(form, {
     name: row.name, provider: row.provider, api_key: '',
     base_url: row.base_url || '', weight: row.weight, is_enabled: row.is_enabled,
+    quota_type: row.quota_type || 'unlimited',
     daily_quota_usd: row.daily_quota_usd || 0,
+    total_quota_usd: row.total_quota_usd || 0,
     subscription_start: row.subscription_start ? dayjs(row.subscription_start).format('YYYY-MM-DD') : '',
     subscription_end: row.subscription_end ? dayjs(row.subscription_end).format('YYYY-MM-DD') : '',
     is_dedicated: row.is_dedicated || false,
@@ -228,7 +240,9 @@ async function handleSave() {
   saving.value = true
   const payload = {
     name: form.name, provider: form.provider, weight: form.weight,
+    quota_type: form.quota_type,
     daily_quota_usd: form.daily_quota_usd,
+    total_quota_usd: form.total_quota_usd,
     is_dedicated: form.is_dedicated,
     dedicated_user_ids: form.dedicated_user_ids,
   }
@@ -248,28 +262,21 @@ async function handleSave() {
     }
     dialogVisible.value = false
     fetchData()
-  } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  } catch { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 async function handleResetQuota(row) {
-  await ElMessageBox.confirm(`确定要重置 ${row.name} 的今日额度? 仅清零 quota_used_today, 不影响月度统计.`, '提示', { type: 'warning' }).catch(() => null)
-  try {
-    await channelsAPI.update(row.id, { reset_quota: true })
-    ElMessage.success('已重置')
-    fetchData()
-  } catch { ElMessage.error('重置失败') }
+  await ElMessageBox.confirm(`重置 ${row.name} 的今日额度? 仅清零 quota_used_today.`, '提示', { type: 'warning' }).catch(() => null)
+  try { await channelsAPI.update(row.id, { reset_quota: true }); ElMessage.success('已重置'); fetchData() } catch { ElMessage.error('重置失败') }
 }
 
 async function handleTest(row) {
   testingId.value = row.id
-  try {
-    await channelsAPI.test(row.id)
-    ElMessage.success('连接正常')
-  } catch { ElMessage.error('连接失败') } finally { testingId.value = null; fetchData() }
+  try { await channelsAPI.test(row.id); ElMessage.success('连接正常') } catch { ElMessage.error('连接失败') } finally { testingId.value = null; fetchData() }
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定要删除 ${row.name}?`, '确认', { type: 'warning' }).catch(() => null)
+  await ElMessageBox.confirm(`删除 ${row.name}?`, '确认', { type: 'warning' }).catch(() => null)
   try { await channelsAPI.delete(row.id); ElMessage.success('已删除'); fetchData() } catch { ElMessage.error('删除失败') }
 }
 </script>

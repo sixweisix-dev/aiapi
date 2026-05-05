@@ -259,7 +259,9 @@ type UpdateChannelRequest struct {
 	BaseURL           *string  `json:"base_url,omitempty"`
 	Weight            *int     `json:"weight,omitempty"`
 	IsEnabled         *bool    `json:"is_enabled,omitempty"`
+	QuotaType         *string  `json:"quota_type,omitempty"` // unlimited/daily/fixed
 	DailyQuotaUSD     *float64 `json:"daily_quota_usd,omitempty"`
+	TotalQuotaUSD     *float64 `json:"total_quota_usd,omitempty"`
 	SubscriptionStart *string  `json:"subscription_start,omitempty"` // YYYY-MM-DD
 	SubscriptionEnd   *string  `json:"subscription_end,omitempty"`
 	IsDedicated       *bool    `json:"is_dedicated,omitempty"`
@@ -281,8 +283,11 @@ type ChannelListItem struct {
 	CreatedAt           time.Time  `json:"created_at"`
 
 	// 额度
+	QuotaType           string     `json:"quota_type"`
 	DailyQuotaUSD       float64    `json:"daily_quota_usd"`
 	QuotaUsedTodayUSD   float64    `json:"quota_used_today_usd"`
+	TotalQuotaUSD       float64    `json:"total_quota_usd"`
+	UsedTotalUSD        float64    `json:"used_total_usd"`
 	QuotaStatus         string     `json:"quota_status"`
 	SubscriptionStart   *time.Time `json:"subscription_start"`
 	SubscriptionEnd     *time.Time `json:"subscription_end"`
@@ -327,8 +332,11 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			TotalTokens:       ch.TotalTokens,
 			ErrorCount:        ch.ErrorCount,
 			CreatedAt:         ch.CreatedAt,
+			QuotaType:         ch.QuotaType,
 			DailyQuotaUSD:     ch.DailyQuotaUSD,
 			QuotaUsedTodayUSD: ch.QuotaUsedTodayUSD,
+			TotalQuotaUSD:     ch.TotalQuotaUSD,
+			UsedTotalUSD:      ch.UsedTotalUSD,
 			QuotaStatus:       ch.QuotaStatus,
 			SubscriptionStart: ch.SubscriptionStart,
 			SubscriptionEnd:   ch.SubscriptionEnd,
@@ -418,8 +426,14 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	if req.IsEnabled != nil {
 		updates["is_enabled"] = *req.IsEnabled
 	}
+	if req.QuotaType != nil {
+		updates["quota_type"] = *req.QuotaType
+	}
 	if req.DailyQuotaUSD != nil {
 		updates["daily_quota_usd"] = *req.DailyQuotaUSD
+	}
+	if req.TotalQuotaUSD != nil {
+		updates["total_quota_usd"] = *req.TotalQuotaUSD
 	}
 	if req.SubscriptionStart != nil {
 		if t, err := time.Parse("2006-01-02", *req.SubscriptionStart); err == nil {
