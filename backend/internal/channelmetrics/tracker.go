@@ -20,9 +20,9 @@ const cnyPerUSD = 7.2
 
 // 三级阈值
 const (
-	WarningThreshold  = 0.80 // 80% 预警
-	CriticalThreshold = 0.90 // 90% 暂停路由
-	ExhaustedThreshold = 1.0 // 100% 禁用
+	WarningThreshold  = 0.75 // 75% 预警 (留 10% 误差缓冲)
+	CriticalThreshold = 0.85 // 85% 暂停路由 (留 10% 误差缓冲)
+	ExhaustedThreshold = 0.95 // 95% 禁用 (留 5% 误差缓冲)
 	ErrorStreakLimit  = 5    // 连续 5 次失败自动禁用
 )
 
@@ -200,7 +200,7 @@ func (t *Tracker) notify(msg string) {
 
 // 总体额度告警阈值
 const (
-	TotalCriticalThreshold = 0.80 // 总用量 >= 80% 就告警
+	TotalCriticalThreshold = 0.75 // 总用量 >= 75% 就告警
 	TotalEmergencyThreshold = 0.90 // 总用量 >= 90% 强制告警(timeSensitive)
 )
 
