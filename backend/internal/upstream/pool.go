@@ -29,6 +29,7 @@ type Channel struct {
 	QuotaStatus       string  // normal / warning / critical / exhausted
 	IsDedicated       bool
 	DedicatedUserIDs  string  // 逗号分隔
+	DedicatedUserIDsAuto string  // 自动隔离名单
 	concurrent        int64
 	ErrorCount        int64
 }
@@ -122,6 +123,7 @@ func (p *Pool) Refresh() {
 			QuotaStatus:      r.QuotaStatus,
 			IsDedicated:      r.IsDedicated,
 			DedicatedUserIDs: r.DedicatedUserIDs,
+			DedicatedUserIDsAuto: r.DedicatedUserIDsAuto,
 		})
 	}
 
@@ -182,7 +184,7 @@ func (p *Pool) SelectSticky(provider, userID string) *Channel {
 				c.concurrent < int64(c.MaxConcurrent) &&
 				c.HealthStatus != "unhealthy" &&
 				c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
-				containsUserID(c.DedicatedUserIDs, userID) {
+				(containsUserID(c.DedicatedUserIDs, userID) || containsUserID(c.DedicatedUserIDsAuto, userID)) {
 				p.mu.RUnlock()
 				return c
 			}

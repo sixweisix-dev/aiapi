@@ -1,6 +1,8 @@
 package channelmetrics
 
 import (
+	"context"
+	"math"
 	"sync"
 	"strings"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 
 	"ai-api-gateway/internal/models"
 	"ai-api-gateway/internal/monitoring"
+	redis "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -26,13 +29,14 @@ const (
 // Tracker 跟踪渠道指标
 type Tracker struct {
 	db      *gorm.DB
+	redis   *redis.Client
 	alerter *monitoring.TelegramAlerter
 	bark    *monitoring.BarkNotifier
 	mail    *monitoring.MailAlerter
 }
 
-func New(db *gorm.DB, alerter *monitoring.TelegramAlerter, bark *monitoring.BarkNotifier, mail *monitoring.MailAlerter) *Tracker {
-	return &Tracker{db: db, alerter: alerter, bark: bark, mail: mail}
+func New(db *gorm.DB, rdb *redis.Client, alerter *monitoring.TelegramAlerter, bark *monitoring.BarkNotifier, mail *monitoring.MailAlerter) *Tracker {
+	return &Tracker{db: db, redis: rdb, alerter: alerter, bark: bark, mail: mail}
 }
 
 // RecordSuccess 记录一次成功请求 (扣费成功后调用)
@@ -101,10 +105,11 @@ func (t *Tracker) checkDailyReset(channelID string) {
 	if ch.QuotaResetAt == nil || ch.QuotaResetAt.Before(today) {
 		resetTotalAlert()
 		t.db.Model(&ch).Updates(map[string]interface{}{
-			"daily_cost_cny":       0,
-			"quota_used_today_usd": 0,
-			"quota_status":         "normal",
-			"quota_reset_at":       now,
+			"daily_cost_cny":          0,
+			"quota_used_today_usd":    0,
+			"quota_status":            "normal",
+			"quota_reset_at":          now,
+			"dedicated_user_ids_auto": "",
 		})
 	}
 	// 月初重置 monthly
@@ -310,4 +315,103 @@ func (t *Tracker) checkSubscriptionExpiry() {
 		}
 		t.notify(msg)
 	}
+}
+
+
+// === 自动专属渠道隔离 ===
+// 触发条件：30 分钟内单用户在该渠道扣费占比 >= 30% 且 >= ¥1（避免低流量误触）
+const (
+	autoDedicateWindowMin  = 30   // 30 分钟滑动窗口
+	autoDedicateRatio      = 0.30 // 30% 占比阈值
+	autoDedicateMinCents   = 100  // 最低 ¥1（避免低流量误触）
+)
+
+// CheckAutoDedicate 在每次 RecordSuccess 之后被调用：
+// 累计 30 分钟窗口的渠道总成本和单用户成本，命中阈值则将用户加入该 provider 的 dedicated 渠道的 auto 名单。
+func (t *Tracker) CheckAutoDedicate(channelID, userID string, costCNY float64) {
+	if t.redis == nil || channelID == "" || userID == "" || costCNY <= 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	costCents := int64(math.Ceil(costCNY * 100))
+	if costCents <= 0 {
+		return
+	}
+	chKey := fmt.Sprintf("auto_dedicate:ch:%s", channelID)
+	userKey := fmt.Sprintf("auto_dedicate:user:%s:%s", channelID, userID)
+	ttl := autoDedicateWindowMin * time.Minute
+
+	pipe := t.redis.Pipeline()
+	chIncr := pipe.IncrBy(ctx, chKey, costCents)
+	pipe.Expire(ctx, chKey, ttl)
+	userIncr := pipe.IncrBy(ctx, userKey, costCents)
+	pipe.Expire(ctx, userKey, ttl)
+	if _, err := pipe.Exec(ctx); err != nil {
+		log.Printf("[auto_dedicate] redis err: %v", err)
+		return
+	}
+	chTotal := chIncr.Val()
+	userTotal := userIncr.Val()
+	if userTotal < int64(autoDedicateMinCents) {
+		return
+	}
+	if chTotal <= 0 || float64(userTotal)/float64(chTotal) < autoDedicateRatio {
+		return
+	}
+
+	// 当前渠道必须是普通渠道（非 dedicated）
+	var ch models.UpstreamChannel
+	if err := t.db.First(&ch, "id = ?", channelID).Error; err != nil {
+		return
+	}
+	if ch.IsDedicated {
+		return
+	}
+
+	// 找同 provider 的 dedicated 渠道
+	var targets []models.UpstreamChannel
+	if err := t.db.Where("provider = ? AND is_dedicated = ? AND is_enabled = ?", ch.Provider, true, true).Find(&targets).Error; err != nil {
+		return
+	}
+	if len(targets) == 0 {
+		return // admin 未配置 dedicated 渠道，跳过
+	}
+	target := targets[0]
+
+	// 已在任一名单（手动或自动）则跳过
+	if containsUserIDInList(target.DedicatedUserIDs, userID) || containsUserIDInList(target.DedicatedUserIDsAuto, userID) {
+		return
+	}
+
+	// 追加到 auto 名单
+	newAuto := target.DedicatedUserIDsAuto
+	if newAuto != "" {
+		newAuto += "," + userID
+	} else {
+		newAuto = userID
+	}
+	if err := t.db.Model(&models.UpstreamChannel{}).Where("id = ?", target.ID).Update("dedicated_user_ids_auto", newAuto).Error; err != nil {
+		log.Printf("[auto_dedicate] update auto list failed: %v", err)
+		return
+	}
+
+	ratioPct := float64(userTotal) / float64(chTotal) * 100
+	msg := fmt.Sprintf("🟡 自动专属隔离触发\n用户: %s\n源渠道: %s\n30分钟成本: ¥%.2f / ¥%.2f (%.0f%%)\n隔离至: %s",
+		userID, ch.Name, float64(userTotal)/100, float64(chTotal)/100, ratioPct, target.Name)
+	t.notify(msg)
+	log.Printf("[auto_dedicate] user=%s ch=%s -> %s (ratio=%.0f%%)", userID, ch.Name, target.Name, ratioPct)
+}
+
+func containsUserIDInList(list, userID string) bool {
+	if list == "" || userID == "" {
+		return false
+	}
+	for _, id := range strings.Split(list, ",") {
+		if strings.TrimSpace(id) == userID {
+			return true
+		}
+	}
+	return false
 }

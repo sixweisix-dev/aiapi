@@ -97,8 +97,9 @@ func main() {
 		os.Getenv("SMTP_HOST"), os.Getenv("SMTP_PORT"), os.Getenv("SMTP_USER"),
 		os.Getenv("SMTP_PASSWORD"), os.Getenv("SMTP_FROM"), os.Getenv("ALERT_EMAIL_TO"),
 	)
-	channelTracker := channelmetrics.New(db, alerter, bark, mailAlert)
+	channelTracker := channelmetrics.New(db, redisClient, alerter, bark, mailAlert)
 	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
+	widgetHandler := handlers.NewWidgetHandler(db)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
@@ -192,6 +193,9 @@ func main() {
 	r.POST("/v1/internal/promo-check", cronHandler.PromoDateCheck)
 	r.POST("/v1/recharge/alipay/notify", paymentHandler.AlipayNotify)
 	r.GET("/v1/recharge/alipay/return", paymentHandler.AlipayReturn)
+
+	// iOS Scriptable widget (admin sk- via ?key=)
+	r.GET("/v1/widget/dashboard", widgetHandler.Dashboard)
 
 	// === Admin routes (JWT + AdminRequired) ===
 	admin := r.Group("/v1/admin")

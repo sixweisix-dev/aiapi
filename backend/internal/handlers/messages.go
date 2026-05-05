@@ -393,6 +393,7 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 	// 上报渠道指标 + 审计
 	if h.tracker != nil {
 		h.tracker.RecordSuccess(ch.ID, cost, cacheRead, promptTokens+cacheRead, durationMs)
+		h.tracker.CheckAutoDedicate(ch.ID, userIDStr, cost)
 		h.tracker.AuditBigCost(userIDStr, model.Name, ch.ID, cost, promptTokens+cacheCreate+cacheRead, completionTokens)
 		h.tracker.AuditHighRPM(userIDStr)
 		h.tracker.AuditFailureRate(userIDStr, statusCode)

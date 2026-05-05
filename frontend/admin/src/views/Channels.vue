@@ -13,6 +13,7 @@
           <template #default="{ row }">
             <div>{{ row.name }}</div>
             <el-tag v-if="row.is_dedicated" size="small" type="warning" effect="dark" class="mt-1">专属</el-tag>
+            <el-tag v-if="row.dedicated_user_ids_auto" size="small" type="warning" plain class="mt-1 ml-1">🟡 自动 {{ countUsers(row.dedicated_user_ids_auto) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="provider" label="提供商" width="100">
@@ -134,6 +135,13 @@
           <el-date-picker v-model="form.subscription_end" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
 
+        <el-divider>计费倍率（widget 用）</el-divider>
+
+        <el-form-item label="成本倍率">
+          <el-input-number v-model="form.cost_multiplier" :min="0.1" :max="2" :step="0.05" :precision="2" controls-position="right" />
+          <span class="ml-2 text-xs text-gray-400">默认 1.0；若我们对用户售价 = 上游成本 × X（让利），填 X（如 0.6）。Widget 显示余额会用此值反算上游真实消耗</span>
+        </el-form-item>
+
         <el-divider>专属配置</el-divider>
 
         <el-form-item label="专属渠道">
@@ -142,6 +150,10 @@
         </el-form-item>
         <el-form-item label="专属用户ID" v-if="form.is_dedicated">
           <el-input v-model="form.dedicated_user_ids" type="textarea" :rows="2" placeholder="逗号分隔, 如: uuid1, uuid2" />
+        </el-form-item>
+        <el-form-item label="自动隔离名单" v-if="form.is_dedicated && form.dedicated_user_ids_auto">
+          <el-input v-model="form.dedicated_user_ids_auto" type="textarea" :rows="2" readonly />
+          <div class="text-xs text-gray-400 mt-1">🟡 系统根据 30 分钟成本占比自动加入；每日 0 点重置</div>
         </el-form-item>
 
         <el-form-item label="启用" v-if="isEditing">
@@ -157,6 +169,7 @@
 </template>
 
 <script setup>
+const countUsers = (csv) => csv ? csv.split(',').filter(x => x.trim()).length : 0
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
@@ -175,7 +188,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: ''
+  is_dedicated: false, dedicated_user_ids: '', cost_multiplier: 1.0
 })
 
 const rules = {
@@ -215,7 +228,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'' })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', cost_multiplier:1.0, account_balance_usd:0 })
   dialogVisible.value = true
 }
 
@@ -231,6 +244,8 @@ function openEdit(row) {
     subscription_end: row.subscription_end ? dayjs(row.subscription_end).format('YYYY-MM-DD') : '',
     is_dedicated: row.is_dedicated || false,
     dedicated_user_ids: row.dedicated_user_ids || '',
+    dedicated_user_ids_auto: row.dedicated_user_ids_auto || '',
+    cost_multiplier: Number(row.cost_multiplier) || 1.0
   })
   dialogVisible.value = true
 }
@@ -245,6 +260,7 @@ async function handleSave() {
     total_quota_usd: form.total_quota_usd,
     is_dedicated: form.is_dedicated,
     dedicated_user_ids: form.dedicated_user_ids,
+    cost_multiplier: Number(form.cost_multiplier) || 1.0,
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

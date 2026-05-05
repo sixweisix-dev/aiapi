@@ -122,6 +122,12 @@ type UpstreamChannel struct {
 	// === 专属渠道 ===
 	IsDedicated         bool       `gorm:"not null;default:false"`                        // 是否专属渠道
 	DedicatedUserIDs    string     `gorm:"type:text;not null;default:''"`                // 逗号分隔 UUID
+	DedicatedUserIDsAuto string    `gorm:"type:text;not null;default:''"`                // 自动隔离名单(每日0点重置)
+
+	// === 计费倍率（widget 反算上游真实消耗用）===
+	// 默认 1.0；若我们对用户收取的是上游成本 × 0.6（让利），填 0.6
+	// widget 余额 = daily_quota − quota_used_today / cost_multiplier
+	CostMultiplier float64 `gorm:"type:decimal(5,4);not null;default:1"`
 
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
