@@ -135,6 +135,21 @@
           <el-date-picker v-model="form.subscription_end" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
 
+        <el-divider>计费模式</el-divider>
+
+        <el-form-item label="计费模式">
+          <el-select v-model="form.billing_mode" style="width: 200px">
+            <el-option label="按量计费 (pay-as-you-go)" value="pay_as_you_go" />
+            <el-option label="包月套餐 (subscription)" value="subscription" />
+          </el-select>
+          <span class="ml-2 text-xs text-gray-400">subscription = 上游每月固定费用; pay_as_you_go = 按 token 计费</span>
+        </el-form-item>
+
+        <el-form-item label="月费 CNY" v-if="form.billing_mode === 'subscription'">
+          <el-input-number v-model="form.monthly_fee_cny" :min="0" :step="1" :precision="2" controls-position="right" />
+          <span class="ml-2 text-xs text-gray-400">每月固定支付的费用 (利润看板会按 月费/30 摊销到每天)</span>
+        </el-form-item>
+
         <el-divider>对账倍率（widget 用）</el-divider>
 
         <el-form-item label="对账倍率">
@@ -188,7 +203,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0
+  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0
 })
 
 const rules = {
@@ -233,7 +248,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, account_balance_usd:0 })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, account_balance_usd:0 })
   dialogVisible.value = true
 }
 
@@ -250,7 +265,9 @@ function openEdit(row) {
     is_dedicated: row.is_dedicated || false,
     dedicated_user_ids: row.dedicated_user_ids || '',
     dedicated_user_ids_auto: row.dedicated_user_ids_auto || '',
-    reconcile_multiplier: Number(row.reconcile_multiplier) || 1.0
+    reconcile_multiplier: Number(row.reconcile_multiplier) || 1.0,
+    billing_mode: row.billing_mode || 'pay_as_you_go',
+    monthly_fee_cny: Number(row.monthly_fee_cny) || 0
   })
   dialogVisible.value = true
 }
@@ -266,6 +283,8 @@ async function handleSave() {
     is_dedicated: form.is_dedicated,
     dedicated_user_ids: form.dedicated_user_ids,
     reconcile_multiplier: Number(form.reconcile_multiplier) || 1.0,
+    billing_mode: form.billing_mode || 'pay_as_you_go',
+    monthly_fee_cny: Number(form.monthly_fee_cny) || 0,
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

@@ -267,6 +267,8 @@ type UpdateChannelRequest struct {
 	IsDedicated       *bool    `json:"is_dedicated,omitempty"`
 	DedicatedUserIDs  *string  `json:"dedicated_user_ids,omitempty"`
 	ReconcileMultiplier *float64 `json:"reconcile_multiplier,omitempty"`
+	BillingMode         *string  `json:"billing_mode,omitempty"`
+	MonthlyFeeCNY       *float64 `json:"monthly_fee_cny,omitempty"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
@@ -312,6 +314,8 @@ type ChannelListItem struct {
 	DedicatedUserIDs    string     `json:"dedicated_user_ids"`
 	DedicatedUserIDsAuto string    `json:"dedicated_user_ids_auto"`
 	ReconcileMultiplier float64    `json:"reconcile_multiplier"`
+	BillingMode         string     `json:"billing_mode"`
+	MonthlyFeeCNY       float64    `json:"monthly_fee_cny"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -355,6 +359,8 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			DedicatedUserIDs:  ch.DedicatedUserIDs,
 			DedicatedUserIDsAuto: ch.DedicatedUserIDsAuto,
 			ReconcileMultiplier: ch.ReconcileMultiplier,
+			BillingMode:         ch.BillingMode,
+			MonthlyFeeCNY:       ch.MonthlyFeeCNY,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -458,6 +464,12 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.ReconcileMultiplier != nil && *req.ReconcileMultiplier > 0 {
 		updates["reconcile_multiplier"] = *req.ReconcileMultiplier
+	}
+	if req.BillingMode != nil {
+		updates["billing_mode"] = *req.BillingMode
+	}
+	if req.MonthlyFeeCNY != nil && *req.MonthlyFeeCNY >= 0 {
+		updates["monthly_fee_cny"] = *req.MonthlyFeeCNY
 	}
 	if req.ResetQuota != nil && *req.ResetQuota {
 		updates["quota_used_today_usd"] = 0
@@ -1043,7 +1055,11 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		startTime = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	}
 
-	const multiplier = 1.5
+	// rangeDays: 当前 range 跨度（用于摊销 subscription 月费）
+	rangeDays := now.Sub(startTime).Hours() / 24
+	if rangeDays < 1 {
+		rangeDays = 1
+	}
 
 	type Summary struct {
 		Revenue      float64 `json:"revenue"`        // 平台收入(CNY)
@@ -1065,7 +1081,25 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 			COALESCE(SUM(completion_tokens), 0) AS output_tokens
 		`).
 		Scan(&s)
-	s.Cost = s.Revenue / multiplier
+
+	// === 成本计算: 分 billing_mode ===
+	// 1. Subscription 渠道: 固定成本 = monthly_fee × rangeDays / 30 (无论是否有流量)
+	var subChannels []models.UpstreamChannel
+	h.db.Where("is_enabled = ? AND billing_mode = ?", true, "subscription").Find(&subChannels)
+	var subCost float64
+	for _, ch := range subChannels {
+		subCost += ch.MonthlyFeeCNY * rangeDays / 30
+	}
+
+	// 2. Pay-as-you-go 渠道: 按 reconcile_multiplier 反算 (revenue_per_request / multiplier)
+	var paygCost float64
+	h.db.Table("requests r").
+		Joins("LEFT JOIN upstream_channels c ON c.id = r.upstream_channel_id").
+		Where("r.status_code = 200 AND r.created_at >= ? AND (c.billing_mode IS NULL OR c.billing_mode = ?)", startTime, "pay_as_you_go").
+		Select("COALESCE(SUM(r.cost / NULLIF(c.reconcile_multiplier, 0)), 0)").
+		Scan(&paygCost)
+
+	s.Cost = subCost + paygCost
 	s.Profit = s.Revenue - s.Cost
 	if s.Revenue > 0 {
 		s.ProfitMargin = (s.Profit / s.Revenue) * 100
@@ -1088,8 +1122,13 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		Group("m.name").
 		Order("revenue DESC").
 		Scan(&byModel)
+	// byModel 成本用全局有效倍率估算 (近似, 不含 subscription 精确摊销)
+	effectiveMult := 1.0
+	if s.Cost > 0 {
+		effectiveMult = s.Revenue / s.Cost
+	}
 	for i := range byModel {
-		byModel[i].Cost = byModel[i].Revenue / multiplier
+		byModel[i].Cost = byModel[i].Revenue / effectiveMult
 		byModel[i].Profit = byModel[i].Revenue - byModel[i].Cost
 		if s.Revenue > 0 {
 			byModel[i].Share = byModel[i].Revenue / s.Revenue * 100
@@ -1130,14 +1169,14 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		ORDER BY date ASC
 	`, thirtyDaysAgo).Scan(&trend)
 	for i := range trend {
-		trend[i].Cost = trend[i].Revenue / multiplier
+		trend[i].Cost = trend[i].Revenue / effectiveMult
 		trend[i].Profit = trend[i].Revenue - trend[i].Cost
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"range":      rangeType,
 		"start_time": startTime,
-		"multiplier": multiplier,
+		"multiplier": effectiveMult,
 		"summary":    s,
 		"by_model":   byModel,
 		"top_users":  topUsers,

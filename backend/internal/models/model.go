@@ -130,6 +130,12 @@ type UpstreamChannel struct {
 	// widget 余额 = daily_quota − quota_used_today / reconcile_multiplier
 	ReconcileMultiplier float64 `gorm:"type:decimal(5,4);not null;default:1;column:reconcile_multiplier"`
 
+	// === 计费模式 (区分按量付费 vs 包月套餐) ===
+	// "pay_as_you_go" (默认): 按 token 计费, 成本 = revenue / reconcile_multiplier
+	// "subscription": 包月套餐, 成本固定为月费 / 30 (天)
+	BillingMode   string  `gorm:"type:varchar(20);not null;default:'pay_as_you_go'"`
+	MonthlyFeeCNY float64 `gorm:"type:decimal(10,2);not null;default:0"`
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
