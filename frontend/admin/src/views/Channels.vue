@@ -120,7 +120,7 @@
         </el-form-item>
         <el-form-item label="每日额度 USD" v-if="form.quota_type === 'daily'">
           <el-input-number v-model="form.daily_quota_usd" :min="0" :step="10" />
-          <span class="ml-2 text-xs text-gray-400">每天 UTC 0 点自动重置, 例如 100/200</span>
+          <span class="ml-2 text-xs text-gray-400">每天北京时间 0 点自动重置, 例如 100/200</span>
         </el-form-item>
         <el-form-item label="固定总额 USD" v-if="form.quota_type === 'fixed'">
           <el-input-number v-model="form.total_quota_usd" :min="0" :step="50" />

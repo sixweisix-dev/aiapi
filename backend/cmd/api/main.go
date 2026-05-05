@@ -93,7 +93,11 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	usageByModelHandler := handlers.NewUsageByModelHandler(db)
 	bark := monitoring.NewBarkNotifier(os.Getenv("BARK_DEVICE_KEY"))
-	channelTracker := channelmetrics.New(db, alerter, bark)
+	mailAlert := monitoring.NewMailAlerter(
+		os.Getenv("SMTP_HOST"), os.Getenv("SMTP_PORT"), os.Getenv("SMTP_USER"),
+		os.Getenv("SMTP_PASSWORD"), os.Getenv("SMTP_FROM"), os.Getenv("ALERT_EMAIL_TO"),
+	)
+	channelTracker := channelmetrics.New(db, alerter, bark, mailAlert)
 	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
