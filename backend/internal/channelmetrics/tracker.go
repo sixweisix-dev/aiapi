@@ -41,7 +41,7 @@ func (t *Tracker) RecordSuccess(channelID string, costCNY float64, cacheReadToke
 	if channelID == "" {
 		return
 	}
-	// 1. 重置每日 (每个 UTC 0 点)
+	// 1. 重置每日 (每个北京时间 0 点)
 	t.checkDailyReset(channelID)
 
 	// 2. 累加成本与额度
