@@ -140,9 +140,9 @@ func round4(v float64) float64 {
 }
 
 func computeRemainingUSD(ch models.UpstreamChannel) float64 {
-	// cost_multiplier: 我方扣 quota_used_today_usd = 上游真实消耗 × multiplier
-	// 反算上游真实消耗 = quota_used_today_usd / multiplier
-	mult := ch.CostMultiplier
+	// reconcile_multiplier: 实际比例(quota_used_today_usd / 上游真实消耗)
+	// 反算上游真实消耗 = quota_used_today_usd / reconcile_multiplier
+	mult := ch.ReconcileMultiplier
 	if mult <= 0 {
 		mult = 1.0
 	}

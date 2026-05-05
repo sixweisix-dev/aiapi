@@ -266,7 +266,7 @@ type UpdateChannelRequest struct {
 	SubscriptionEnd   *string  `json:"subscription_end,omitempty"`
 	IsDedicated       *bool    `json:"is_dedicated,omitempty"`
 	DedicatedUserIDs  *string  `json:"dedicated_user_ids,omitempty"`
-	CostMultiplier    *float64 `json:"cost_multiplier,omitempty"`
+	ReconcileMultiplier *float64 `json:"reconcile_multiplier,omitempty"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
@@ -311,7 +311,7 @@ type ChannelListItem struct {
 	IsDedicated         bool       `json:"is_dedicated"`
 	DedicatedUserIDs    string     `json:"dedicated_user_ids"`
 	DedicatedUserIDsAuto string    `json:"dedicated_user_ids_auto"`
-	CostMultiplier      float64    `json:"cost_multiplier"`
+	ReconcileMultiplier float64    `json:"reconcile_multiplier"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -354,7 +354,7 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			IsDedicated:       ch.IsDedicated,
 			DedicatedUserIDs:  ch.DedicatedUserIDs,
 			DedicatedUserIDsAuto: ch.DedicatedUserIDsAuto,
-			CostMultiplier:    ch.CostMultiplier,
+			ReconcileMultiplier: ch.ReconcileMultiplier,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -456,8 +456,8 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	if req.DedicatedUserIDs != nil {
 		updates["dedicated_user_ids"] = *req.DedicatedUserIDs
 	}
-	if req.CostMultiplier != nil && *req.CostMultiplier > 0 {
-		updates["cost_multiplier"] = *req.CostMultiplier
+	if req.ReconcileMultiplier != nil && *req.ReconcileMultiplier > 0 {
+		updates["reconcile_multiplier"] = *req.ReconcileMultiplier
 	}
 	if req.ResetQuota != nil && *req.ResetQuota {
 		updates["quota_used_today_usd"] = 0

@@ -25,14 +25,14 @@
           <template #default="{ row }">
             <div v-if="row.quota_type === 'daily' && row.daily_quota_usd > 0">
               <div class="flex justify-between text-xs mb-1">
-                <span>每日 {{ formatUSD(row.quota_used_today_usd) }} / {{ formatUSD(row.daily_quota_usd) }}</span>
+                <span>每日 {{ formatUSD(realUsed(row, row.quota_used_today_usd)) }} / {{ formatUSD(row.daily_quota_usd) }}</span>
                 <span :style="{color: quotaColor(row)}">{{ quotaPercent(row) }}%</span>
               </div>
               <el-progress :percentage="Math.min(100, quotaPercent(row))" :color="quotaColor(row)" :stroke-width="8" :show-text="false" />
             </div>
             <div v-else-if="row.quota_type === 'fixed' && row.total_quota_usd > 0">
               <div class="flex justify-between text-xs mb-1">
-                <span>固定 {{ formatUSD(row.used_total_usd) }} / {{ formatUSD(row.total_quota_usd) }}</span>
+                <span>固定 {{ formatUSD(realUsed(row, row.used_total_usd)) }} / {{ formatUSD(row.total_quota_usd) }}</span>
                 <span :style="{color: quotaColor(row)}">{{ quotaPercent(row) }}%</span>
               </div>
               <el-progress :percentage="Math.min(100, quotaPercent(row))" :color="quotaColor(row)" :stroke-width="8" :show-text="false" />
@@ -135,11 +135,11 @@
           <el-date-picker v-model="form.subscription_end" type="date" value-format="YYYY-MM-DD" style="width:100%" />
         </el-form-item>
 
-        <el-divider>计费倍率（widget 用）</el-divider>
+        <el-divider>对账倍率（widget 用）</el-divider>
 
-        <el-form-item label="成本倍率">
-          <el-input-number v-model="form.cost_multiplier" :min="0.1" :max="2" :step="0.05" :precision="2" controls-position="right" />
-          <span class="ml-2 text-xs text-gray-400">默认 1.0；若我们对用户售价 = 上游成本 × X（让利），填 X（如 0.6）。Widget 显示余额会用此值反算上游真实消耗</span>
+        <el-form-item label="对账倍率">
+          <el-input-number v-model="form.reconcile_multiplier" :min="0.1" :max="2" :step="0.01" :precision="2" controls-position="right" />
+          <span class="ml-2 text-xs text-gray-400">默认 1.0。用法：跑一段时间后对比上游后台真实消耗 vs 我方 quota_used_today_usd（DB），算出实际比值填入。Widget 余额 = daily_quota − quota_used_today / 对账倍率</span>
         </el-form-item>
 
         <el-divider>专属配置</el-divider>
@@ -188,7 +188,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: '', cost_multiplier: 1.0
+  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0
 })
 
 const rules = {
@@ -206,12 +206,17 @@ async function fetchData() {
   } catch { ElMessage.error('加载失败') } finally { loading.value = false }
 }
 
+// 反算上游真实消耗 USD (使用 reconcile_multiplier; 默认 1.0)
+function realUsed(row, raw) {
+  const m = Number(row.reconcile_multiplier) || 1.0
+  return raw / m
+}
 function quotaPercent(row) {
   if (row.quota_type === 'daily' && row.daily_quota_usd > 0) {
-    return Number((row.quota_used_today_usd / row.daily_quota_usd * 100).toFixed(1))
+    return Number((realUsed(row, row.quota_used_today_usd) / row.daily_quota_usd * 100).toFixed(1))
   }
   if (row.quota_type === 'fixed' && row.total_quota_usd > 0) {
-    return Number((row.used_total_usd / row.total_quota_usd * 100).toFixed(1))
+    return Number((realUsed(row, row.used_total_usd) / row.total_quota_usd * 100).toFixed(1))
   }
   return 0
 }
@@ -228,7 +233,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', cost_multiplier:1.0, account_balance_usd:0 })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, account_balance_usd:0 })
   dialogVisible.value = true
 }
 
@@ -245,7 +250,7 @@ function openEdit(row) {
     is_dedicated: row.is_dedicated || false,
     dedicated_user_ids: row.dedicated_user_ids || '',
     dedicated_user_ids_auto: row.dedicated_user_ids_auto || '',
-    cost_multiplier: Number(row.cost_multiplier) || 1.0
+    reconcile_multiplier: Number(row.reconcile_multiplier) || 1.0
   })
   dialogVisible.value = true
 }
@@ -260,7 +265,7 @@ async function handleSave() {
     total_quota_usd: form.total_quota_usd,
     is_dedicated: form.is_dedicated,
     dedicated_user_ids: form.dedicated_user_ids,
-    cost_multiplier: Number(form.cost_multiplier) || 1.0,
+    reconcile_multiplier: Number(form.reconcile_multiplier) || 1.0,
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

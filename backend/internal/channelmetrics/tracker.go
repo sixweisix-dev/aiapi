@@ -124,18 +124,23 @@ func (t *Tracker) checkQuotaThreshold(channelID string) {
 	if err := t.db.First(&ch, "id = ?", channelID).Error; err != nil {
 		return
 	}
+	// 对账倍率反算上游真实消耗 (默认 1.0)
+	mult := ch.ReconcileMultiplier
+	if mult <= 0 {
+		mult = 1.0
+	}
 	var ratio float64
 	switch ch.QuotaType {
 	case "daily":
 		if ch.DailyQuotaUSD <= 0 {
 			return
 		}
-		ratio = ch.QuotaUsedTodayUSD / ch.DailyQuotaUSD
+		ratio = (ch.QuotaUsedTodayUSD / mult) / ch.DailyQuotaUSD
 	case "fixed":
 		if ch.TotalQuotaUSD <= 0 {
 			return
 		}
-		ratio = ch.UsedTotalUSD / ch.TotalQuotaUSD
+		ratio = (ch.UsedTotalUSD / mult) / ch.TotalQuotaUSD
 	default:
 		return // unlimited
 	}
@@ -150,13 +155,21 @@ func (t *Tracker) checkQuotaThreshold(channelID string) {
 	}
 	if newStatus != ch.QuotaStatus {
 		t.db.Model(&ch).Update("quota_status", newStatus)
+		realUsed := ch.QuotaUsedTodayUSD / mult
+		if ch.QuotaType == "fixed" {
+			realUsed = ch.UsedTotalUSD / mult
+		}
+		realQuota := ch.DailyQuotaUSD
+		if ch.QuotaType == "fixed" {
+			realQuota = ch.TotalQuotaUSD
+		}
 		switch newStatus {
 		case "warning":
-			t.notify(fmt.Sprintf("🟡 渠道余额预警: %s\n已用 %.2f / %.2f USD (%.0f%%)", ch.Name, ch.QuotaUsedTodayUSD, ch.DailyQuotaUSD, ratio*100))
+			t.notify(fmt.Sprintf("🟡 渠道余额预警: %s\n上游真实已用 %.2f / %.2f USD (%.0f%%)", ch.Name, realUsed, realQuota, ratio*100))
 		case "critical":
-			t.notify(fmt.Sprintf("🟠 渠道余额紧急: %s\n已用 %.2f / %.2f USD (%.0f%%) - 暂停路由", ch.Name, ch.QuotaUsedTodayUSD, ch.DailyQuotaUSD, ratio*100))
+			t.notify(fmt.Sprintf("🟠 渠道余额紧急: %s\n上游真实已用 %.2f / %.2f USD (%.0f%%) - 暂停路由", ch.Name, realUsed, realQuota, ratio*100))
 		case "exhausted":
-			t.notify(fmt.Sprintf("🔴 渠道额度耗尽: %s\n已用 %.2f / %.2f USD - 已禁用", ch.Name, ch.QuotaUsedTodayUSD, ch.DailyQuotaUSD))
+			t.notify(fmt.Sprintf("🔴 渠道额度耗尽: %s\n上游真实已用 %.2f / %.2f USD - 已禁用", ch.Name, realUsed, realQuota))
 			t.db.Model(&ch).Update("is_enabled", false)
 		}
 	}
@@ -207,13 +220,18 @@ func (t *Tracker) checkTotalQuota() {
 
 	var totalQuota, totalUsed float64
 	for _, c := range channels {
+		// 对账倍率反算上游真实消耗
+		mult := c.ReconcileMultiplier
+		if mult <= 0 {
+			mult = 1.0
+		}
 		switch c.QuotaType {
 		case "daily":
 			totalQuota += c.DailyQuotaUSD
-			totalUsed += c.QuotaUsedTodayUSD
+			totalUsed += c.QuotaUsedTodayUSD / mult
 		case "fixed":
 			totalQuota += c.TotalQuotaUSD
-			totalUsed += c.UsedTotalUSD
+			totalUsed += c.UsedTotalUSD / mult
 		}
 	}
 	if totalQuota <= 0 {
