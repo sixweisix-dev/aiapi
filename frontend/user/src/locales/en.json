@@ -539,7 +539,7 @@
     "errorTable500": "Upstream service error — retry later",
     "errorTable503": "No upstream channel available",
     "billing": "💰 Billing",
-    "billLi1": "All prices are in <strong>CNY</strong>, charged per 1,000 tokens",
+    "billLi1": "All prices are in <strong>CNY</strong>, charged per 1,000,000 (1M) tokens",
     "billLi2": "Input and output tokens are billed separately — see 「Models」 page for pricing",
     "billLi3": "Requests return 402 when balance is insufficient — please top up",
     "billLi4": "Monthly budget alerts available in API Key settings",

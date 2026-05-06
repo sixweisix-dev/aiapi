@@ -539,7 +539,7 @@
     "errorTable500": "上游服务异常，稍后重试",
     "errorTable503": "无可用上游渠道",
     "billing": "💰 计费说明",
-    "billLi1": "所有价格以 <strong>CNY</strong> 计价，按每 1,000 tokens 计算",
+    "billLi1": "所有价格以 <strong>CNY</strong> 计价，按每 100 万 (1M) tokens 计算",
     "billLi2": "输入和输出 token 分别计费，价格见「模型价格」页面",
     "billLi3": "余额不足时返回 402，请及时充值",
     "billLi4": "支持月度预算告警，在 API Key 设置中配置",

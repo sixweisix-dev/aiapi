@@ -28,6 +28,7 @@ type widgetChannel struct {
 	QuotaPct     float64 `json:"quota_pct"`     // 已用百分比 (0-100)
 	TodayCNY     float64 `json:"today_cny"`
 	RemainingUSD float64 `json:"remaining_usd"` // 剩余配额 USD
+SubscriptionEnd *string `json:"subscription_end,omitempty"` // YYYY-MM-DD, 仅 subscription 渠道
 }
 
 type widgetDashboardResp struct {
@@ -88,12 +89,18 @@ func (h *WidgetHandler) Dashboard(c *gin.Context) {
 	for _, ch := range channels {
 		pct := computeQuotaPct(ch)
 		rem := computeRemainingUSD(ch)
+		var subEnd *string
+		if ch.SubscriptionEnd != nil {
+			e := ch.SubscriptionEnd.Format("2006-01-02")
+			subEnd = &e
+		}
 		resp.Channels = append(resp.Channels, widgetChannel{
 			Name:         ch.Name,
 			Status:       ch.QuotaStatus,
 			QuotaPct:     pct,
 			TodayCNY:     ch.DailyCostCNY,
 			RemainingUSD: rem,
+			SubscriptionEnd: subEnd,
 		})
 		resp.TotalRemainingUSD += rem
 		resp.TotalTodayCNY += ch.DailyCostCNY
