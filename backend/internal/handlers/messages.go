@@ -89,6 +89,11 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 	upstreamURL := baseURL + "/v1/messages"
 	startTime := time.Now()
 
+	// 自动注入 cache_control (如果 channel 配置开启)
+	if ch.AutoInjectCache {
+		bodyBytes = injectCacheControl(bodyBytes, ch.EnableCache1hBeta)
+	}
+
 	upstreamReq, err := http.NewRequest("POST", upstreamURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		c.JSON(500, gin.H{"error": gin.H{"message": "failed to create upstream request", "type": "api_error"}})
@@ -418,4 +423,62 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 		h.tracker.AuditHighRPM(userIDStr)
 		h.tracker.AuditFailureRate(userIDStr, statusCode)
 	}
+}
+
+// injectCacheControl 根据 channel 配置自动给 request body 的 system block 加 cache_control.
+// 返回修改后 body; 解析失败/不需要修改时返回原 body.
+// 长度阈值: system text >= 4000 字符 (≈ 2000 tokens) 才加 cache, 避免无效 cache_creation.
+func injectCacheControl(body []byte, useExtended1h bool) []byte {
+	var req map[string]interface{}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return body
+	}
+	ttl := "5m"
+	if useExtended1h {
+		ttl = "1h"
+	}
+	cacheControl := map[string]interface{}{
+		"type": "ephemeral",
+		"ttl":  ttl,
+	}
+	sys, ok := req["system"]
+	if !ok {
+		return body
+	}
+	switch v := sys.(type) {
+	case string:
+		if len(v) < 4000 {
+			return body
+		}
+		req["system"] = []map[string]interface{}{
+			{
+				"type":          "text",
+				"text":          v,
+				"cache_control": cacheControl,
+			},
+		}
+	case []interface{}:
+		if len(v) == 0 {
+			return body
+		}
+		last, ok := v[len(v)-1].(map[string]interface{})
+		if !ok {
+			return body
+		}
+		if _, has := last["cache_control"]; has {
+			return body
+		}
+		text, _ := last["text"].(string)
+		if len(text) < 4000 {
+			return body
+		}
+		last["cache_control"] = cacheControl
+	default:
+		return body
+	}
+	out, err := json.Marshal(req)
+	if err != nil {
+		return body
+	}
+	return out
 }

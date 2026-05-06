@@ -270,6 +270,7 @@ type UpdateChannelRequest struct {
 	BillingMode         *string  `json:"billing_mode,omitempty"`
 	MonthlyFeeCNY       *float64 `json:"monthly_fee_cny,omitempty"`
 	EnableCache1hBeta   *bool    `json:"enable_cache_1h_beta,omitempty"`
+	AutoInjectCache     *bool    `json:"auto_inject_cache,omitempty"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
@@ -318,6 +319,7 @@ type ChannelListItem struct {
 	BillingMode         string     `json:"billing_mode"`
 	MonthlyFeeCNY       float64    `json:"monthly_fee_cny"`
 	EnableCache1hBeta   bool       `json:"enable_cache_1h_beta"`
+	AutoInjectCache     bool       `json:"auto_inject_cache"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -364,6 +366,7 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			BillingMode:         ch.BillingMode,
 			MonthlyFeeCNY:       ch.MonthlyFeeCNY,
 			EnableCache1hBeta:   ch.EnableCache1hBeta,
+			AutoInjectCache:     ch.AutoInjectCache,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -476,6 +479,9 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.EnableCache1hBeta != nil {
 		updates["enable_cache_1h_beta"] = *req.EnableCache1hBeta
+	}
+	if req.AutoInjectCache != nil {
+		updates["auto_inject_cache"] = *req.AutoInjectCache
 	}
 	if req.ResetQuota != nil && *req.ResetQuota {
 		updates["quota_used_today_usd"] = 0

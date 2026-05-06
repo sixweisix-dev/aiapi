@@ -141,6 +141,11 @@ type UpstreamChannel struct {
 	// 仅对真支持 cache 的上游 (如 Anthropic 直连) 有效, 反代池开了无用
 	EnableCache1hBeta bool `gorm:"not null;default:false;column:enable_cache_1h_beta"`
 
+	// === 自动注入 cache_control 到 system block ===
+	// true: 网关层解析 request body, 给长 system 自动加 cache_control
+	// 配合 EnableCache1hBeta 决定 ttl (true→1h, false→5m)
+	AutoInjectCache bool `gorm:"not null;default:false"`
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
