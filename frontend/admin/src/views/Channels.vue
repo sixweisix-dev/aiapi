@@ -203,7 +203,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0
+  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0, enable_cache_1h_beta: false
 })
 
 const rules = {
@@ -248,7 +248,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, account_balance_usd:0 })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, enable_cache_1h_beta:false, account_balance_usd:0 })
   dialogVisible.value = true
 }
 
@@ -267,7 +267,8 @@ function openEdit(row) {
     dedicated_user_ids_auto: row.dedicated_user_ids_auto || '',
     reconcile_multiplier: Number(row.reconcile_multiplier) || 1.0,
     billing_mode: row.billing_mode || 'pay_as_you_go',
-    monthly_fee_cny: Number(row.monthly_fee_cny) || 0
+    monthly_fee_cny: Number(row.monthly_fee_cny) || 0,
+    enable_cache_1h_beta: !!row.enable_cache_1h_beta
   })
   dialogVisible.value = true
 }
@@ -285,6 +286,7 @@ async function handleSave() {
     reconcile_multiplier: Number(form.reconcile_multiplier) || 1.0,
     billing_mode: form.billing_mode || 'pay_as_you_go',
     monthly_fee_cny: Number(form.monthly_fee_cny) || 0,
+    enable_cache_1h_beta: !!form.enable_cache_1h_beta,
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

@@ -27,6 +27,7 @@ type Channel struct {
 	MaxConcurrent     int
 	HealthStatus      string  // healthy / unhealthy / unknown
 	QuotaStatus       string  // normal / warning / critical / exhausted
+	EnableCache1hBeta bool   // 注入 anthropic-beta: prompt-caching-1h header
 	IsDedicated       bool
 	DedicatedUserIDs  string  // 逗号分隔
 	DedicatedUserIDsAuto string  // 自动隔离名单
@@ -121,6 +122,7 @@ func (p *Pool) Refresh() {
 			MaxConcurrent:    r.MaxConcurrent,
 			HealthStatus:     r.HealthStatus,
 			QuotaStatus:      r.QuotaStatus,
+			EnableCache1hBeta: r.EnableCache1hBeta,
 			IsDedicated:      r.IsDedicated,
 			DedicatedUserIDs: r.DedicatedUserIDs,
 			DedicatedUserIDsAuto: r.DedicatedUserIDsAuto,

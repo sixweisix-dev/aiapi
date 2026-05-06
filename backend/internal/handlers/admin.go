@@ -269,6 +269,7 @@ type UpdateChannelRequest struct {
 	ReconcileMultiplier *float64 `json:"reconcile_multiplier,omitempty"`
 	BillingMode         *string  `json:"billing_mode,omitempty"`
 	MonthlyFeeCNY       *float64 `json:"monthly_fee_cny,omitempty"`
+	EnableCache1hBeta   *bool    `json:"enable_cache_1h_beta,omitempty"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
@@ -316,6 +317,7 @@ type ChannelListItem struct {
 	ReconcileMultiplier float64    `json:"reconcile_multiplier"`
 	BillingMode         string     `json:"billing_mode"`
 	MonthlyFeeCNY       float64    `json:"monthly_fee_cny"`
+	EnableCache1hBeta   bool       `json:"enable_cache_1h_beta"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -361,6 +363,7 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			ReconcileMultiplier: ch.ReconcileMultiplier,
 			BillingMode:         ch.BillingMode,
 			MonthlyFeeCNY:       ch.MonthlyFeeCNY,
+			EnableCache1hBeta:   ch.EnableCache1hBeta,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -470,6 +473,9 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.MonthlyFeeCNY != nil && *req.MonthlyFeeCNY >= 0 {
 		updates["monthly_fee_cny"] = *req.MonthlyFeeCNY
+	}
+	if req.EnableCache1hBeta != nil {
+		updates["enable_cache_1h_beta"] = *req.EnableCache1hBeta
 	}
 	if req.ResetQuota != nil && *req.ResetQuota {
 		updates["quota_used_today_usd"] = 0

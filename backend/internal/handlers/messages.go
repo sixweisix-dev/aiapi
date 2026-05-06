@@ -97,7 +97,17 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("x-api-key", ch.APIKey)
 	upstreamReq.Header.Set("anthropic-version", "2023-06-01")
-	if ab := c.GetHeader("anthropic-beta"); ab != "" {
+	// 根据 channel 配置决定是否注入 1h cache beta + 透传用户 beta
+	ab := c.GetHeader("anthropic-beta")
+	if ch.EnableCache1hBeta {
+		cacheBeta := "extended-cache-ttl-2025-04-11"
+		if ab == "" {
+			ab = cacheBeta
+		} else if !strings.Contains(ab, "extended-cache-ttl") {
+			ab = ab + "," + cacheBeta
+		}
+	}
+	if ab != "" {
 		upstreamReq.Header.Set("anthropic-beta", ab)
 	}
 
@@ -127,8 +137,18 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 			retryReq.Header.Set("Content-Type", "application/json")
 			retryReq.Header.Set("x-api-key", ch.APIKey)
 			retryReq.Header.Set("anthropic-version", "2023-06-01")
-			if ab := c.GetHeader("anthropic-beta"); ab != "" {
-				retryReq.Header.Set("anthropic-beta", ab)
+			// retry 也用 channel 配置决定
+			ab2 := c.GetHeader("anthropic-beta")
+			if ch.EnableCache1hBeta {
+				cacheBeta := "extended-cache-ttl-2025-04-11"
+				if ab2 == "" {
+					ab2 = cacheBeta
+				} else if !strings.Contains(ab2, "extended-cache-ttl") {
+					ab2 = ab2 + "," + cacheBeta
+				}
+			}
+			if ab2 != "" {
+				retryReq.Header.Set("anthropic-beta", ab2)
 			}
 			resp, err = client.Do(retryReq)
 		}

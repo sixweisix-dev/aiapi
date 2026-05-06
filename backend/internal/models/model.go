@@ -136,6 +136,11 @@ type UpstreamChannel struct {
 	BillingMode   string  `gorm:"type:varchar(20);not null;default:'pay_as_you_go'"`
 	MonthlyFeeCNY float64 `gorm:"type:decimal(10,2);not null;default:0"`
 
+	// === 启用 1 小时 prompt cache beta header ===
+	// true: 注入 anthropic-beta: prompt-caching-1h-2025-04-09 (TTL 5min → 60min)
+	// 仅对真支持 cache 的上游 (如 Anthropic 直连) 有效, 反代池开了无用
+	EnableCache1hBeta bool `gorm:"not null;default:false;column:enable_cache_1h_beta"`
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
