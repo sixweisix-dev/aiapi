@@ -311,7 +311,7 @@
     "entF5": "✓ SLA 99.5% 保障",
     "entF6": "✓ 私有化部署可议",
     "entCta": "联系销售",
-    "pricingNote": "💡 内测优惠价：Opus 4.x ¥21.6/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥3.456/M 输入 · 0.6x 倍率",
+    "pricingNote": "💡 内测优惠价 (0.6x 官方价)：Opus 4.x ¥64.8/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥4.32/M（输入价/M tokens）",
     "compareTitle": "vs 灰产中转站",
     "compareSub": "为什么 B 端业务不能用便宜的灰产通道",
     "compareUs": "TransitAI",

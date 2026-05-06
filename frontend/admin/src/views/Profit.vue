@@ -44,7 +44,19 @@
           <div class="kpi-icon">🎯</div>
           <div class="kpi-label">毛利率</div>
           <div class="kpi-value">{{ (data.summary?.profit_margin || 0).toFixed(1) }}%</div>
-          <div class="kpi-sub">倍率 {{ data.multiplier || '1.5' }}x</div>
+          <el-tooltip placement="top" :show-after="200">
+            <template #content>
+              <div style="max-width: 240px; line-height: 1.5">
+                <strong>有效收支比率</strong> = 收入 / 成本<br/>
+                · &lt; 1.00 = 亏损<br/>
+                · = 1.00 = 持平<br/>
+                · &gt; 1.00 = 盈利<br/>
+                <br/>
+                受 <strong>用户定价倍率</strong> + <strong>包月摊销</strong> 共同影响. 当前 {{ ((data.multiplier || 0) * 100).toFixed(1) }}% 表示每 ¥1 成本只收回 ¥{{ (data.multiplier || 0).toFixed(2) }}.
+              </div>
+            </template>
+            <div class="kpi-sub" style="cursor: help; text-decoration: underline dotted; text-underline-offset: 3px">收支比 {{ data.multiplier ? Number(data.multiplier).toFixed(4) : '-' }}x ⓘ</div>
+          </el-tooltip>
         </div>
       </el-col>
     </el-row>
