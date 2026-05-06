@@ -157,6 +157,18 @@
           <span class="ml-2 text-xs text-gray-400">默认 1.0。用法：跑一段时间后对比上游后台真实消耗 vs 我方 quota_used_today_usd（DB），算出实际比值填入。Widget 余额 = daily_quota − quota_used_today / 对账倍率</span>
         </el-form-item>
 
+        <el-divider>Cache 优化</el-divider>
+
+        <el-form-item label="1h Cache Beta">
+          <el-switch v-model="form.enable_cache_1h_beta" active-text="启用" inactive-text="关闭" />
+          <span class="ml-2 text-xs text-gray-400">注入 anthropic-beta: extended-cache-ttl-2025-04-11 header, cache TTL 5min→60min。仅对真支持 cache 的上游 (Anthropic 直连) 有效, 反代池开了无用甚至亏损</span>
+        </el-form-item>
+
+        <el-form-item label="自动注入 Cache">
+          <el-switch v-model="form.auto_inject_cache" active-text="启用" inactive-text="关闭" />
+          <span class="ml-2 text-xs text-gray-400">网关层解析请求, 给长 system (≥4000 字符) 自动加 cache_control。客户端零改动即可享受 cache。配合 1h Beta 时使用 ttl:1h, 否则 5min</span>
+        </el-form-item>
+
         <el-divider>专属配置</el-divider>
 
         <el-form-item label="专属渠道">
