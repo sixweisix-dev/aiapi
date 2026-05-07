@@ -76,7 +76,7 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	ch := h.pool.SelectSticky(model.Provider, userIDStr)
+	ch := h.pool.SelectSticky(model.Provider, model.GroupID, userIDStr)
 	if ch != nil {
 		log.Printf("[messages] route user=%s -> ch=%s name=%s", userIDStr, ch.ID, ch.Name)
 	}
@@ -88,6 +88,17 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 	baseURL := strings.TrimRight(ch.BaseURL, "/")
 	upstreamURL := baseURL + "/v1/messages"
 	startTime := time.Now()
+
+	// 如果 model 有 upstream_name 别名, 替换 body 中的 model 字段
+	if model.UpstreamName != nil && *model.UpstreamName != "" && *model.UpstreamName != model.Name {
+		var bodyMap map[string]interface{}
+		if json.Unmarshal(bodyBytes, &bodyMap) == nil {
+			bodyMap["model"] = *model.UpstreamName
+			if newBody, err := json.Marshal(bodyMap); err == nil {
+				bodyBytes = newBody
+			}
+		}
+	}
 
 	// 自动注入 cache_control (如果 channel 配置开启)
 	if ch.AutoInjectCache {
@@ -282,7 +293,11 @@ func (h *MessagesHandler) bill(userIDStr string, model models.Model, ch *upstrea
 		return
 	}
 	totalTokens := promptTokens + completionTokens
-	cost := billing.CalculateCost(promptTokens, completionTokens, model.InputPrice, model.OutputPrice, model.Multiplier)
+	effectiveMult := model.Multiplier
+	if ch != nil && ch.GroupMultiplier > 0 {
+		effectiveMult *= ch.GroupMultiplier
+	}
+	cost := billing.CalculateCost(promptTokens, completionTokens, model.InputPrice, model.OutputPrice, effectiveMult)
 	if cost <= 0 {
 		return
 	}
@@ -378,7 +393,11 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 	// 输入成本: prompt + cache_create*1.25 + cache_read*0.1, 全部除以 1e6 (因为 InputPrice 是 per 1M token)
 	inputCost := (float64(promptTokens) + float64(cacheCreate)*1.25 + float64(cacheRead)*0.1) * model.InputPrice / 1000.0
 	outputCost := float64(completionTokens) * model.OutputPrice / 1000.0
-	cost := (inputCost + outputCost) * model.Multiplier
+	effectiveMult := model.Multiplier
+	if ch != nil && ch.GroupMultiplier > 0 {
+		effectiveMult *= ch.GroupMultiplier
+	}
+	cost := (inputCost + outputCost) * effectiveMult
 	if cost <= 0 {
 		return
 	}

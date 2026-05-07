@@ -29,6 +29,9 @@ type Channel struct {
 	QuotaStatus       string  // normal / warning / critical / exhausted
 	EnableCache1hBeta bool   // 注入 anthropic-beta: prompt-caching-1h header
 	AutoInjectCache   bool   // 网关层自动注入 cache_control
+	GroupID           *uint   // channel_group 关联
+	GroupSlug         string  // 分组 slug (economy/official)
+	GroupMultiplier   float64 // 分组倍率
 	IsDedicated       bool
 	DedicatedUserIDs  string  // 逗号分隔
 	DedicatedUserIDsAuto string  // 自动隔离名单
@@ -106,12 +109,29 @@ func (p *Pool) Refresh() {
 		log.Printf("Upstream pool refresh failed: %v", err)
 		return
 	}
+	// 加载所有 channel_groups 到 map (便于 lookup)
+	var groups []models.ChannelGroup
+	if err := p.db.Find(&groups).Error; err != nil {
+		log.Printf("ChannelGroups load failed: %v", err)
+	}
+	groupMap := make(map[uint]*models.ChannelGroup, len(groups))
+	for i := range groups {
+		groupMap[groups[i].ID] = &groups[i]
+	}
 
 	channels := make([]*Channel, 0, len(rows))
 	for _, r := range rows {
 		baseURL := ""
 		if r.BaseURL != nil {
 			baseURL = *r.BaseURL
+		}
+		var groupSlug string
+		groupMult := 1.0
+		if r.GroupID != nil {
+			if g, ok := groupMap[*r.GroupID]; ok {
+				groupSlug = g.Slug
+				groupMult = g.Multiplier
+			}
 		}
 		channels = append(channels, &Channel{
 			ID:               r.ID.String(),
@@ -125,6 +145,9 @@ func (p *Pool) Refresh() {
 			QuotaStatus:      r.QuotaStatus,
 			EnableCache1hBeta: r.EnableCache1hBeta,
 			AutoInjectCache:   r.AutoInjectCache,
+			GroupID:           r.GroupID,
+			GroupSlug:         groupSlug,
+			GroupMultiplier:   groupMult,
 			IsDedicated:      r.IsDedicated,
 			DedicatedUserIDs: r.DedicatedUserIDs,
 			DedicatedUserIDsAuto: r.DedicatedUserIDsAuto,
@@ -179,12 +202,13 @@ func (p *Pool) Select(provider string) *Channel {
 
 
 // SelectSticky 基于 userID 一致性哈希选择上游, 失败时回退到 weighted Select
-func (p *Pool) SelectSticky(provider, userID string) *Channel {
+func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Channel {
 	p.mu.RLock()
 	// 0. 优先看是否在某专属渠道列表中
 	if userID != "" {
 		for _, c := range p.channels {
 			if c.IsDedicated && strings.EqualFold(c.Provider, provider) &&
+				groupMatches(c.GroupID, groupID) &&
 				c.concurrent < int64(c.MaxConcurrent) &&
 				c.HealthStatus != "unhealthy" &&
 				c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
@@ -197,6 +221,7 @@ func (p *Pool) SelectSticky(provider, userID string) *Channel {
 	var healthy []*Channel
 	for _, c := range p.channels {
 		if strings.EqualFold(c.Provider, provider) &&
+			groupMatches(c.GroupID, groupID) &&
 			c.concurrent < int64(c.MaxConcurrent) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
@@ -536,4 +561,15 @@ return true
 }
 }
 return false
+}
+
+// groupMatches: model 没指定 group → 任何 channel 都行(向后兼容); 否则严格匹配
+func groupMatches(channelGroupID, modelGroupID *uint) bool {
+	if modelGroupID == nil {
+		return true
+	}
+	if channelGroupID == nil {
+		return false
+	}
+	return *channelGroupID == *modelGroupID
 }

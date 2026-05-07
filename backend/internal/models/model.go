@@ -80,6 +80,20 @@ type APIKeyAllowedModel struct {
 }
 
 // UpstreamChannel represents upstream provider API key
+// ChannelGroup represents a logical grouping of upstream channels with shared pricing/routing
+type ChannelGroup struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Name        string    `gorm:"type:varchar(100);not null" json:"name"`
+	Slug        string    `gorm:"type:varchar(50);uniqueIndex;not null" json:"slug"`
+	Multiplier  float64   `gorm:"type:decimal(10,4);not null;default:1.0" json:"multiplier"`
+	Description *string   `gorm:"type:text" json:"description,omitempty"`
+	SortOrder   int       `gorm:"default:0" json:"sort_order"`
+	IsDefault   bool      `gorm:"default:false" json:"is_default"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
 type UpstreamChannel struct {
 	ID               uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
 	Name             string    `gorm:"type:varchar(100);not null"`
@@ -146,6 +160,9 @@ type UpstreamChannel struct {
 	// 配合 EnableCache1hBeta 决定 ttl (true→1h, false→5m)
 	AutoInjectCache bool `gorm:"not null;default:false"`
 
+	// === 渠道分组 ===
+	GroupID *uint `gorm:"index" json:"group_id"`
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
@@ -167,6 +184,8 @@ type Model struct {
 	IsEnabled    bool      `gorm:"not null;default:true"`
 	IsPublic     bool      `gorm:"not null;default:true"`
 	Description  *string   `gorm:"type:text"`
+	GroupID      *uint     `gorm:"index" json:"group_id"`
+	UpstreamName *string   `gorm:"type:varchar(100)" json:"upstream_name,omitempty"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
