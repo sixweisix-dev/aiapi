@@ -2,13 +2,20 @@
   <div>
     <el-card shadow="hover" class="mb-4">
       <div class="flex justify-between items-center">
-        <span class="text-base font-medium">上游渠道池</span>
+        <div class="flex items-center" style="gap:12px;">
+          <span class="text-base font-medium">上游渠道池</span>
+          <el-select v-model="groupFilter" placeholder="全部分组" clearable style="width:200px;" size="small">
+            <el-option label="全部分组" :value="null" />
+            <el-option v-for="g in channelGroups" :key="g.id" :label="`${g.name} (${Number(g.multiplier).toFixed(2)}×)`" :value="g.id" />
+            <el-option label="未分组" :value="0" />
+          </el-select>
+        </div>
         <el-button type="primary" @click="openCreate">添加渠道</el-button>
       </div>
     </el-card>
 
     <el-card shadow="hover">
-      <el-table :data="channels" v-loading="loading" stripe style="width: 100%">
+      <el-table :data="filteredChannels" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="name" label="名称" min-width="140">
           <template #default="{ row }">
             <div>{{ row.name }}</div>
@@ -210,12 +217,19 @@
 
 <script setup>
 const countUsers = (csv) => csv ? csv.split(',').filter(x => x.trim()).length : 0
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import api, { channelsAPI } from '../utils/api'
 
 const channels = ref([])
+
+const filteredChannels = computed(() => {
+  const g = groupFilter.value
+  if (g === null || g === undefined || g === '') return channels.value
+  if (g === 0) return channels.value.filter(c => !c.group_id)
+  return channels.value.filter(c => c.group_id === g)
+})
 const loading = ref(false)
 const dialogVisible = ref(false)
 const isEditing = ref(false)
@@ -237,6 +251,7 @@ const rules = {
 }
 
 const channelGroups = ref([])
+const groupFilter = ref(null)
 async function loadGroups() {
   try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
 }
