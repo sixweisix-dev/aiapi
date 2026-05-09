@@ -682,7 +682,17 @@
     "compareUseOpenAIDesc": "如果你用的是 NextChat / Dify / OpenWebUI / Cherry Studio / Cursor 这类工具，或不需要 cache、tool use、vision 等高级特性，OpenAI 格式最简单可靠。",
     "compareUseAnthropic": "选 Anthropic 原生格式：",
     "compareUseAnthropicDesc": "如果你用 Claude Code / Cline / Anthropic 官方 SDK，或需要 Prompt Cache（节省 90% 成本）、tool use、vision、extended thinking 等特性，必须用原生格式。",
-    "compareTip": "💡 提示：同一个 API Key 可以同时用于两种格式，互不冲突。"
+    "compareTip": "💡 提示：同一个 API Key 可以同时用于两种格式，互不冲突。",
+    "groupsTitle": "🧩 模型分组与版本",
+    "groupsDesc": "根据需求选择不同分组，模型名后缀决定路由到哪个分组。两套独立计费、独立路由。",
+    "groupColName": "分组名称",
+    "groupColSuffix": "模型后缀",
+    "groupColMult": "倍率",
+    "groupColDesc": "说明",
+    "groupSuffixNone": "（无）",
+    "groupsExample": "示例：同一模型可通过后缀切换分组：",
+    "groupExampleEcon": "→ 走经济版分组",
+    "groupExamplePro": "→ 走官方直连分组"
   },
   "changePwd": {
     "heroTitle": "修改密码",

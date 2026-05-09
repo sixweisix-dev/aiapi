@@ -43,6 +43,32 @@
       </div>
     </el-card>
 
+    <!-- 模型分组与版本 -->
+    <el-card v-if="channelGroups.length > 0" shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.groupsTitle') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.groupsDesc') }}</p>
+      <el-table :data="channelGroups" border class="compare-table">
+        <el-table-column :label="t('apiDocs.groupColName')" min-width="140">
+          <template #default="{ row }"><strong>{{ groupDisplayName(row) }}</strong></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColSuffix')" min-width="120">
+          <template #default="{ row }">
+            <code v-if="row.is_default" class="inline-code">{{ t('apiDocs.groupSuffixNone') }}</code>
+            <code v-else class="inline-code">-{{ row.slug }}</code>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColMult')" width="100" align="right">
+          <template #default="{ row }"><span class="mult-badge">{{ Number(row.multiplier).toFixed(2) }}×</span></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColDesc')" min-width="280">
+          <template #default="{ row }"><span>{{ groupDisplayDesc(row) }}</span></template>
+        </el-table-column>
+      </el-table>
+      <p class="desc-text" style="margin-top: 12px;">{{ t('apiDocs.groupsExample') }}</p>
+      <pre class="code-block">claude-haiku-4-5-20251001         {{ t('apiDocs.groupExampleEcon') }}
+claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
+    </el-card>
+
 
     <!-- 两种格式对比 -->
     <el-card shadow="hover" class="doc-card">
@@ -359,8 +385,8 @@ cc  # 走官方</pre>
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, computed } from 'vue'
-const { t } = useI18n()
+import { ref, onMounted, computed } from 'vue'
+const { t, locale } = useI18n()
 const tutTab = ref('cc')
 
 const pythonOpenAI = `from openai import OpenAI
@@ -486,6 +512,8 @@ const errorCodes = computed(() => [
   { code: '500', desc: t('apiDocs.errorTable500') },
   { code: '503', desc: t('apiDocs.errorTable503') },
 ])
+
+onMounted(() => loadChannelGroups())
 </script>
 
 <style scoped>

@@ -167,6 +167,7 @@ func main() {
 
 	// === Public endpoints (no auth) ===
 r.GET("/v1/public/models", userHandler.ListPublicModels)
+	r.GET("/v1/public/channel-groups", userHandler.ListPublicChannelGroups)
 
 // === OpenAI-compatible API (API Key required) ===
 	v1 := r.Group("/v1")

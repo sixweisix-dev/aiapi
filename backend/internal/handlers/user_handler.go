@@ -406,3 +406,45 @@ func (h *UserHandler) UsageStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, resp)
 }
+
+
+// ---- Public Channel Groups (for ApiDocs auto-sync) ----
+
+type publicChannelGroupItem struct {
+	ID            uint    `json:"id"`
+	Name          string  `json:"name"`
+	NameEn        string  `json:"name_en"`
+	Slug          string  `json:"slug"`
+	Multiplier    float64 `json:"multiplier"`
+	Description   string  `json:"description"`
+	DescriptionEn string  `json:"description_en"`
+	SortOrder     int     `json:"sort_order"`
+	IsDefault     bool    `json:"is_default"`
+}
+
+func (h *UserHandler) ListPublicChannelGroups(c *gin.Context) {
+	var groups []models.ChannelGroup
+	if err := h.db.Order("sort_order ASC").Find(&groups).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	items := make([]publicChannelGroupItem, 0, len(groups))
+	for _, g := range groups {
+		desc, descEn, nameEn := "", "", ""
+		if g.Description != nil {
+			desc = *g.Description
+		}
+		if g.DescriptionEn != nil {
+			descEn = *g.DescriptionEn
+		}
+		if g.NameEn != nil {
+			nameEn = *g.NameEn
+		}
+		items = append(items, publicChannelGroupItem{
+			ID: g.ID, Name: g.Name, NameEn: nameEn, Slug: g.Slug,
+			Multiplier: g.Multiplier, Description: desc, DescriptionEn: descEn,
+			SortOrder: g.SortOrder, IsDefault: g.IsDefault,
+		})
+	}
+	c.JSON(200, gin.H{"items": items})
+}

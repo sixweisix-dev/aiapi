@@ -682,7 +682,17 @@
     "compareUseOpenAIDesc": "You use NextChat / Dify / OpenWebUI / Cherry Studio / Cursor, or don't need cache / tool use / vision. OpenAI format is the simplest and most compatible.",
     "compareUseAnthropic": "Choose Native Anthropic Format if:",
     "compareUseAnthropicDesc": "You use Claude Code / Cline / official Anthropic SDK, or need Prompt Cache (save 90% cost), tool use, vision, extended thinking, etc.",
-    "compareTip": "💡 Tip: The same API Key works for both formats simultaneously."
+    "compareTip": "💡 Tip: The same API Key works for both formats simultaneously.",
+    "groupsTitle": "🧩 Model Groups & Versions",
+    "groupsDesc": "Choose a group based on your needs. The model name suffix determines which group routes the request. Two sets with independent pricing and routing.",
+    "groupColName": "Group",
+    "groupColSuffix": "Model Suffix",
+    "groupColMult": "Multiplier",
+    "groupColDesc": "Description",
+    "groupSuffixNone": "(none)",
+    "groupsExample": "Example: switch group via suffix on the same model:",
+    "groupExampleEcon": "→ Economy group",
+    "groupExamplePro": "→ Official direct group"
   },
   "changePwd": {
     "heroTitle": "Change Password",
