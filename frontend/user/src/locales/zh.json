@@ -692,7 +692,10 @@
     "groupSuffixNone": "（无）",
     "groupsExample": "示例：同一模型可通过后缀切换分组：",
     "groupExampleEcon": "→ 走经济版分组",
-    "groupExamplePro": "→ 走官方直连分组"
+    "groupExamplePro": "→ 走官方直连分组",
+    "groupCodeTitle": "📝 各分组代码示例",
+    "groupCodeDesc": "同一份代码, 模型名加 -pro 后缀即切换到官方直连分组。两种 API 格式 × 两种分组 = 4 种组合",
+    "groupSwitchTip": "把示例中 model 名加 -pro 后缀即切换到官方直连分组 (如 claude-sonnet-4-5 → claude-sonnet-4-5-pro)"
   },
   "changePwd": {
     "heroTitle": "修改密码",

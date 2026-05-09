@@ -43,31 +43,6 @@
       </div>
     </el-card>
 
-    <!-- 模型分组与版本 -->
-    <el-card v-if="channelGroups.length > 0" shadow="hover" class="doc-card">
-      <template #header><span class="card-title">{{ t('apiDocs.groupsTitle') }}</span></template>
-      <p class="desc-text">{{ t('apiDocs.groupsDesc') }}</p>
-      <el-table :data="channelGroups" border class="compare-table">
-        <el-table-column :label="t('apiDocs.groupColName')" min-width="140">
-          <template #default="{ row }"><strong>{{ groupDisplayName(row) }}</strong></template>
-        </el-table-column>
-        <el-table-column :label="t('apiDocs.groupColSuffix')" min-width="120">
-          <template #default="{ row }">
-            <code v-if="row.is_default" class="inline-code">{{ t('apiDocs.groupSuffixNone') }}</code>
-            <code v-else class="inline-code">-{{ row.slug }}</code>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('apiDocs.groupColMult')" width="100" align="right">
-          <template #default="{ row }"><span class="mult-badge">{{ Number(row.multiplier).toFixed(2) }}×</span></template>
-        </el-table-column>
-        <el-table-column :label="t('apiDocs.groupColDesc')" min-width="280">
-          <template #default="{ row }"><span>{{ groupDisplayDesc(row) }}</span></template>
-        </el-table-column>
-      </el-table>
-      <p class="desc-text" style="margin-top: 12px;">{{ t('apiDocs.groupsExample') }}</p>
-      <pre class="code-block">claude-haiku-4-5-20251001         {{ t('apiDocs.groupExampleEcon') }}
-claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
-    </el-card>
 
 
     <!-- 两种格式对比 -->
@@ -99,6 +74,70 @@ claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
       </div>
     </el-card>
 
+    <!-- 模型分组与版本 (移到两种格式对比后) -->
+    <el-card v-if="channelGroups.length > 0" shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.groupsTitle') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.groupsDesc') }}</p>
+      <el-table :data="channelGroups" border class="compare-table">
+        <el-table-column :label="t('apiDocs.groupColName')" min-width="140">
+          <template #default="{ row }"><strong>{{ groupDisplayName(row) }}</strong></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColSuffix')" min-width="120">
+          <template #default="{ row }">
+            <code v-if="row.is_default" class="inline-code">{{ t('apiDocs.groupSuffixNone') }}</code>
+            <code v-else class="inline-code">-{{ row.slug }}</code>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColMult')" width="100" align="right">
+          <template #default="{ row }"><span class="mult-badge">{{ Number(row.multiplier).toFixed(2) }}×</span></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.groupColDesc')" min-width="280">
+          <template #default="{ row }"><span>{{ groupDisplayDesc(row) }}</span></template>
+        </el-table-column>
+      </el-table>
+      <p class="desc-text" style="margin-top: 12px;">{{ t('apiDocs.groupsExample') }}</p>
+      <pre class="code-block">claude-haiku-4-5-20251001         {{ t('apiDocs.groupExampleEcon') }}
+claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
+
+      <!-- 完整格式示例 (合并 OpenAI/Anthropic 两种格式 + 多语言) -->
+      <p class="desc-text" style="margin-top: 20px; font-weight: 600;">{{ t('apiDocs.groupCodeTitle') }}</p>
+      <p class="desc-text" style="font-size:12px;color:#6b7280;margin-bottom:8px;">{{ t('apiDocs.groupCodeDesc') }}</p>
+      <el-tabs v-model="formatTab" type="border-card">
+        <el-tab-pane label="🔄 OpenAI 兼容格式" name="openai">
+          <div class="endpoint-row" style="margin-bottom:8px;">
+            <span class="method-badge">POST</span>
+            <code>https://transitai.cloud/v1/chat/completions</code>
+          </div>
+          <p class="desc-text">{{ t('apiDocs.openaiFormatDesc') }}</p>
+          <div class="section-label">Python</div>
+          <pre class="code-block">{{ pythonOpenAI }}</pre>
+          <div class="section-label">Node.js</div>
+          <pre class="code-block">{{ nodeOpenAI }}</pre>
+          <div class="section-label">cURL</div>
+          <pre class="code-block">{{ curlOpenAI }}</pre>
+          <div class="section-label">{{ t('apiDocs.streamRequest') }}</div>
+          <p class="desc-text" v-html="t('apiDocs.streamDesc')"></p>
+          <pre class="code-block">{{ streamExample }}</pre>
+        </el-tab-pane>
+        <el-tab-pane label="🧠 Anthropic 原生格式" name="anthropic">
+          <div class="endpoint-row" style="margin-bottom:8px;">
+            <span class="method-badge">POST</span>
+            <code>https://transitai.cloud/v1/messages</code>
+          </div>
+          <p class="desc-text">{{ t('apiDocs.anthropicFormatDesc') }}</p>
+          <el-alert type="warning" :closable="false" class="mb-4">{{ t('apiDocs.anthropicNote') }}</el-alert>
+          <div class="section-label">Python (Anthropic SDK)</div>
+          <pre class="code-block">{{ pythonAnthropic }}</pre>
+          <div class="section-label">cURL</div>
+          <pre class="code-block">{{ curlAnthropic }}</pre>
+        </el-tab-pane>
+      </el-tabs>
+      <p class="desc-text" style="margin-top:10px;font-size:12px;color:#6b7280;">
+        💡 {{ t('apiDocs.groupSwitchTip') }}
+      </p>
+    </el-card>
+
+
     <!-- 鉴权 -->
     <el-card shadow="hover" class="doc-card">
       <template #header><span class="card-title">{{ t('apiDocs.auth') }}</span></template>
@@ -108,48 +147,6 @@ claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
       <pre class="code-block">x-api-key: YOUR_API_KEY
 anthropic-version: 2023-06-01</pre>
       <p class="tip-text">{{ t('apiDocs.authTip') }}</p>
-    </el-card>
-
-    <!-- OpenAI 兼容格式 -->
-    <el-card shadow="hover" class="doc-card">
-      <template #header><span class="card-title">{{ t('apiDocs.openaiFormat') }}</span></template>
-      <p class="desc-text">{{ t('apiDocs.openaiFormatDesc') }}</p>
-
-      <div class="endpoint-row">
-        <span class="method-badge">POST</span>
-        <code>https://transitai.cloud/v1/chat/completions</code>
-      </div>
-
-      <div class="section-label">{{ t('apiDocs.sdkOpenAI') }} - Python</div>
-      <pre class="code-block">{{ pythonOpenAI }}</pre>
-
-      <div class="section-label">{{ t('apiDocs.sdkOpenAI') }} - Node.js</div>
-      <pre class="code-block">{{ nodeOpenAI }}</pre>
-
-      <div class="section-label">{{ t('apiDocs.streamRequest') }}</div>
-      <p class="desc-text" v-html="t('apiDocs.streamDesc')"></p>
-      <pre class="code-block">{{ streamExample }}</pre>
-
-      <div class="section-label">cURL</div>
-      <pre class="code-block">{{ curlOpenAI }}</pre>
-    </el-card>
-
-    <!-- Anthropic 原生格式 -->
-    <el-card shadow="hover" class="doc-card">
-      <template #header><span class="card-title">{{ t('apiDocs.anthropicFormat') }}</span></template>
-      <p class="desc-text">{{ t('apiDocs.anthropicFormatDesc') }}</p>
-      <el-alert type="warning" :closable="false" class="mb-4">{{ t('apiDocs.anthropicNote') }}</el-alert>
-
-      <div class="endpoint-row">
-        <span class="method-badge">POST</span>
-        <code>https://transitai.cloud/v1/messages</code>
-      </div>
-
-      <div class="section-label">Python (Anthropic SDK)</div>
-      <pre class="code-block">{{ pythonAnthropic }}</pre>
-
-      <div class="section-label">cURL</div>
-      <pre class="code-block">{{ curlAnthropic }}</pre>
     </el-card>
 
     <!-- 查询模型 -->
@@ -388,6 +385,45 @@ import { useI18n } from 'vue-i18n'
 import { ref, onMounted, computed } from 'vue'
 const { t, locale } = useI18n()
 const tutTab = ref('cc')
+
+const channelGroups = ref([])
+const formatTab = ref('openai')
+
+
+const codeAnthropicPro = `# Anthropic 原生格式 · 官方直连 (2.0× 倍率, 完整 cache 支持)
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key="YOUR_API_KEY",
+    base_url="https://transitai.cloud"
+)
+
+msg = client.messages.create(
+    model="claude-haiku-4-5-20251001-pro",   # -pro 后缀 → 官方直连
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello"}
+    ]
+)
+print(msg.content[0].text)`
+
+async function loadChannelGroups() {
+  try {
+    const res = await fetch('/v1/public/channel-groups')
+    const data = await res.json()
+    channelGroups.value = data.items || []
+  } catch (e) { console.error('loadChannelGroups failed:', e) }
+}
+
+function groupDisplayName(row) {
+  const isEn = locale && locale.value && locale.value.startsWith('en')
+  return isEn && row.name_en ? row.name_en : row.name
+}
+
+function groupDisplayDesc(row) {
+  const isEn = locale && locale.value && locale.value.startsWith('en')
+  return isEn && row.description_en ? row.description_en : row.description
+}
 
 const pythonOpenAI = `from openai import OpenAI
 

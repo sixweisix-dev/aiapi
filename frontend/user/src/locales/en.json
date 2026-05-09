@@ -692,7 +692,10 @@
     "groupSuffixNone": "(none)",
     "groupsExample": "Example: switch group via suffix on the same model:",
     "groupExampleEcon": "→ Economy group",
-    "groupExamplePro": "→ Official direct group"
+    "groupExamplePro": "→ Official direct group",
+    "groupCodeTitle": "📝 Code Examples per Group",
+    "groupCodeDesc": "Same code, just append -pro to the model name to switch to Official group. Two API formats × Two groups = 4 combinations",
+    "groupSwitchTip": "Append -pro to the model name in any example to switch to Official direct group (e.g. claude-sonnet-4-5 → claude-sonnet-4-5-pro)"
   },
   "changePwd": {
     "heroTitle": "Change Password",
