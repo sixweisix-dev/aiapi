@@ -59,7 +59,7 @@
           <div class="model-meta">
             <span>{{ t('models.context') }} {{ (m.context_length / 1000).toFixed(0) }}K</span>
             <span>·</span>
-            <span>{{ t('models.multiplier') }} {{ m.multiplier }}x</span>
+            <span>{{ t('models.multiplier') }} {{ Number((m.multiplier || 1) * (m.group_multiplier || 1)).toFixed(2) }}×</span>
           </div>
             <div v-if="m.description" class="model-desc">{{ m.description }}</div>
           </div>
@@ -81,7 +81,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
-const { t } = useI18n()
+const { t, locale } = useI18n()
 import { ref, computed, onMounted } from 'vue'
 import { userModelsAPI } from '@/utils/api'
 
@@ -97,11 +97,12 @@ const groups = computed(() => {
   for (const m of models.value) {
     const slug = m.group_slug || 'default'
     if (!map.has(slug)) {
+      const isEn = locale.value && locale.value.startsWith('en')
       map.set(slug, {
         slug,
-        name: m.group_name || '默认分组',
+        name: (isEn && m.group_name_en) ? m.group_name_en : (m.group_name || '默认分组'),
         multiplier: m.group_multiplier || 1,
-        description: m.group_description || '',
+        description: (isEn && m.group_description_en) ? m.group_description_en : (m.group_description || ''),
       })
     }
   }
