@@ -165,7 +165,10 @@ func main() {
 		apiKeys.PATCH("/:id", apiKeyHandler.Update)
 	}
 
-	// === OpenAI-compatible API (API Key required) ===
+	// === Public endpoints (no auth) ===
+r.GET("/v1/public/models", userHandler.ListPublicModels)
+
+// === OpenAI-compatible API (API Key required) ===
 	v1 := r.Group("/v1")
 	v1.Use(middleware.APIKeyAuth(db))
 	{
@@ -218,6 +221,12 @@ func main() {
 		admin.PUT("/channels/:id", adminHandler.UpdateChannel)
 		admin.DELETE("/channels/:id", adminHandler.DeleteChannel)
 		admin.POST("/channels/:id/test", adminHandler.TestChannel)
+
+			// Channel Group endpoints
+			admin.GET("/channel-groups", adminHandler.ListChannelGroups)
+			admin.POST("/channel-groups", adminHandler.CreateChannelGroup)
+			admin.PUT("/channel-groups/:id", adminHandler.UpdateChannelGroup)
+			admin.DELETE("/channel-groups/:id", adminHandler.DeleteChannelGroup)
 
 		// Models
 		admin.GET("/models", adminHandler.ListModels)

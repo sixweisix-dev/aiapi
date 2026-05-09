@@ -20,6 +20,12 @@
           <template #default="{ row }"><el-tag size="small">{{ row.provider }}</el-tag></template>
         </el-table-column>
         <el-table-column prop="weight" label="权重" width="70" align="center" />
+        <el-table-column label="分组" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row.group_name" type="primary" size="small">{{ row.group_name }}</el-tag>
+            <span v-else class="text-xs text-gray-400">未分组</span>
+          </template>
+        </el-table-column>
 
         <el-table-column label="额度使用" min-width="240">
           <template #default="{ row }">
@@ -108,6 +114,13 @@
         <el-form-item label="权重">
           <el-input-number v-model="form.weight" :min="1" :max="100" />
           <span class="ml-2 text-xs text-gray-400">值越大被选中概率越高</span>
+        </el-form-item>
+
+        <el-form-item label="分组">
+          <el-select v-model="form.group_id" placeholder="选择渠道分组" clearable style="width:240px">
+            <el-option v-for="g in channelGroups" :key="g.id" :label="`${g.name} (${Number(g.multiplier).toFixed(2)}×)`" :value="g.id" />
+          </el-select>
+          <span class="ml-2 text-xs text-gray-400">渠道隶属哪个分组, 决定路由 + 倍率</span>
         </el-form-item>
 
         <el-divider>额度管理</el-divider>
@@ -200,7 +213,7 @@ const countUsers = (csv) => csv ? csv.split(',').filter(x => x.trim()).length : 
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { channelsAPI } from '../utils/api'
+import api, { channelsAPI } from '../utils/api'
 
 const channels = ref([])
 const loading = ref(false)
@@ -215,7 +228,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0, enable_cache_1h_beta: false, auto_inject_cache: false
+  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0, enable_cache_1h_beta: false, auto_inject_cache: false, group_id: null
 })
 
 const rules = {
@@ -223,7 +236,12 @@ const rules = {
   provider: [{ required: true, message: '请选择提供商', trigger: 'change' }],
 }
 
-onMounted(fetchData)
+const channelGroups = ref([])
+async function loadGroups() {
+  try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
+}
+
+onMounted(() => { fetchData(); loadGroups() })
 
 async function fetchData() {
   loading.value = true
@@ -260,7 +278,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, enable_cache_1h_beta:false, auto_inject_cache:false, account_balance_usd:0 })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, enable_cache_1h_beta:false, auto_inject_cache:false, group_id:null, account_balance_usd:0 })
   dialogVisible.value = true
 }
 
@@ -281,7 +299,8 @@ function openEdit(row) {
     billing_mode: row.billing_mode || 'pay_as_you_go',
     monthly_fee_cny: Number(row.monthly_fee_cny) || 0,
     enable_cache_1h_beta: !!row.enable_cache_1h_beta,
-    auto_inject_cache: !!row.auto_inject_cache
+    auto_inject_cache: !!row.auto_inject_cache,
+    group_id: row.group_id || null
   })
   dialogVisible.value = true
 }
@@ -301,6 +320,7 @@ async function handleSave() {
     monthly_fee_cny: Number(form.monthly_fee_cny) || 0,
     enable_cache_1h_beta: !!form.enable_cache_1h_beta,
     auto_inject_cache: !!form.auto_inject_cache,
+    group_id: form.group_id ? Number(form.group_id) : 0,
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

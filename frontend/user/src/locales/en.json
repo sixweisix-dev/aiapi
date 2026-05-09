@@ -311,7 +311,7 @@
     "entF5": "✓ 99.5% SLA",
     "entF6": "✓ Private deployment available",
     "entCta": "Contact Sales",
-    "pricingNote": "💡 Beta pricing (0.6x official): Opus 4.x ¥64.8/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥4.32/M (input price per M tokens)",
+    "pricingNote": "",
     "compareTitle": "vs Gray-market Resellers",
     "compareSub": "Why B2B cannot rely on cheap gray-market channels",
     "compareUs": "TransitAI",
@@ -362,7 +362,14 @@
     "footerContact": "Contact",
     "footerTermsLink": "Terms of Service",
     "footerPrivacyLink": "Privacy Policy",
-    "footerCopyright": "© 2026 TransitAI · All rights reserved."
+    "footerCopyright": "© 2026 TransitAI · All rights reserved.",
+    "modelPricingTitle": "Model Pricing (Pay-as-you-go)",
+    "modelPricingLoading": "Loading...",
+    "modelPricingModel": "Model",
+    "modelPricingInput": "Input / 1M Tokens",
+    "modelPricingOutput": "Output / 1M Tokens",
+    "modelPricingCache": "Cache Read",
+    "modelPricingContext": "Context"
   },
   "chart": {
     "title": "📊 Daily Model Usage",

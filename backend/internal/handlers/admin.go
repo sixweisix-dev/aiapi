@@ -271,6 +271,8 @@ type UpdateChannelRequest struct {
 	MonthlyFeeCNY       *float64 `json:"monthly_fee_cny,omitempty"`
 	EnableCache1hBeta   *bool    `json:"enable_cache_1h_beta,omitempty"`
 	AutoInjectCache     *bool    `json:"auto_inject_cache,omitempty"`
+	GroupID             *uint    `json:"group_id,omitempty"`
+	GroupIDNull         bool     `json:"-"` // true = 前端传了 null，清空分组
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 }
 
@@ -320,9 +322,18 @@ type ChannelListItem struct {
 	MonthlyFeeCNY       float64    `json:"monthly_fee_cny"`
 	EnableCache1hBeta   bool       `json:"enable_cache_1h_beta"`
 	AutoInjectCache     bool       `json:"auto_inject_cache"`
+	GroupID             *uint      `json:"group_id,omitempty"`
+	GroupName           string     `json:"group_name,omitempty"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
+	// load all channel_groups for name lookup
+	var allGroups []models.ChannelGroup
+	h.db.Find(&allGroups)
+	groupNameMap := make(map[uint]string, len(allGroups))
+	for _, g := range allGroups {
+		groupNameMap[g.ID] = g.Name
+	}
 	var channels []models.UpstreamChannel
 	h.db.Order("created_at DESC").Find(&channels)
 	items := make([]ChannelListItem, 0, len(channels))
@@ -367,6 +378,15 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			MonthlyFeeCNY:       ch.MonthlyFeeCNY,
 			EnableCache1hBeta:   ch.EnableCache1hBeta,
 			AutoInjectCache:     ch.AutoInjectCache,
+			GroupID:             ch.GroupID,
+			GroupName:           func() string {
+				if ch.GroupID != nil {
+					if n, ok := groupNameMap[*ch.GroupID]; ok {
+						return n
+					}
+				}
+				return ""
+			}(),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -483,6 +503,13 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	if req.AutoInjectCache != nil {
 		updates["auto_inject_cache"] = *req.AutoInjectCache
 	}
+	if req.GroupID != nil {
+		if *req.GroupID == 0 {
+			updates["group_id"] = nil
+		} else {
+			updates["group_id"] = *req.GroupID
+		}
+	}
 	if req.ResetQuota != nil && *req.ResetQuota {
 		updates["quota_used_today_usd"] = 0
 		updates["daily_cost_cny"] = 0
@@ -551,6 +578,8 @@ type CreateModelRequest struct {
 	Multiplier    *float64 `json:"multiplier,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
 	Description   *string  `json:"description,omitempty"`
+	GroupID       *uint    `json:"group_id,omitempty"`
+	UpstreamName  *string  `json:"upstream_name,omitempty"`
 }
 
 type UpdateModelRequest struct {
@@ -561,6 +590,8 @@ type UpdateModelRequest struct {
 	IsEnabled     *bool    `json:"is_enabled,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
 	Description   *string  `json:"description,omitempty"`
+	GroupID       *uint    `json:"group_id,omitempty"`
+	UpstreamName  *string  `json:"upstream_name,omitempty"`
 }
 
 type ModelListItem struct {
@@ -574,29 +605,49 @@ type ModelListItem struct {
 	Multiplier    float64  `json:"multiplier"`
 	IsEnabled     bool     `json:"is_enabled"`
 	IsPublic      bool     `json:"is_public"`
+	GroupID       *uint    `json:"group_id,omitempty"`
+	GroupName     string   `json:"group_name,omitempty"`
+	UpstreamName  *string  `json:"upstream_name,omitempty"`
 	Description   *string  `json:"description,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
 func (h *AdminHandler) ListModels(c *gin.Context) {
-	var modelsList []models.Model
-	h.db.Order("provider ASC, name ASC").Find(&modelsList)
-	items := make([]ModelListItem, 0, len(modelsList))
-	for _, m := range modelsList {
-		items = append(items, ModelListItem{
-			ID:            m.ID.String(),
-			Name:          m.Name,
-			DisplayName:   m.DisplayName,
-			Provider:      m.Provider,
-			ContextLength: m.ContextLength,
-			InputPrice:    m.InputPrice,
-			OutputPrice:   m.OutputPrice,
-			Multiplier:    m.Multiplier,
-			IsEnabled:     m.IsEnabled,
-			IsPublic:      m.IsPublic,
-			Description:   m.Description,
-			CreatedAt:     m.CreatedAt,
-		})
+	type rowType struct {
+		models.Model
+		GroupName string `gorm:"column:group_name"`
+	}
+	var rows []rowType
+	h.db.Table("models AS m").
+		Select("m.*, COALESCE(cg.name,'') AS group_name").
+		Joins("LEFT JOIN channel_groups AS cg ON cg.id = m.group_id AND cg.deleted_at IS NULL").
+		Where("m.deleted_at IS NULL").
+		Order("m.provider ASC, m.name ASC").
+		Scan(&rows)
+	items := make([]ModelListItem, 0, len(rows))
+	for _, r := range rows {
+		item := ModelListItem{
+			ID:            r.ID.String(),
+			Name:          r.Name,
+			DisplayName:   r.DisplayName,
+			Provider:      r.Provider,
+			ContextLength: r.ContextLength,
+			InputPrice:    r.InputPrice,
+			OutputPrice:   r.OutputPrice,
+			Multiplier:    r.Multiplier,
+			IsEnabled:     r.IsEnabled,
+			IsPublic:      r.IsPublic,
+			Description:   r.Description,
+			GroupName:     r.GroupName,
+			CreatedAt:     r.CreatedAt,
+		}
+		if r.GroupID != nil {
+			item.GroupID = r.GroupID
+		}
+		if r.UpstreamName != nil {
+			item.UpstreamName = r.UpstreamName
+		}
+		items = append(items, item)
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
@@ -686,6 +737,13 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 	}
 	if req.Description != nil {
 		updates["description"] = *req.Description
+	}
+	if req.GroupID != nil {
+		if *req.GroupID == 0 {
+			updates["group_id"] = nil
+		} else {
+			updates["group_id"] = *req.GroupID
+		}
 	}
 
 	if len(updates) > 0 {
@@ -1194,4 +1252,163 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		"top_users":  topUsers,
 		"trend_30d":  trend,
 	})
+}
+
+
+// ============================================================
+// Channel Group CRUD
+// ============================================================
+
+type ChannelGroupItem struct {
+	ID            uint    `json:"id"`
+	Name          string  `json:"name"`
+	NameEn        string  `json:"name_en"`
+	Slug          string  `json:"slug"`
+	Multiplier    float64 `json:"multiplier"`
+	Description   string  `json:"description"`
+	DescriptionEn string  `json:"description_en"`
+	SortOrder     int     `json:"sort_order"`
+	IsDefault     bool    `json:"is_default"`
+	Channels      int     `json:"channels"`
+	Models        int     `json:"models"`
+}
+
+type CreateChannelGroupRequest struct {
+	Name          string  `json:"name" binding:"required"`
+	Slug          string  `json:"slug" binding:"required"`
+	Multiplier    float64 `json:"multiplier" binding:"required,min=0.01"`
+	Description   string  `json:"description"`
+	NameEn        string  `json:"name_en"`
+	DescriptionEn string  `json:"description_en"`
+	SortOrder     int     `json:"sort_order"`
+	IsDefault     bool    `json:"is_default"`
+}
+
+type UpdateChannelGroupRequest struct {
+	Name          *string  `json:"name,omitempty"`
+	Slug          *string  `json:"slug,omitempty"`
+	Multiplier    *float64 `json:"multiplier,omitempty"`
+	Description   *string  `json:"description,omitempty"`
+	NameEn        *string  `json:"name_en,omitempty"`
+	DescriptionEn *string  `json:"description_en,omitempty"`
+	SortOrder     *int     `json:"sort_order,omitempty"`
+	IsDefault     *bool    `json:"is_default,omitempty"`
+}
+
+func (h *AdminHandler) ListChannelGroups(c *gin.Context) {
+	var groups []models.ChannelGroup
+	if err := h.db.Order("sort_order ASC").Find(&groups).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	items := make([]ChannelGroupItem, 0, len(groups))
+	for _, g := range groups {
+		var chCount, mdCount int64
+		h.db.Model(&models.UpstreamChannel{}).Where("group_id = ? AND deleted_at IS NULL", g.ID).Count(&chCount)
+		h.db.Model(&models.Model{}).Where("group_id = ? AND deleted_at IS NULL", g.ID).Count(&mdCount)
+		desc := ""
+		if g.Description != nil {
+			desc = *g.Description
+		}
+		nameEn := ""
+		if g.NameEn != nil {
+			nameEn = *g.NameEn
+		}
+		descEn := ""
+		if g.DescriptionEn != nil {
+			descEn = *g.DescriptionEn
+		}
+		items = append(items, ChannelGroupItem{
+			ID: g.ID, Name: g.Name, NameEn: nameEn, Slug: g.Slug, Multiplier: g.Multiplier,
+			Description: desc, DescriptionEn: descEn, SortOrder: g.SortOrder, IsDefault: g.IsDefault,
+			Channels: int(chCount), Models: int(mdCount),
+		})
+	}
+	c.JSON(200, gin.H{"items": items})
+}
+
+func (h *AdminHandler) CreateChannelGroup(c *gin.Context) {
+	var req CreateChannelGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	g := models.ChannelGroup{
+		Name: req.Name, Slug: req.Slug, Multiplier: req.Multiplier,
+		SortOrder: req.SortOrder, IsDefault: req.IsDefault,
+	}
+	if req.Description != "" {
+		g.Description = &req.Description
+	}
+	if req.NameEn != "" {
+		g.NameEn = &req.NameEn
+	}
+	if req.DescriptionEn != "" {
+		g.DescriptionEn = &req.DescriptionEn
+	}
+	if err := h.db.Create(&g).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"id": g.ID, "message": "created"})
+}
+
+func (h *AdminHandler) UpdateChannelGroup(c *gin.Context) {
+	id := c.Param("id")
+	var req UpdateChannelGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	updates := map[string]interface{}{}
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Slug != nil {
+		updates["slug"] = *req.Slug
+	}
+	if req.Multiplier != nil {
+		updates["multiplier"] = *req.Multiplier
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+	if req.NameEn != nil {
+		updates["name_en"] = *req.NameEn
+	}
+	if req.DescriptionEn != nil {
+		updates["description_en"] = *req.DescriptionEn
+	}
+	if req.SortOrder != nil {
+		updates["sort_order"] = *req.SortOrder
+	}
+	if req.IsDefault != nil {
+		updates["is_default"] = *req.IsDefault
+	}
+	if len(updates) == 0 {
+		c.JSON(400, gin.H{"error": "no fields to update"})
+		return
+	}
+	if err := h.db.Model(&models.ChannelGroup{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"message": "updated"})
+}
+
+func (h *AdminHandler) DeleteChannelGroup(c *gin.Context) {
+	id := c.Param("id")
+	// 检查是否有关联 channel/model
+	var chCount, mdCount int64
+	h.db.Model(&models.UpstreamChannel{}).Where("group_id = ? AND deleted_at IS NULL", id).Count(&chCount)
+	h.db.Model(&models.Model{}).Where("group_id = ? AND deleted_at IS NULL", id).Count(&mdCount)
+	if chCount > 0 || mdCount > 0 {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("group has %d channels and %d models, please reassign first", chCount, mdCount)})
+		return
+	}
+	if err := h.db.Delete(&models.ChannelGroup{}, id).Error; err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"message": "deleted"})
 }

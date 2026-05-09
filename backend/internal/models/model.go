@@ -86,8 +86,10 @@ type ChannelGroup struct {
 	Name        string    `gorm:"type:varchar(100);not null" json:"name"`
 	Slug        string    `gorm:"type:varchar(50);uniqueIndex;not null" json:"slug"`
 	Multiplier  float64   `gorm:"type:decimal(10,4);not null;default:1.0" json:"multiplier"`
-	Description *string   `gorm:"type:text" json:"description,omitempty"`
-	SortOrder   int       `gorm:"default:0" json:"sort_order"`
+	Description   *string `gorm:"type:text" json:"description,omitempty"`
+	NameEn        *string `gorm:"type:varchar(100)" json:"name_en,omitempty"`
+	DescriptionEn *string `gorm:"type:text" json:"description_en,omitempty"`
+	SortOrder     int     `gorm:"default:0" json:"sort_order"`
 	IsDefault   bool      `gorm:"default:false" json:"is_default"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

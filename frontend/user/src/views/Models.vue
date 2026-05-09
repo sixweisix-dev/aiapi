@@ -7,15 +7,26 @@
       <div class="hero-sub">{{ t('models.heroSub') }}</div>
     </div>
 
-    <div class="data-card">
-      <div class="card-header">
-        <span class="card-title">{{ t('models.listTitle') }}</span>
-        <span class="card-tag">{{ models.length }} {{ t('models.countUnit') }}</span>
+    <div v-if="loading" class="data-card empty-tip">{{ t('models.loading') }}</div>
+    <div v-else-if="models.length === 0" class="data-card empty-tip">{{ t('models.noModels') }}</div>
+    <template v-else>
+      <div class="group-tabs">
+        <button v-for="g in groups" :key="g.slug" :class="['group-tab', activeGroup === g.slug ? 'active' : '']" @click="activeGroup = g.slug">
+          {{ g.name }}
+          <span class="tab-rate">{{ Number(g.multiplier).toFixed(2) }}×</span>
+        </button>
       </div>
-      <div v-if="loading" class="empty-tip">{{ t('models.loading') }}</div>
-      <div v-else-if="models.length === 0" class="empty-tip">{{ t('models.noModels') }}</div>
-      <div v-else class="model-list">
-        <div v-for="m in models" :key="m.id" class="model-card">
+      <div v-if="activeGroupDesc" class="group-desc-card">
+        <span class="group-desc-emoji">📦</span>
+        <span>{{ activeGroupDesc }}</span>
+      </div>
+      <div class="data-card">
+        <div class="card-header">
+          <span class="card-title">{{ activeGroupName }}</span>
+          <span class="card-tag">{{ filteredModels.length }} {{ t('models.countUnit') }}</span>
+        </div>
+        <div class="model-list">
+          <div v-for="m in filteredModels" :key="m.id" class="model-card">
           <div class="model-head">
             <div class="model-name-block">
               <div class="model-name">{{ m.display_name }}</div>
@@ -26,22 +37,22 @@
           <div class="price-grid four-col">
             <div class="price-block">
               <div class="price-label">{{ t('models.input') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.output') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheRead') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000 * 0.1).toFixed(4) }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 0.1).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheWrite') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier) * 1000 * 1.25).toFixed(4) }}</div>
+              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 1.25).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
           </div>
@@ -50,10 +61,11 @@
             <span>·</span>
             <span>{{ t('models.multiplier') }} {{ m.multiplier }}x</span>
           </div>
-          <div v-if="m.description" class="model-desc">{{ m.description }}</div>
+            <div v-if="m.description" class="model-desc">{{ m.description }}</div>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
 
     <div class="data-card tip-card">
       <div class="tip-emoji">💡</div>
@@ -70,18 +82,52 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { userModelsAPI } from '@/utils/api'
 
 const loading = ref(true)
 const models = ref([])
+const activeGroup = ref('')
 
-const finalPrice = (base, multiplier) => (base || 0) * (multiplier || 1)
+// final = base × model_multiplier × group_multiplier
+const finalPrice = (base, mMul, gMul) => (base || 0) * (mMul || 1) * (gMul || 1)
+
+const groups = computed(() => {
+  const map = new Map()
+  for (const m of models.value) {
+    const slug = m.group_slug || 'default'
+    if (!map.has(slug)) {
+      map.set(slug, {
+        slug,
+        name: m.group_name || '默认分组',
+        multiplier: m.group_multiplier || 1,
+        description: m.group_description || '',
+      })
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => (b.multiplier - a.multiplier))
+})
+
+const filteredModels = computed(() => {
+  if (!activeGroup.value) return models.value
+  return models.value.filter(m => (m.group_slug || 'default') === activeGroup.value)
+})
+
+const activeGroupName = computed(() => {
+  const g = groups.value.find(x => x.slug === activeGroup.value)
+  return g?.name || ''
+})
+
+const activeGroupDesc = computed(() => {
+  const g = groups.value.find(x => x.slug === activeGroup.value)
+  return g?.description || ''
+})
 
 onMounted(async () => {
   try {
     const data = await userModelsAPI.list()
     models.value = data.items || []
+    if (groups.value.length > 0) activeGroup.value = groups.value[0].slug
   } catch {} finally { loading.value = false }
 })
 </script>
@@ -221,4 +267,55 @@ onMounted(async () => {
 .tip-content { font-size: 12px; color: #92400e; line-height: 1.5; }
 .price-grid.four-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @media (min-width: 600px) { .price-grid.four-col { grid-template-columns: repeat(4, 1fr); } }
+
+.group-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.group-tab {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--el-border-color, #d4d8de);
+  background: var(--el-bg-color, #fff);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary, #2c3e50);
+  cursor: pointer;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-tab.active {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  border-color: #4facfe;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(79,172,254,0.35);
+}
+.tab-rate {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.group-desc-card {
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  background: rgba(79,172,254,0.08);
+  border-left: 3px solid #4facfe;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--el-text-color-regular, #555);
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.group-desc-emoji {
+  font-size: 18px;
+  line-height: 1.2;
+}
 </style>

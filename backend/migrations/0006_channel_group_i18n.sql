@@ -1,0 +1,2 @@
+ALTER TABLE channel_groups ADD COLUMN IF NOT EXISTS name_en VARCHAR(100);
+ALTER TABLE channel_groups ADD COLUMN IF NOT EXISTS description_en TEXT;

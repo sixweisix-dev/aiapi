@@ -311,7 +311,7 @@
     "entF5": "✓ SLA 99.5% 保障",
     "entF6": "✓ 私有化部署可议",
     "entCta": "联系销售",
-    "pricingNote": "💡 内测优惠价 (0.6x 官方价)：Opus 4.x ¥64.8/M · Sonnet 4.x ¥12.96/M · Haiku 4.5 ¥4.32/M（输入价/M tokens）",
+    "pricingNote": "",
     "compareTitle": "vs 灰产中转站",
     "compareSub": "为什么 B 端业务不能用便宜的灰产通道",
     "compareUs": "TransitAI",
@@ -362,7 +362,14 @@
     "footerContact": "联系",
     "footerTermsLink": "用户协议",
     "footerPrivacyLink": "隐私政策",
-    "footerCopyright": "© 2026 TransitAI · 保留所有权利"
+    "footerCopyright": "© 2026 TransitAI · 保留所有权利",
+    "modelPricingTitle": "模型价格（按用量计费）",
+    "modelPricingLoading": "加载中...",
+    "modelPricingModel": "模型",
+    "modelPricingInput": "输入 / 百万 Token",
+    "modelPricingOutput": "输出 / 百万 Token",
+    "modelPricingCache": "缓存读取",
+    "modelPricingContext": "上下文"
   },
   "chart": {
     "title": "📊 每日模型消耗",

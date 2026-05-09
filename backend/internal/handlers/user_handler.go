@@ -310,35 +310,66 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 // ---- Public Models with Pricing ----
 
 type publicModelItem struct {
-	ID            string  `json:"id"`
-	Name          string  `json:"name"`
-	DisplayName   string  `json:"display_name"`
-	Provider      string  `json:"provider"`
-	ContextLength int     `json:"context_length"`
-	InputPrice    float64 `json:"input_price"`
-	OutputPrice   float64 `json:"output_price"`
-	Multiplier    float64 `json:"multiplier"`
-	Description   *string `json:"description,omitempty"`
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	DisplayName        string  `json:"display_name"`
+	Provider           string  `json:"provider"`
+	ContextLength      int     `json:"context_length"`
+	InputPrice         float64 `json:"input_price"`
+	OutputPrice        float64 `json:"output_price"`
+	Multiplier         float64 `json:"multiplier"`
+	Description        *string `json:"description,omitempty"`
+	GroupID            *uint   `json:"group_id,omitempty"`
+	GroupName          string  `json:"group_name,omitempty"`
+	GroupNameEn        string  `json:"group_name_en,omitempty"`
+	GroupSlug          string  `json:"group_slug,omitempty"`
+	GroupMultiplier    float64 `json:"group_multiplier,omitempty"`
+	GroupDescription   string  `json:"group_description,omitempty"`
+	GroupDescriptionEn string  `json:"group_description_en,omitempty"`
 }
 
 func (h *UserHandler) ListPublicModels(c *gin.Context) {
-	var modelsList []models.Model
-	h.db.Where("is_enabled = ? AND is_public = ?", true, true).
-		Order("CASE WHEN name LIKE '%sonnet%' THEN 1 WHEN name LIKE '%haiku%' THEN 2 WHEN name LIKE '%opus%' THEN 4 ELSE 3 END, provider ASC, name ASC").
-		Find(&modelsList)
+	type rowType struct {
+		models.Model
+		GroupName          string  `gorm:"column:group_name"`
+		GroupNameEn        string  `gorm:"column:group_name_en"`
+		GroupSlug          string  `gorm:"column:group_slug"`
+		GroupMultiplier    float64 `gorm:"column:group_multiplier"`
+		GroupDescription   string  `gorm:"column:group_description"`
+		GroupDescriptionEn string  `gorm:"column:group_description_en"`
+	}
+	var rows []rowType
+	h.db.Table("models AS m").
+		Select("m.*, cg.name AS group_name, COALESCE(cg.name_en,'') AS group_name_en, cg.slug AS group_slug, cg.multiplier AS group_multiplier, COALESCE(cg.description,'') AS group_description, COALESCE(cg.description_en,'') AS group_description_en").
+		Joins("LEFT JOIN channel_groups AS cg ON cg.id = m.group_id AND cg.deleted_at IS NULL").
+		Where("m.is_enabled = ? AND m.is_public = ? AND m.deleted_at IS NULL", true, true).
+		Order("CASE WHEN m.name LIKE '%sonnet%' THEN 1 WHEN m.name LIKE '%haiku%' THEN 2 WHEN m.name LIKE '%opus%' THEN 4 ELSE 3 END, m.provider ASC, m.name ASC").
+		Scan(&rows)
 
-	items := make([]publicModelItem, 0, len(modelsList))
-	for _, m := range modelsList {
+	items := make([]publicModelItem, 0, len(rows))
+	for _, r := range rows {
+		var gid *uint
+		if r.GroupID != nil {
+			v := *r.GroupID
+			gid = &v
+		}
 		items = append(items, publicModelItem{
-			ID:            m.ID.String(),
-			Name:          m.Name,
-			DisplayName:   m.DisplayName,
-			Provider:      m.Provider,
-			ContextLength: m.ContextLength,
-			InputPrice:    m.InputPrice,
-			OutputPrice:   m.OutputPrice,
-			Multiplier:    m.Multiplier,
-			Description:   m.Description,
+			ID:                 r.ID.String(),
+			Name:               r.Name,
+			DisplayName:        r.DisplayName,
+			Provider:           r.Provider,
+			ContextLength:      r.ContextLength,
+			InputPrice:         r.InputPrice,
+			OutputPrice:        r.OutputPrice,
+			Multiplier:         r.Multiplier,
+			Description:        r.Description,
+			GroupID:            gid,
+			GroupName:          r.GroupName,
+			GroupNameEn:        r.GroupNameEn,
+			GroupSlug:          r.GroupSlug,
+			GroupMultiplier:    r.GroupMultiplier,
+			GroupDescription:   r.GroupDescription,
+			GroupDescriptionEn: r.GroupDescriptionEn,
 		})
 	}
 

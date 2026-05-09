@@ -140,9 +140,53 @@
         </div>
       </div>
 
-      <p class="pricing-note">
-        {{ t('landing.pricingNote') }}
-      </p>
+
+      <!-- 动态模型价格 -->
+      <div class="model-pricing-wrap">
+        <h3 class="model-pricing-title">{{ t('landing.modelPricingTitle') }}</h3>
+        <div v-if="modelsLoading" class="model-pricing-loading">{{ t('landing.modelPricingLoading') }}</div>
+        <template v-else>
+          <div class="group-tabs-landing">
+            <button
+              v-for="g in modelGroups"
+              :key="g.slug + lang"
+              :class="['group-tab-landing', activePricingGroup === g.slug ? 'active' : '']"
+              @click="activePricingGroup = g.slug"
+            >
+              {{ g.name }}
+              <span class="tab-rate-landing">{{ Number(g.multiplier).toFixed(2) }}×</span>
+            </button>
+          </div>
+            <div v-if="activePricingGroupDesc" class="group-desc-landing">
+            <span>📦 {{ activePricingGroupDesc }}</span>
+          </div>
+          <div class="model-price-table-wrap">
+            <table class="model-price-table">
+              <thead>
+                <tr>
+                  <th>{{ t('landing.modelPricingModel') }}</th>
+                  <th>{{ t('landing.modelPricingInput') }}</th>
+                  <th>{{ t('landing.modelPricingOutput') }}</th>
+                  <th>{{ t('landing.modelPricingCache') }}</th>
+                  <th>{{ t('landing.modelPricingContext') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in filteredPricingModels" :key="m.id">
+                  <td class="model-name-cell">
+                    <span class="model-display-name">{{ m.display_name }}</span>
+                    <code class="model-id-code">{{ m.name }}</code>
+                  </td>
+                  <td class="price-cell">¥{{ (m.input_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                  <td class="price-cell">¥{{ (m.output_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                  <td class="price-cell price-dim">¥{{ (m.input_price * m.multiplier * m.group_multiplier * 1000 * 0.1).toFixed(4) }}</td>
+                  <td class="ctx-cell">{{ m.context_length >= 1000 ? (m.context_length/1000).toFixed(0)+'K' : m.context_length }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
     </section>
 
     <!-- 对比表 -->
@@ -270,8 +314,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { setLocale, currentLocale } from '@/i18n'
+import { ref, computed, watch, onMounted } from 'vue'
+import { i18n, setLocale, currentLocale } from '@/i18n'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -281,7 +325,57 @@ function toggleLang() {
   setLocale(next)
   lang.value = next
 }
-// 纯静态页，无需脚本逻辑
+
+// 动态模型价格
+const modelsLoading = ref(true)
+const allModels = ref([])
+const activePricingGroup = ref('')
+
+const modelGroups = computed(() => {
+  const isEn = i18n.global.locale.value === 'en'
+  console.log('[modelGroups] recompute, isEn=', isEn, 'locale=', i18n.global.locale.value)
+  const map = new Map()
+  for (const m of allModels.value) {
+    const slug = m.group_slug || 'default'
+    map.set(slug, {
+      slug,
+      name: (isEn && m.group_name_en) ? m.group_name_en : (m.group_name || 'Default'),
+      multiplier: m.group_multiplier || 1,
+      description: (isEn && m.group_description_en) ? m.group_description_en : (m.group_description || ''),
+    })
+  }
+  return Array.from(map.values()).sort((a, b) => b.multiplier - a.multiplier)
+})
+
+const filteredPricingModels = computed(() => {
+  if (!activePricingGroup.value) return allModels.value
+  return allModels.value.filter(m => (m.group_slug || 'default') === activePricingGroup.value)
+})
+
+const activePricingGroupDesc = computed(() => {
+  const g = modelGroups.value.find(x => x.slug === activePricingGroup.value)
+  return g?.description || ''
+})
+
+// 语言切换时重置 activePricingGroup，强制 tab 重新渲染
+watch(lang, () => {
+  const cur = activePricingGroup.value
+  activePricingGroup.value = ''
+  setTimeout(() => { activePricingGroup.value = cur }, 0)
+})
+
+onMounted(async () => {
+  try {
+    const res = await fetch('/v1/public/models')
+    const data = await res.json()
+    allModels.value = data.items || []
+    if (modelGroups.value.length > 0) activePricingGroup.value = modelGroups.value[0].slug
+  } catch (e) {
+    console.error('Failed to load models', e)
+  } finally {
+    modelsLoading.value = false
+  }
+})
 </script>
 
 <style scoped>
@@ -444,12 +538,7 @@ function toggleLang() {
   box-shadow: 0 4px 16px rgba(102,126,234,0.35);
 }
 .price-cta.primary:hover { opacity: 0.92; transform: translateY(-1px); }
-.pricing-note {
-  text-align: center; max-width: 800px; margin: 40px auto 0;
-  color: #9ca3af; font-size: 13px; line-height: 1.8;
-  background: #fff; border-radius: 12px; padding: 16px 24px;
-  border: 1px solid #f1f5f9;
-}
+
 
 /* Compare */
 .compare { padding: 100px 24px; max-width: 1000px; margin: 0 auto; }
@@ -560,4 +649,119 @@ function toggleLang() {
   margin-right: 4px;
 }
 .lang-switch:hover { background: rgba(102,126,234,0.2); }
+
+/* 模型价格区块 */
+.model-pricing-wrap {
+  max-width: 1100px;
+  margin: 48px auto 0;
+  padding: 0 8px;
+}
+.model-pricing-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 24px;
+}
+.model-pricing-loading {
+  text-align: center;
+  color: #9ca3af;
+  padding: 32px;
+}
+.group-tabs-landing {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.group-tab-landing {
+  padding: 8px 20px;
+  border-radius: 12px;
+  border: 1.5px solid #e0e7ff;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-tab-landing.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(102,126,234,0.35);
+}
+.tab-rate-landing {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.85;
+  background: rgba(255,255,255,0.2);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+.group-tab-landing:not(.active) .tab-rate-landing {
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+  opacity: 1;
+}
+.group-desc-landing {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 20px;
+  padding: 10px 20px;
+  background: rgba(102,126,234,0.06);
+  border-radius: 10px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.model-price-table-wrap {
+  overflow-x: auto;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.model-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 14px;
+}
+.model-price-table thead th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.model-price-table tbody tr {
+  border-bottom: 1px solid #f8fafc;
+  transition: background 0.15s;
+}
+.model-price-table tbody tr:hover { background: #fafbff; }
+.model-price-table tbody tr:last-child { border-bottom: none; }
+.model-price-table td { padding: 14px 16px; vertical-align: middle; }
+.model-name-cell { display: flex; flex-direction: column; gap: 3px; }
+.model-display-name { font-weight: 600; color: #1f2937; font-size: 14px; }
+.model-id-code {
+  font-size: 11px;
+  color: #9ca3af;
+  font-family: 'SF Mono', Menlo, monospace;
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  width: fit-content;
+}
+.price-cell { font-weight: 600; color: #4338ca; font-size: 14px; }
+.price-dim { color: #9ca3af !important; font-weight: 500 !important; }
+.ctx-cell { color: #6b7280; font-size: 13px; }
+
 </style>

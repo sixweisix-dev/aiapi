@@ -22,6 +22,7 @@
         <el-table-column prop="output_price" label="输出单价" width="100" align="right">
           <template #default="{ row }">${{ row.output_price.toFixed(4) }}</template>
         </el-table-column>
+        <el-table-column prop="group_name" label="分组" width="100" show-overflow-tooltip />
         <el-table-column prop="multiplier" label="倍率" width="70" align="center" />
         <el-table-column prop="context_length" label="上下文" width="80" align="right">
           <template #default="{ row }">{{ row.context_length.toLocaleString() }}</template>
@@ -78,6 +79,17 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="分组">
+          <el-select v-model="form.group_id" placeholder="无分组" clearable style="width:280px">
+            <el-option :value="null" label="— 无分组 —" />
+            <el-option v-for="g in channelGroups" :key="g.id" :label="`${g.name} (${Number(g.multiplier).toFixed(2)}×)`" :value="g.id" />
+          </el-select>
+          <span class="ml-2 text-xs text-gray-400">最终用户付费 = 输入/输出价 × multiplier × 分组倍率</span>
+        </el-form-item>
+        <el-form-item label="上游别名">
+          <el-input v-model="form.upstream_name" placeholder="留空 = 同模型标识" />
+          <span class="ml-2 text-xs text-gray-400">转发给上游时实际用的 model 名 (如 -pro 别名映射真实模型)</span>
+        </el-form-item>
         <el-form-item label="倍率">
           <el-input-number v-model="form.multiplier" :precision="2" :step="0.1" :min="0.5" />
         </el-form-item>
@@ -108,12 +120,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { modelsAPI } from '@/utils/api'
+import api, { modelsAPI } from '@/utils/api'
 
 const models = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
+const channelGroups = ref([])
+async function loadGroups() {
+  try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
+}
 const isEditing = ref(false)
 const formRef = ref(null)
 const editingId = ref(null)
@@ -152,7 +168,7 @@ async function fetchData() {
 function openCreate() {
   isEditing.value = false
   editingId.value = null
-  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true }
+  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
   dialogVisible.value = true
 }
 
@@ -173,6 +189,8 @@ async function handleSave() {
       input_price: form.value.input_price,
       output_price: form.value.output_price,
       multiplier: form.value.multiplier,
+      group_id: form.value.group_id ? Number(form.value.group_id) : 0,
+      upstream_name: form.value.upstream_name || null,
       is_public: form.value.is_public,
       description: form.value.description || null,
     }
@@ -189,6 +207,7 @@ async function handleSave() {
         input_price: form.value.input_price,
         output_price: form.value.output_price,
         multiplier: form.value.multiplier,
+        group_id: form.value.group_id ? Number(form.value.group_id) : null,
         is_public: form.value.is_public,
         description: form.value.description || null,
       })
@@ -210,5 +229,5 @@ async function handleDelete(row) {
   } catch { /* cancelled */ }
 }
 
-onMounted(fetchData)
+onMounted(() => { fetchData(); loadGroups() })
 </script>

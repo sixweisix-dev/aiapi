@@ -16,6 +16,7 @@ const routes = [
       { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue') },
       { path: 'users', name: 'Users', component: () => import('@/views/Users.vue') },
       { path: 'channels', name: 'Channels', component: () => import('@/views/Channels.vue') },
+      { path: 'channel-groups', name: 'ChannelGroups', component: () => import('@/views/ChannelGroups.vue') },
       { path: 'models', name: 'Models', component: () => import('@/views/Models.vue') },
       { path: 'logs', name: 'Logs', component: () => import('@/views/Logs.vue') },
       { path: 'recharge', name: 'RechargeOrders', component: () => import('@/views/RechargeOrders.vue') },
