@@ -110,6 +110,40 @@
       </div>
     </el-card>
 
+    <!-- 分分组收益 -->
+    <el-card shadow="never" class="data-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">🧩 分分组收益</span>
+          <span class="card-tag">{{ (data.by_group || []).length }} 个分组</span>
+        </div>
+      </template>
+      <div v-if="(data.by_group || []).length === 0" class="empty-tip">暂无数据</div>
+      <div v-else class="model-list">
+        <div v-for="(g, i) in data.by_group" :key="i" class="model-item">
+          <div class="model-row">
+            <div class="model-info">
+              <span class="model-rank" :class="`rank-${i + 1}`">#{{ i + 1 }}</span>
+              <span class="model-name">{{ g.group_name }}</span>
+              <el-tag size="small" type="primary" effect="plain">{{ Number(g.multiplier).toFixed(2) }}×</el-tag>
+              <span class="model-count">{{ g.request_count }} 次</span>
+            </div>
+            <div class="model-money">
+              <span class="m-revenue">+¥{{ Number(g.revenue).toFixed(2) }}</span>
+              <span class="m-profit">毛利 ¥{{ Number(g.profit).toFixed(2) }}</span>
+            </div>
+          </div>
+          <el-progress
+            :percentage="Number(g.share.toFixed(1))"
+            :stroke-width="8"
+            :color="progressColor(i)"
+            :show-text="false"
+          />
+          <div class="model-share">{{ Number(g.share).toFixed(1) }}% 收入占比</div>
+        </div>
+      </div>
+    </el-card>
+
     <!-- TOP 用户 -->
     <el-card shadow="never" class="data-card">
       <template #header>

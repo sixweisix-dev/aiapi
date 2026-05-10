@@ -98,6 +98,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.APIKey{},
 		&models.APIKeyAllowedModel{},
 		&models.ChannelGroup{},
+		&models.GoofishOrder{},
 		&models.UpstreamChannel{},
 		&models.Model{},
 		&models.Request{},

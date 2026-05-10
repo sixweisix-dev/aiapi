@@ -105,6 +105,7 @@ func main() {
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
+	goofishHandler := handlers.NewGoofishHandler(db)
 	userHandler := handlers.NewUserHandler(db)
 	paymentHandler, err := handlers.NewPaymentHandler(db, handlers.AlipayConfig{
 		NotifyURL: cfg.AlipayNotifyURL,
@@ -168,6 +169,7 @@ func main() {
 	// === Public endpoints (no auth) ===
 r.GET("/v1/public/models", userHandler.ListPublicModels)
 	r.GET("/v1/public/channel-groups", userHandler.ListPublicChannelGroups)
+	r.POST("/v1/integrations/goofish/order", goofishHandler.OrderWebhook)
 
 // === OpenAI-compatible API (API Key required) ===
 	v1 := r.Group("/v1")
@@ -225,6 +227,9 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 
 			// Channel Group endpoints
 			admin.GET("/channel-groups", adminHandler.ListChannelGroups)
+	admin.GET("/goofish/orders", goofishHandler.AdminListOrders)
+	admin.GET("/goofish/export-codes", goofishHandler.AdminExportRedeemCodes)
+	admin.GET("/goofish/stock-summary", goofishHandler.AdminStockSummary)
 			admin.POST("/channel-groups", adminHandler.CreateChannelGroup)
 			admin.PUT("/channel-groups/:id", adminHandler.UpdateChannelGroup)
 			admin.DELETE("/channel-groups/:id", adminHandler.DeleteChannelGroup)

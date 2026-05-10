@@ -946,6 +946,13 @@ var settingsDefaults = map[string]string{
 	"alert_email":               "",
 	"alert_warn_threshold":      "100",
 	"alert_critical_threshold":  "500",
+	// 闲管家集成
+	"goofish_app_key":                "",
+	"goofish_app_secret":             "",
+	"goofish_seller_id":              "",
+	"goofish_webhook_url":            "https://transitai.cloud/v1/integrations/goofish/order",
+	"goofish_stock_alert_threshold":  "5",
+	"goofish_enabled":                "false",
 }
 
 func (h *AdminHandler) loadAllSettings() map[string]string {
@@ -1205,6 +1212,34 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		}
 	}
 
+	// 分分组收益
+	type GroupBreakdown struct {
+		GroupName    string  `json:"group_name"`
+		GroupSlug    string  `json:"group_slug"`
+		Multiplier   float64 `json:"multiplier"`
+		RequestCount int64   `json:"request_count"`
+		Revenue      float64 `json:"revenue"`
+		Cost         float64 `json:"cost"`
+		Profit       float64 `json:"profit"`
+		Share        float64 `json:"share"`
+	}
+	var byGroup []GroupBreakdown
+	h.db.Table("requests r").
+		Select(`COALESCE(g.name, '未分组') AS group_name, COALESCE(g.slug, '') AS group_slug, COALESCE(g.multiplier, 1) AS multiplier, COUNT(*) AS request_count, COALESCE(SUM(r.cost),0) AS revenue`).
+		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Joins("LEFT JOIN channel_groups g ON g.id = m.group_id").
+		Where("r.status_code = 200 AND r.created_at >= ?", startTime).
+		Group("g.name, g.slug, g.multiplier").
+		Order("revenue DESC").
+		Scan(&byGroup)
+	for i := range byGroup {
+		byGroup[i].Cost = byGroup[i].Revenue / effectiveMult
+		byGroup[i].Profit = byGroup[i].Revenue - byGroup[i].Cost
+		if s.Revenue > 0 {
+			byGroup[i].Share = byGroup[i].Revenue / s.Revenue * 100
+		}
+	}
+
 	// TOP 10 消费用户
 	type TopUser struct {
 		Email        string  `json:"email"`
@@ -1249,6 +1284,7 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 		"multiplier": effectiveMult,
 		"summary":    s,
 		"by_model":   byModel,
+		"by_group":   byGroup,
 		"top_users":  topUsers,
 		"trend_30d":  trend,
 	})

@@ -128,6 +128,8 @@ claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
           <el-alert type="warning" :closable="false" class="mb-4">{{ t('apiDocs.anthropicNote') }}</el-alert>
           <div class="section-label">Python (Anthropic SDK)</div>
           <pre class="code-block">{{ pythonAnthropic }}</pre>
+          <div class="section-label">Node.js (Anthropic SDK)</div>
+          <pre class="code-block">{{ nodeAnthropic }}</pre>
           <div class="section-label">cURL</div>
           <pre class="code-block">{{ curlAnthropic }}</pre>
         </el-tab-pane>
@@ -495,6 +497,24 @@ message = client.messages.create(
     ]
 )
 print(message.content[0].text)`
+
+const nodeAnthropic = `import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  apiKey: "YOUR_API_KEY",
+  baseURL: "https://transitai.cloud"  // 不带 /v1
+});
+
+const message = await client.messages.create({
+  model: "claude-sonnet-4-5",
+  max_tokens: 1024,
+  system: "You are a helpful assistant.",
+  messages: [
+    { role: "user", content: "Hello, Claude!" }
+  ]
+});
+
+console.log(message.content[0].text);`
 
 const curlAnthropic = `curl https://transitai.cloud/v1/messages \
   -H "x-api-key: YOUR_API_KEY" \
