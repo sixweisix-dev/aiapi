@@ -953,6 +953,8 @@ var settingsDefaults = map[string]string{
 	"goofish_webhook_url":            "https://transitai.cloud/v1/integrations/goofish/order",
 	"goofish_stock_alert_threshold":  "5",
 	"goofish_enabled":                "false",
+	"goofish_mch_id":                 "",
+	"goofish_mch_secret":             "",
 }
 
 func (h *AdminHandler) loadAllSettings() map[string]string {

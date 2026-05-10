@@ -106,6 +106,7 @@ func main() {
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db)
 	goofishHandler := handlers.NewGoofishHandler(db)
+	goofishSupplierHandler := handlers.NewGoofishSupplierHandler(db)
 	userHandler := handlers.NewUserHandler(db)
 	paymentHandler, err := handlers.NewPaymentHandler(db, handlers.AlipayConfig{
 		NotifyURL: cfg.AlipayNotifyURL,
@@ -170,6 +171,17 @@ func main() {
 r.GET("/v1/public/models", userHandler.ListPublicModels)
 	r.GET("/v1/public/channel-groups", userHandler.ListPublicChannelGroups)
 	r.POST("/v1/integrations/goofish/order", goofishHandler.OrderWebhook)
+
+	// 闲管家自研系统 - 货源接口 (闲管家来调, 用签名验证)
+	xgj := r.Group("/xgj/open/goofish")
+	{
+		xgj.POST("/platform/info", goofishSupplierHandler.PlatformInfo)
+		xgj.POST("/mch/info", goofishSupplierHandler.MchInfo)
+		xgj.POST("/goods/list", goofishSupplierHandler.GoodsList)
+		xgj.POST("/goods/info", goofishSupplierHandler.GoodsInfo)
+		xgj.POST("/order/purchase/create", goofishSupplierHandler.OrderPurchaseCreate)
+		xgj.POST("/order/info", goofishSupplierHandler.OrderInfo)
+	}
 
 // === OpenAI-compatible API (API Key required) ===
 	v1 := r.Group("/v1")

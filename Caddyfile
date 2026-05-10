@@ -18,6 +18,14 @@ transitai.cloud {
         }
     }
 
+    handle /xgj/* {
+        request_body max_size 10mb
+        reverse_proxy backend:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
     handle /admin* {
         reverse_proxy frontend_admin:80
     }
