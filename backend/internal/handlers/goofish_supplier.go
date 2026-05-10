@@ -94,7 +94,9 @@ func (h *GoofishSupplierHandler) verifySign(c *gin.Context) (string, bool) {
 
 	providedSign := c.Query("sign")
 	if !utils.GoofishSupplierVerifySign(appID, appSecret, mchID, mchSecret, bodyStr, ts, providedSign) {
-		log.Printf("[Goofish-Supplier] 签名校验失败 mch_id=%s ts=%d sign=%s", mchID, ts, providedSign)
+		expectedSign := utils.GoofishSupplierSign(appID, appSecret, mchID, mchSecret, bodyStr, ts)
+		log.Printf("[Goofish-Supplier] 签名校验失败\n  对方传 mch_id=%s body=%q ts=%d sign=%s\n  我们算 expected=%s (用 db 里 mch_id=%s mch_secret 前6位=%.6s)",
+			c.Query("mch_id"), bodyStr, ts, providedSign, expectedSign, mchID, mchSecret)
 		resp(c, 401, "签名错误", nil)
 		return "", false
 	}

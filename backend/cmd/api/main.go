@@ -175,12 +175,12 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 	// 闲管家自研系统 - 货源接口 (闲管家来调, 用签名验证)
 	xgj := r.Group("/xgj/open/goofish")
 	{
-		xgj.POST("/platform/info", goofishSupplierHandler.PlatformInfo)
-		xgj.POST("/mch/info", goofishSupplierHandler.MchInfo)
+		xgj.POST("/open/info", goofishSupplierHandler.PlatformInfo)
+		xgj.POST("/user/info", goofishSupplierHandler.MchInfo)
 		xgj.POST("/goods/list", goofishSupplierHandler.GoodsList)
-		xgj.POST("/goods/info", goofishSupplierHandler.GoodsInfo)
+		xgj.POST("/goods/detail", goofishSupplierHandler.GoodsInfo)
 		xgj.POST("/order/purchase/create", goofishSupplierHandler.OrderPurchaseCreate)
-		xgj.POST("/order/info", goofishSupplierHandler.OrderInfo)
+		xgj.POST("/order/detail", goofishSupplierHandler.OrderInfo)
 	}
 
 // === OpenAI-compatible API (API Key required) ===
