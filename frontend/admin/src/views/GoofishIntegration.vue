@@ -93,7 +93,7 @@
           </template>
         </el-table-column>
         <el-table-column label="状态" width="90">
-          <template #default="{ row }">{{ orderStatusLabel(row.order_status) }}</el-table-column>
+          <template #default="{ row }">{{ orderStatusLabel(row.order_status) }}</template>
         </el-table-column>
         <el-table-column label="退款" width="80">
           <template #default="{ row }"><el-tag v-if="row.refund_status > 0" size="small" type="danger">{{ refundStatusLabel(row.refund_status) }}</el-tag></template>
