@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"strconv"
@@ -138,7 +139,7 @@ func (h *GoofishHandler) AdminExportRedeemCodes(c *gin.Context) {
 	}
 }
 
-// AdminStockSummary 库存概况
+// AdminStockSummary 库存概况(只显示当前 recharge_tiers 启用的档位 + 固定会员档位)
 func (h *GoofishHandler) AdminStockSummary(c *gin.Context) {
 	type stockRow struct {
 		Note          string  `json:"note"`
@@ -146,12 +147,27 @@ func (h *GoofishHandler) AdminStockSummary(c *gin.Context) {
 		Unused        int64   `json:"unused"`
 		Used          int64   `json:"used"`
 	}
+
+	// 1. 解析当前启用的 recharge_tiers
+	tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
+	var tierDefs []struct {
+		Min float64 `json:"min"`
+	}
+	json.Unmarshal([]byte(tiersJSON), &tierDefs)
+
+	// 2. 构造启用的 note 白名单
+	enabledNotes := []string{"闲鱼专业版30天", "闲鱼企业版30天"}
+	for _, t := range tierDefs {
+		enabledNotes = append(enabledNotes, fmt.Sprintf("闲鱼¥%.0f充值码", t.Min))
+	}
+
 	var rows []stockRow
 	h.db.Raw(`SELECT note, balance_amount,
 	          SUM(CASE WHEN status='unused' THEN 1 ELSE 0 END) AS unused,
 	          SUM(CASE WHEN status='used' THEN 1 ELSE 0 END) AS used
-	          FROM redeem_codes WHERE note LIKE '%闲鱼%'
-	          GROUP BY note, balance_amount ORDER BY balance_amount DESC`).Scan(&rows)
+	          FROM redeem_codes WHERE note IN ?
+	          GROUP BY note, balance_amount ORDER BY balance_amount DESC`, enabledNotes).Scan(&rows)
+
 	threshold, _ := strconv.Atoi(GetSettingValue(h.db, "goofish_stock_alert_threshold", "5"))
-	c.JSON(200, gin.H{"items": rows, "threshold": threshold})
+	c.JSON(200, gin.H{"items": rows, "threshold": threshold, "enabled_notes": enabledNotes})
 }
