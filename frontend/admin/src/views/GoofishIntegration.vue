@@ -26,6 +26,31 @@
         <el-form-item label="商家ID (可选)">
           <el-input v-model="settings.goofish_seller_id" placeholder="自研对接可留空" />
         </el-form-item>
+        <el-divider><span style="font-size:12px;color:#909399;">↓ 自研直充模式 (供应商接口) 凭证</span></el-divider>
+        <el-form-item label="商户 mch_id">
+          <el-input v-model="settings.goofish_mch_id" placeholder="自己生成的数字 (如 1001), 同时填到闲管家'商户ID'字段">
+            <template #append>
+              <el-button @click="generateMchID">生成</el-button>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="商户密钥 mch_secret">
+          <el-input v-model="settings.goofish_mch_secret" type="password" show-password placeholder="自己生成的随机字符串">
+            <template #append>
+              <el-button @click="generateMchSecret">生成</el-button>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item label="供应商接口网关">
+          <el-input :model-value="'https://transitai.cloud/xgj/open'" readonly>
+            <template #append>
+              <el-button @click="copyGateway">复制</el-button>
+            </template>
+          </el-input>
+          <div style="font-size:12px;color:#909399;margin-top:4px;">
+            填到闲管家'货源授权信息 → 接口网关'
+          </div>
+        </el-form-item>
         <el-form-item label="Webhook URL">
           <el-input v-model="settings.goofish_webhook_url" readonly>
             <template #append>
@@ -151,6 +176,8 @@ async function saveSettings() {
       goofish_app_secret: settings.goofish_app_secret,
       goofish_seller_id: settings.goofish_seller_id,
       goofish_stock_alert_threshold: settings.goofish_stock_alert_threshold,
+      goofish_mch_id: settings.goofish_mch_id,
+      goofish_mch_secret: settings.goofish_mch_secret,
     }
     await api.put('/admin/settings', payload)
     ElMessage.success('保存成功')
@@ -194,6 +221,16 @@ function orderStatusLabel(s) {
 }
 function refundStatusLabel(r) {
   return { 1: '待处理', 2: '待退货', 3: '待收货', 4: '关闭', 5: '成功', 6: '拒绝' }[r] || r
+}
+
+function generateMchID() {
+  settings.goofish_mch_id = '1' + Math.floor(Math.random() * 9000 + 1000).toString()
+}
+
+function generateMchSecret() {
+  const bytes = new Uint8Array(16)
+  ;(window.crypto || window.msCrypto).getRandomValues(bytes)
+  settings.goofish_mch_secret = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 onMounted(() => {
