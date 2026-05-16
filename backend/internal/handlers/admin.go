@@ -1149,9 +1149,9 @@ func (h *AdminHandler) ProfitStats(c *gin.Context) {
 	}
 
 	type Summary struct {
-		Revenue      float64 `json:"revenue"`        // 平台收入(CNY)
-		Cost         float64 `json:"cost"`           // 平台成本(CNY)
-		Profit       float64 `json:"profit"`         // 毛利(CNY)
+		Revenue      float64 `json:"revenue"`        // 平台收入(USD)
+		Cost         float64 `json:"cost"`           // 平台成本(USD)
+		Profit       float64 `json:"profit"`         // 毛利(USD)
 		ProfitMargin float64 `json:"profit_margin"`  // 毛利率(%)
 		RequestCount int64   `json:"request_count"`  // 请求数
 		PromptTokens int64   `json:"prompt_tokens"`

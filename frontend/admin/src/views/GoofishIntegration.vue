@@ -85,7 +85,7 @@
       <el-table :data="stockSummary.items" stripe size="small" v-loading="stockLoading">
         <el-table-column prop="note" label="商品" min-width="160" />
         <el-table-column label="面额" width="100" align="right">
-          <template #default="{ row }">¥{{ Number(row.balance_amount).toFixed(2) }}</template>
+          <template #default="{ row }">${{ Number(row.balance_amount).toFixed(2) }}</template>
         </el-table-column>
         <el-table-column label="未使用" width="100" align="right">
           <template #default="{ row }">

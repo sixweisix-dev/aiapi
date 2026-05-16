@@ -11,7 +11,7 @@
       </div>
       <button class="lang-toggle" @click="toggleLang">{{ lang === 'zh' ? 'EN' : '中' }}</button>
       <div class="balance-pill" :class="{ negative: balance < 0 }">
-        ¥{{ balance.toFixed(2) }}
+        ${{ balance.toFixed(2) }}
       </div>
     </header>
 
@@ -39,7 +39,7 @@
           </div>
           <div class="balance-block">
             <div class="balance-label">{{ t('common.balance') }}</div>
-            <div class="balance-value">¥{{ balance.toFixed(4) }}</div>
+            <div class="balance-value">${{ balance.toFixed(4) }}</div>
           </div>
         </div>
 
@@ -86,7 +86,7 @@
         </div>
         <div class="balance-block">
           <div class="balance-label">{{ t('common.balance') }}</div>
-          <div class="balance-value">¥{{ balance.toFixed(4) }}</div>
+          <div class="balance-value">${{ balance.toFixed(4) }}</div>
         </div>
       </div>
 

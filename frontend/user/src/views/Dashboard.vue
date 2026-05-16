@@ -7,11 +7,11 @@
         <span class="balance-emoji">💰</span>
         <span class="balance-tip">{{ t('dashboard.balanceTip') }}</span>
       </div>
-      <div class="balance-amount">¥{{ stats.balance?.toFixed(4) ?? '0.0000' }}</div>
+      <div class="balance-amount">${{ stats.balance?.toFixed(4) ?? '0.0000' }}</div>
       <div class="balance-stats">
         <div class="stat-item">
           <div class="stat-label">{{ t('dashboard.monthSpentLabel') }}</div>
-          <div class="stat-value">¥{{ stats.month_spent?.toFixed(2) ?? '0.00' }}</div>
+          <div class="stat-value">${{ stats.month_spent?.toFixed(2) ?? '0.00' }}</div>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
@@ -21,7 +21,7 @@
         <div class="stat-divider"></div>
         <div class="stat-item">
           <div class="stat-label">{{ t('dashboard.totalSpentLabel') }}</div>
-          <div class="stat-value">¥{{ stats.total_spent?.toFixed(2) ?? '0.00' }}</div>
+          <div class="stat-value">${{ stats.total_spent?.toFixed(2) ?? '0.00' }}</div>
         </div>
       </div>
     </div>
@@ -117,7 +117,7 @@
             <div class="record-meta">{{ r.total_tokens }} tokens</div>
           </div>
           <div class="record-right">
-            <div class="record-cost">−¥{{ Number(r.cost || 0).toFixed(6) }}</div>
+            <div class="record-cost">−${{ Number(r.cost || 0).toFixed(6) }}</div>
             <span class="record-status" :class="r.status_code === 200 ? 'ok' : 'fail'">
               {{ r.status_code === 200 ? t('dashboard.statusOk') : t('dashboard.statusFail') }}
             </span>
@@ -149,7 +149,7 @@
             <div class="record-meta">{{ b.description || '-' }}</div>
           </div>
           <div class="bill-amount" :class="b.amount > 0 ? 'income' : 'outcome'">
-            {{ b.amount > 0 ? '+' : '' }}¥{{ Number(b.amount || 0).toFixed(4) }}
+            {{ b.amount > 0 ? '+' : '' }}${{ Number(b.amount || 0).toFixed(4) }}
           </div>
         </div>
       </div>

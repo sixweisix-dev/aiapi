@@ -58,7 +58,7 @@
         <div class="plan-icon">💼</div>
         <div class="plan-name">{{ t('recharge.planPro') }}</div>
         <div class="plan-price">
-          <span class="price-num">¥99</span>
+          <span class="price-num">$99</span>
           <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
         <div class="plan-bonus">{{ t('recharge.proBonus') }}</div>
@@ -80,7 +80,7 @@
         <div class="plan-icon">👑</div>
         <div class="plan-name">{{ t('recharge.planEnterprise') }}</div>
         <div class="plan-price">
-          <span class="price-num">¥499</span>
+          <span class="price-num">$499</span>
           <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
         <div class="plan-bonus">{{ t('recharge.entBonus') }}</div>
@@ -117,7 +117,7 @@
       <div v-else class="order-list">
         <div v-for="o in orders" :key="o.order_no" class="order-item">
           <div class="order-left">
-            <div class="order-amount">¥{{ o.amount?.toFixed(2) }}</div>
+            <div class="order-amount">${{ o.amount?.toFixed(2) }}</div>
             <div class="order-meta">{{ dayjs(o.created_at).format('YYYY-MM-DD HH:mm') }}</div>
             <div class="order-no">{{ o.order_no }}</div>
           </div>

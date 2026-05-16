@@ -43,7 +43,7 @@
         <el-table-column prop="completion_tokens" label="输出Token" width="90" align="right" />
         <el-table-column prop="total_tokens" label="总Token" width="80" align="right" />
         <el-table-column prop="cost" label="费用" width="80" align="right">
-          <template #default="{ row }">¥{{ row.cost.toFixed(6) }}</template>
+          <template #default="{ row }">${{ row.cost.toFixed(6) }}</template>
         </el-table-column>
         <el-table-column prop="duration_ms" label="耗时" width="70" align="right">
           <template #default="{ row }">{{ row.duration_ms }}ms</template>

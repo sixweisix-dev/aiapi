@@ -13,7 +13,7 @@ import (
 
 // 审计阈值常量
 const (
-	BigCostThresholdCNY     = 50.0   // 单笔超 ¥50 记审计
+	BigCostThresholdCNY     = 50.0   // 单笔超 $50 记审计
 	HighRPMWindowMinutes    = 5      // 5 分钟窗口
 	HighRPMThreshold        = 100    // 5 分钟内 > 100 次请求记审计
 	HighFailureRateMinutes  = 5

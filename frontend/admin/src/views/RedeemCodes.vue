@@ -52,7 +52,7 @@
               </div>
               <div class="code-meta">
                 <span v-if="c.balance_amount > 0">
-                  余额 ¥{{ promoEnabled ? c.balance_amount : (c.face_value || c.balance_amount) }}
+                  余额 ${{ promoEnabled ? c.balance_amount : (c.face_value || c.balance_amount) }}
                   <el-tag v-if="!promoEnabled && c.face_value && c.face_value < c.balance_amount" type="info" size="small" style="margin-left:4px">活动关闭</el-tag>
                 </span>
                 <el-tag
@@ -61,7 +61,7 @@
                   size="small"
                 >{{
                   c.face_value <= 0 ? '旧码' :
-                  c.balance_amount > c.face_value ? `🎁 活动码 +¥${(c.balance_amount - c.face_value).toFixed(0)}` :
+                  c.balance_amount > c.face_value ? `🎁 活动码 +$${(c.balance_amount - c.face_value).toFixed(0)}` :
                   '普通码'
                 }}</el-tag>
                 <span v-if="c.membership_tier !== 'free'">{{ c.membership_tier }} {{ c.membership_days }}天</span>
@@ -152,12 +152,12 @@ const tierOptions = computed(() => {
   const opts = settingTiers.value.map(t => ({
     value: String(t.min),
     label: promoEnabled.value
-      ? `¥${t.min} 充值码（到账 ¥${(t.min + t.bonus).toFixed(0)}，含赠 ¥${t.bonus.toFixed(0)}）`
-      : `¥${t.min} 充值码（到账 ¥${t.min}，活动关闭按面值）`,
+      ? `$${t.min} 充值码（到账 $${(t.min + t.bonus).toFixed(0)}，含赠 $${t.bonus.toFixed(0)}）`
+      : `$${t.min} 充值码（到账 $${t.min}，活动关闭按面值）`,
     type: 'balance',
     balance_amount: t.min + t.bonus,
     face_value: t.min,
-    note: `闲鱼¥${t.min}充值码`,
+    note: `闲鱼$${t.min}充值码`,
     expiry_days: 180,
     count: t.min >= 1000 ? 5 : t.min >= 500 ? 10 : 20,
   }))
@@ -239,7 +239,7 @@ async function fetchStock() {
     const list = all.codes || []
     // 当前有效档位 note 集合（从 settingTiers + 固定会员档位）
     const activeNotes = new Set([
-      ...settingTiers.value.map(t => `闲鱼¥${t.min}充值码`),
+      ...settingTiers.value.map(t => `闲鱼$${t.min}充值码`),
       '闲鱼专业版30天', '闲鱼企业版30天',
     ])
     // 按 note 自动分组，动态统计库存
@@ -256,7 +256,7 @@ async function fetchStock() {
       ...s,
       active: activeNotes.has(s.note),
     })).sort((a, b) => {
-      const getNum = n => { const m = n.match(/¥(\d+)/); return m ? Number(m[1]) : 99999 }
+      const getNum = n => { const m = n.match(/$(\d+)/); return m ? Number(m[1]) : 99999 }
       return getNum(a.note) - getNum(b.note)
     })
   } catch {}

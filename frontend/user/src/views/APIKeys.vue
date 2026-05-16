@@ -80,7 +80,7 @@
             <div class="budget-header">
               <span class="budget-label">{{ t('apiKeys.monthlyBudget') }}</span>
               <span class="budget-amount" :class="getBudgetClass(k)">
-                ¥{{ Number(k.budget_used || 0).toFixed(2) }} / ¥{{ Number(k.monthly_budget).toFixed(2) }}
+                ${{ Number(k.budget_used || 0).toFixed(2) }} / ${{ Number(k.monthly_budget).toFixed(2) }}
                 ({{ getBudgetPct(k) }}%)
               </span>
             </div>

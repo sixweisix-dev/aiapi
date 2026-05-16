@@ -17,8 +17,8 @@
       <div class="stat-card stat-revenue">
         <div class="stat-icon">💰</div>
         <div class="stat-label">总收入</div>
-        <div class="stat-value">¥{{ Number(stats.total_revenue || 0).toFixed(2) }}</div>
-        <div class="stat-sub">今日 ¥{{ Number(stats.today_revenue || 0).toFixed(2) }}</div>
+        <div class="stat-value">${{ Number(stats.total_revenue || 0).toFixed(2) }}</div>
+        <div class="stat-sub">今日 ${{ Number(stats.today_revenue || 0).toFixed(2) }}</div>
       </div>
       <div class="stat-card stat-channels">
         <div class="stat-icon">🔌</div>

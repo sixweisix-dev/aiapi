@@ -101,16 +101,16 @@ func (h *CronHandler) DailyReport(c *gin.Context) {
 		prefix = "⚠️ 警告 "
 	}
 
-	subject := fmt.Sprintf("%sTransitAI 日报 %s | 上游成本 ¥%.2f", prefix, yesterday.Format("01-02"), upstreamCost)
+	subject := fmt.Sprintf("%sTransitAI 日报 %s | 上游成本 $%.2f", prefix, yesterday.Format("01-02"), upstreamCost)
 	body := fmt.Sprintf(`TransitAI 每日运营日报
 
 📅 数据范围：%s 全天 (Asia/Shanghai)
 
 💰 财务
-- 用户消费总额（收入）  ¥%.2f
-- 上游 API 真实成本    ¥%.2f
-- 毛利              ¥%.2f
-- 昨日充值成功         ¥%.2f
+- 用户消费总额（收入）  $%.2f
+- 上游 API 真实成本    $%.2f
+- 毛利              $%.2f
+- 昨日充值成功         $%.2f
 
 📊 流量
 - API 调用总次数       %d
@@ -118,8 +118,8 @@ func (h *CronHandler) DailyReport(c *gin.Context) {
 - 失败请求数         %d (%.1f%%)
 
 📌 告警阈值
-- 警告阈值         ¥%.2f (上游成本)
-- 紧急阈值         ¥%.2f
+- 警告阈值         $%.2f (上游成本)
+- 紧急阈值         $%.2f
 - 当前级别         %s
 
 如需调整阈值，登录管理后台 → 系统设置。
@@ -211,7 +211,7 @@ func (h *CronHandler) doRestock(c *gin.Context) {
 
 	var configs []stockCfg
 	for _, t := range tierDefs {
-		note := fmt.Sprintf("闲鱼¥%.0f充值码", t.Min)
+		note := fmt.Sprintf("闲鱼$%.0f充值码", t.Min)
 		balance := t.Min + t.Bonus
 		thresh := 5
 		if t.Min >= 3000 {

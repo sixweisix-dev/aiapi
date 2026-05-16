@@ -31,10 +31,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="balance" label="余额" width="120" align="right">
-          <template #default="{ row }">¥{{ row.balance.toFixed(2) }}</template>
+          <template #default="{ row }">${{ row.balance.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="total_spent" label="总消费" width="120" align="right">
-          <template #default="{ row }">¥{{ row.total_spent.toFixed(2) }}</template>
+          <template #default="{ row }">${{ row.total_spent.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="request_count" label="请求数" width="90" align="right" />
         <el-table-column prop="is_active" label="状态" width="80">

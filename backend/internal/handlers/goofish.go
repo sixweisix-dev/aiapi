@@ -170,7 +170,7 @@ func (h *GoofishHandler) AdminStockSummary(c *gin.Context) {
 		{"闲鱼企业版30天", 600},
 	}
 	for _, t := range tierDefs {
-		note := fmt.Sprintf("闲鱼¥%.0f充值码", t.Min)
+		note := fmt.Sprintf("闲鱼$%.0f充值码", t.Min)
 		expectedBal := t.Min
 		if promoEnabled {
 			expectedBal = t.Min + t.Bonus

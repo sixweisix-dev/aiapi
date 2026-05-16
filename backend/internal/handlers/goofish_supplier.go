@@ -42,13 +42,13 @@ type GoofishSKU struct {
 
 var goofishSKUs = []GoofishSKU{
 	// BalanceAmount = 原价 / Bonus = 活动赠送(活动开启时叠加) / PriceCents = 防亏损最低售价线(分)
-	{"recharge_100", "TransitAI ¥100 API 充值码 (赠 ¥8)", "balance", 100, 8, "", 0, 9500, 10000, "闲鱼¥100充值码"},
-	{"recharge_300", "TransitAI ¥300 API 充值码 (赠 ¥30)", "balance", 300, 30, "", 0, 28500, 30000, "闲鱼¥300充值码"},
-	{"recharge_500", "TransitAI ¥500 API 充值码 (赠 ¥75)", "balance", 500, 75, "", 0, 47500, 50000, "闲鱼¥500充值码"},
-	{"recharge_1000", "TransitAI ¥1000 API 充值码 (赠 ¥200)", "balance", 1000, 200, "", 0, 95000, 100000, "闲鱼¥1000充值码"},
-	{"recharge_3000", "TransitAI ¥3000 API 充值码 (赠 ¥750)", "balance", 3000, 750, "", 0, 285000, 300000, "闲鱼¥3000充值码"},
-	{"member_pro_30", "TransitAI 专业版 30 天 (含 ¥120 余额)", "membership", 120, 0, "pro", 30, 9400, 12000, "闲鱼专业版30天"},
-	{"member_ent_30", "TransitAI 企业版 30 天 (含 ¥600 余额)", "membership", 600, 0, "enterprise", 30, 47400, 60000, "闲鱼企业版30天"},
+	{"recharge_100", "TransitAI $100 API 充值码 (赠 $8)", "balance", 100, 8, "", 0, 9500, 10000, "闲鱼$100充值码"},
+	{"recharge_300", "TransitAI $300 API 充值码 (赠 $30)", "balance", 300, 30, "", 0, 28500, 30000, "闲鱼$300充值码"},
+	{"recharge_500", "TransitAI $500 API 充值码 (赠 $75)", "balance", 500, 75, "", 0, 47500, 50000, "闲鱼$500充值码"},
+	{"recharge_1000", "TransitAI $1000 API 充值码 (赠 $200)", "balance", 1000, 200, "", 0, 95000, 100000, "闲鱼$1000充值码"},
+	{"recharge_3000", "TransitAI $3000 API 充值码 (赠 $750)", "balance", 3000, 750, "", 0, 285000, 300000, "闲鱼$3000充值码"},
+	{"member_pro_30", "TransitAI 专业版 30 天 (含 $120 余额)", "membership", 120, 0, "pro", 30, 9400, 12000, "闲鱼专业版30天"},
+	{"member_ent_30", "TransitAI 企业版 30 天 (含 $600 余额)", "membership", 600, 0, "enterprise", 30, 47400, 60000, "闲鱼企业版30天"},
 }
 
 func findSKU(goodsNo string) *GoofishSKU {

@@ -127,9 +127,9 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 
 	msg := fmt.Sprintf("兑换成功！")
 	if actualAmount > 0 && rc.Type == "balance" {
-		msg = fmt.Sprintf("兑换成功！余额 +¥%.2f", actualAmount)
+		msg = fmt.Sprintf("兑换成功！余额 +$%.2f", actualAmount)
 	} else if rc.MembershipTier != "free" {
-		msg = fmt.Sprintf("兑换成功！已开通 %s %d 天，余额 +¥%.2f", rc.MembershipTier, rc.MembershipDays, actualAmount)
+		msg = fmt.Sprintf("兑换成功！已开通 %s %d 天，余额 +$%.2f", rc.MembershipTier, rc.MembershipDays, actualAmount)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": msg})
 }

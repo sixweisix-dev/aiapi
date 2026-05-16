@@ -30,7 +30,7 @@ const rawData = ref([])
 const metric = ref('cost')
 
 const metrics = [
-  { key: 'cost', label: '金额(¥)' },
+  { key: 'cost', label: '金额($)' },
   { key: 'tokens', label: 'Token' },
   { key: 'requests', label: '请求数' },
 ]
@@ -91,7 +91,7 @@ function shortName(m) {
 }
 
 function formatValue(v, axis) {
-  if (metric.value === 'cost') return '¥' + Number(v).toFixed(axis ? 2 : 4)
+  if (metric.value === 'cost') return '$' + Number(v).toFixed(axis ? 2 : 4)
   if (metric.value === 'tokens') {
     if (v >= 10000) return (v / 1000).toFixed(1) + 'K'
     return v.toString()

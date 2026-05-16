@@ -25,7 +25,7 @@
           <template #default="{ row }">{{ row.user_id.slice(0, 8) }}...</template>
         </el-table-column>
         <el-table-column prop="amount" label="金额" width="100" align="right">
-          <template #default="{ row }">¥{{ row.amount.toFixed(2) }}</template>
+          <template #default="{ row }">${{ row.amount.toFixed(2) }}</template>
         </el-table-column>
         <el-table-column prop="payment_method" label="支付方式" width="100" />
         <el-table-column prop="payment_status" label="状态" width="100">

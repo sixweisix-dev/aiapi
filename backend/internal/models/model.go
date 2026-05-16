@@ -124,8 +124,8 @@ type UpstreamChannel struct {
 	ErrorStreak         int        `gorm:"not null;default:0"`                            // 连续失败次数(达阈值自动禁用)
 
 	// === 成本统计 ===
-	DailyCostCNY        float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 今日成本(CNY)
-	MonthlyCostCNY      float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 本月成本(CNY)
+	DailyCostCNY        float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 今日成本(USD)
+	MonthlyCostCNY      float64    `gorm:"type:decimal(20,8);not null;default:0"`        // 本月成本(USD)
 
 	// === 缓存命中率 ===
 	CacheHitTokens      int64      `gorm:"not null;default:0"`                            // 累计 cache_read tokens

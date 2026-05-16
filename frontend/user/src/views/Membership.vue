@@ -28,12 +28,12 @@
         <div class="plan-icon">💼</div>
         <div class="plan-name">专业版</div>
         <div class="plan-price">
-          <span class="price-num">¥99</span>
+          <span class="price-num">$99</span>
           <span class="price-unit">/ 月</span>
         </div>
-        <div class="plan-bonus">充 ¥99 → 到账 ¥120（送 ¥21）</div>
+        <div class="plan-bonus">充 $99 → 到账 $120（送 $21）</div>
         <ul class="plan-features">
-          <li><span class="ok">✓</span> 充值到账 <b>¥120</b></li>
+          <li><span class="ok">✓</span> 充值到账 <b>$120</b></li>
           <li><span class="ok">✓</span> RPM <b>60</b>（10 倍提速）</li>
           <li><span class="ok">✓</span> TPM <b>10 万</b></li>
           <li><span class="ok">✓</span> API Key 数量 <b>5 个</b></li>
@@ -53,12 +53,12 @@
         <div class="plan-icon">👑</div>
         <div class="plan-name">企业版</div>
         <div class="plan-price">
-          <span class="price-num">¥499</span>
+          <span class="price-num">$499</span>
           <span class="price-unit">/ 月</span>
         </div>
-        <div class="plan-bonus">充 ¥499 → 到账 ¥600（送 ¥101）</div>
+        <div class="plan-bonus">充 $499 → 到账 $600（送 $101）</div>
         <ul class="plan-features">
-          <li><span class="ok">✓</span> 充值到账 <b>¥600</b></li>
+          <li><span class="ok">✓</span> 充值到账 <b>$600</b></li>
           <li><span class="ok">✓</span> RPM <b>600</b>（100 倍提速）</li>
           <li><span class="ok">✓</span> TPM <b>100 万</b></li>
           <li><span class="ok">✓</span> API Key <b>不限数量</b></li>

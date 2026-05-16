@@ -26,7 +26,7 @@ type CreateAPIKeyRequest struct {
 	RPMLimit       *int     `json:"rpm_limit,omitempty"`  // 每分钟请求数限制
 	TPMLimit       *int     `json:"tpm_limit,omitempty"`  // 每分钟 token 限制
 	ProjectName    *string  `json:"project_name,omitempty"`    // 项目名（B 端用）
-	MonthlyBudget  *float64 `json:"monthly_budget,omitempty"`  // 月预算（CNY）
+	MonthlyBudget  *float64 `json:"monthly_budget,omitempty"`  // 月预算（USD）
 	BudgetAlertPct *int     `json:"budget_alert_pct,omitempty"` // 预算告警阈值（默认 80%）
 }
 

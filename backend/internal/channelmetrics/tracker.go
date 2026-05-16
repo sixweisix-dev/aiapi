@@ -40,7 +40,7 @@ func New(db *gorm.DB, rdb *redis.Client, alerter *monitoring.TelegramAlerter, ba
 }
 
 // RecordSuccess 记录一次成功请求 (扣费成功后调用)
-// costCNY: 本次费用(CNY); cacheReadTokens/cacheTotalTokens: 用于缓存命中率
+// costCNY: 本次费用(USD); cacheReadTokens/cacheTotalTokens: 用于缓存命中率
 func (t *Tracker) RecordSuccess(channelID string, costCNY float64, cacheReadTokens, totalInputTokens int, latencyMs int64) {
 	if channelID == "" {
 		return
@@ -337,11 +337,11 @@ func (t *Tracker) checkSubscriptionExpiry() {
 
 
 // === 自动专属渠道隔离 ===
-// 触发条件：30 分钟内单用户在该渠道扣费占比 >= 30% 且 >= ¥1（避免低流量误触）
+// 触发条件：30 分钟内单用户在该渠道扣费占比 >= 30% 且 >= $1（避免低流量误触）
 const (
 	autoDedicateWindowMin  = 30   // 30 分钟滑动窗口
 	autoDedicateRatio      = 0.30 // 30% 占比阈值
-	autoDedicateMinCents   = 100  // 最低 ¥1（避免低流量误触）
+	autoDedicateMinCents   = 100  // 最低 $1（避免低流量误触）
 )
 
 // CheckAutoDedicate 在每次 RecordSuccess 之后被调用：
@@ -416,7 +416,7 @@ func (t *Tracker) CheckAutoDedicate(channelID, userID string, costCNY float64) {
 	}
 
 	ratioPct := float64(userTotal) / float64(chTotal) * 100
-	msg := fmt.Sprintf("🟡 自动专属隔离触发\n用户: %s\n源渠道: %s\n30分钟成本: ¥%.2f / ¥%.2f (%.0f%%)\n隔离至: %s",
+	msg := fmt.Sprintf("🟡 自动专属隔离触发\n用户: %s\n源渠道: %s\n30分钟成本: $%.2f / $%.2f (%.0f%%)\n隔离至: %s",
 		userID, ch.Name, float64(userTotal)/100, float64(chTotal)/100, ratioPct, target.Name)
 	t.notify(msg)
 	log.Printf("[auto_dedicate] user=%s ch=%s -> %s (ratio=%.0f%%)", userID, ch.Name, target.Name, ratioPct)

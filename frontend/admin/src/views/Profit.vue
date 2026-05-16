@@ -19,7 +19,7 @@
         <div class="kpi-card kpi-revenue">
           <div class="kpi-icon">📈</div>
           <div class="kpi-label">收入</div>
-          <div class="kpi-value">¥{{ fmt(data.summary?.revenue) }}</div>
+          <div class="kpi-value">${{ fmt(data.summary?.revenue) }}</div>
           <div class="kpi-sub">{{ data.summary?.request_count || 0 }} 次请求</div>
         </div>
       </el-col>
@@ -27,7 +27,7 @@
         <div class="kpi-card kpi-cost">
           <div class="kpi-icon">💸</div>
           <div class="kpi-label">成本</div>
-          <div class="kpi-value">¥{{ fmt(data.summary?.cost) }}</div>
+          <div class="kpi-value">${{ fmt(data.summary?.cost) }}</div>
           <div class="kpi-sub">Anthropic 实付</div>
         </div>
       </el-col>
@@ -35,7 +35,7 @@
         <div class="kpi-card kpi-profit">
           <div class="kpi-icon">💎</div>
           <div class="kpi-label">毛利</div>
-          <div class="kpi-value">¥{{ fmt(data.summary?.profit) }}</div>
+          <div class="kpi-value">${{ fmt(data.summary?.profit) }}</div>
           <div class="kpi-sub">收入 − 成本</div>
         </div>
       </el-col>
@@ -52,7 +52,7 @@
                 · = 1.00 = 持平<br/>
                 · &gt; 1.00 = 盈利<br/>
                 <br/>
-                受 <strong>用户定价倍率</strong> + <strong>包月摊销</strong> 共同影响. 当前 {{ ((data.multiplier || 0) * 100).toFixed(1) }}% 表示每 ¥1 成本只收回 ¥{{ (data.multiplier || 0).toFixed(2) }}.
+                受 <strong>用户定价倍率</strong> + <strong>包月摊销</strong> 共同影响. 当前 {{ ((data.multiplier || 0) * 100).toFixed(1) }}% 表示每 $1 成本只收回 ${{ (data.multiplier || 0).toFixed(2) }}.
               </div>
             </template>
             <div class="kpi-sub" style="cursor: help; text-decoration: underline dotted; text-underline-offset: 3px">收支比 {{ data.multiplier ? Number(data.multiplier).toFixed(4) : '-' }}x ⓘ</div>
@@ -95,8 +95,8 @@
               <span class="model-count">{{ m.request_count }} 次</span>
             </div>
             <div class="model-money">
-              <span class="m-revenue">+¥{{ m.revenue.toFixed(2) }}</span>
-              <span class="m-profit">毛利 ¥{{ m.profit.toFixed(2) }}</span>
+              <span class="m-revenue">+${{ m.revenue.toFixed(2) }}</span>
+              <span class="m-profit">毛利 ${{ m.profit.toFixed(2) }}</span>
             </div>
           </div>
           <el-progress
@@ -129,8 +129,8 @@
               <span class="model-count">{{ g.request_count }} 次</span>
             </div>
             <div class="model-money">
-              <span class="m-revenue">+¥{{ Number(g.revenue).toFixed(2) }}</span>
-              <span class="m-profit">毛利 ¥{{ Number(g.profit).toFixed(2) }}</span>
+              <span class="m-revenue">+${{ Number(g.revenue).toFixed(2) }}</span>
+              <span class="m-profit">毛利 ${{ Number(g.profit).toFixed(2) }}</span>
             </div>
           </div>
           <el-progress
@@ -161,7 +161,7 @@
             <div class="user-email">{{ u.email }}</div>
             <div class="user-meta">{{ u.request_count }} 次请求</div>
           </div>
-          <div class="user-money">¥{{ u.revenue.toFixed(2) }}</div>
+          <div class="user-money">${{ u.revenue.toFixed(2) }}</div>
         </div>
       </div>
     </el-card>
@@ -178,17 +178,17 @@
         <el-table-column prop="date" label="日期" min-width="110" />
         <el-table-column label="收入" align="right" min-width="100">
           <template #default="{ row }">
-            <span class="t-revenue">¥{{ row.revenue.toFixed(2) }}</span>
+            <span class="t-revenue">${{ row.revenue.toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="成本" align="right" min-width="100">
           <template #default="{ row }">
-            <span class="t-cost">¥{{ row.cost.toFixed(2) }}</span>
+            <span class="t-cost">${{ row.cost.toFixed(2) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="毛利" align="right" min-width="100">
           <template #default="{ row }">
-            <span class="t-profit">¥{{ row.profit.toFixed(2) }}</span>
+            <span class="t-profit">${{ row.profit.toFixed(2) }}</span>
           </template>
         </el-table-column>
       </el-table>

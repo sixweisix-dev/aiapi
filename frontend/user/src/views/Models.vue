@@ -37,22 +37,22 @@
           <div class="price-grid four-col">
             <div class="price-block">
               <div class="price-label">{{ t('models.input') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.output') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.output_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
+              <div class="price-value">${{ Number(finalPrice(m.output_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheRead') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 0.1).toFixed(4) }}</div>
+              <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 0.1).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheWrite') }}</div>
-              <div class="price-value">¥{{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 1.25).toFixed(4) }}</div>
+              <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 1.25).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
           </div>

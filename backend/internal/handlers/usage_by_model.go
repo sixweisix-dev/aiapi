@@ -22,7 +22,7 @@ func NewUsageByModelHandler(db *gorm.DB) *UsageByModelHandler {
 type DailyModelStat struct {
 	Date     string  `json:"date"`     // 2026-05-03
 	Model    string  `json:"model"`    // claude-opus-4-7
-	Cost     float64 `json:"cost"`     // 该日该模型总消耗(CNY)
+	Cost     float64 `json:"cost"`     // 该日该模型总消耗(USD)
 	Tokens   int64   `json:"tokens"`   // 该日该模型总 token
 	Requests int64   `json:"requests"` // 该日该模型请求数
 }

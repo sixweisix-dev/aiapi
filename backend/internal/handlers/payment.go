@@ -100,11 +100,11 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 
 	// 会员套餐金额必须固定
 	if intent == "membership_pro" && math.Abs(amount-99) > 0.01 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "专业版套餐金额必须为 ¥99"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "专业版套餐金额必须为 $99"})
 		return
 	}
 	if intent == "membership_enterprise" && math.Abs(amount-499) > 0.01 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "企业版套餐金额必须为 ¥499"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "企业版套餐金额必须为 $499"})
 		return
 	}
 
@@ -133,11 +133,11 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 	p.ReturnURL = h.alipayCfg.ReturnURL
 	switch intent {
 	case "membership_pro":
-		p.Subject = fmt.Sprintf("TransitAI 专业版会员 - ¥%.2f", amount)
+		p.Subject = fmt.Sprintf("TransitAI 专业版会员 - $%.2f", amount)
 	case "membership_enterprise":
-		p.Subject = fmt.Sprintf("TransitAI 企业版会员 - ¥%.2f", amount)
+		p.Subject = fmt.Sprintf("TransitAI 企业版会员 - $%.2f", amount)
 	default:
-		p.Subject = fmt.Sprintf("TransitAI 余额充值 - ¥%.2f", amount)
+		p.Subject = fmt.Sprintf("TransitAI 余额充值 - $%.2f", amount)
 	}
 	p.OutTradeNo = orderNo
 	p.TotalAmount = fmt.Sprintf("%.2f", amount)
@@ -350,7 +350,7 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 			nowFR := time.Now()
 			userUpdates["first_recharge_at"] = &nowFR
 		}
-		// 如果是会员套餐充值（¥99 / ¥499），同时升级会员
+		// 如果是会员套餐充值（$99 / $499），同时升级会员
 		if upgradeTier != "" && durationDays > 0 {
 			now := time.Now()
 			// 如果已有未过期会员，叠加时间；否则从现在开始
@@ -386,9 +386,9 @@ func (h *PaymentHandler) processSuccessfulPayment(noti *alipay.Notification) err
 		var desc string
 		if upgradeTier != "" {
 			limits := membership.TierLimits[upgradeTier]
-			desc = fmt.Sprintf("支付宝充值 ¥%.2f（升级%s，到账 ¥%.2f）", order.Amount, limits.DisplayName, actualAmount)
+			desc = fmt.Sprintf("支付宝充值 $%.2f（升级%s，到账 $%.2f）", order.Amount, limits.DisplayName, actualAmount)
 		} else {
-			desc = fmt.Sprintf("支付宝充值 ¥%.2f", actualAmount)
+			desc = fmt.Sprintf("支付宝充值 $%.2f", actualAmount)
 		}
 		billingRecord := &models.BillingRecord{
 			UserID:        order.UserID,

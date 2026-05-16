@@ -268,7 +268,7 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (CNY)", "扣费后余额 (CNY)", "状态码", "耗时(ms)", "IP"})
+	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (USD)", "扣费后余额 (USD)", "状态码", "耗时(ms)", "IP"})
 
 	var totalCost float64
 	var totalTokens int

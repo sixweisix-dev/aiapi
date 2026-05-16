@@ -12,7 +12,7 @@
         <el-form label-position="top">
           <el-form-item>
             <template #label>
-              <div class="lbl">注册赠送余额（¥）</div>
+              <div class="lbl">注册赠送余额（$）</div>
               <div class="lbl-desc">新用户注册成功后自动到账。同 IP 每日限领 1 次。设为 0 关闭。</div>
             </template>
             <el-input-number v-model="signupBonus" :min="0" :max="1000" :precision="2" :step="1" size="large" style="width: 240px" />
@@ -28,7 +28,7 @@
           <el-form-item>
             <template #label>
               <div class="lbl">活动总开关</div>
-              <div class="lbl-desc">关闭后所有充值都按本金到账（会员套餐 ¥99/¥499 不受影响）</div>
+              <div class="lbl-desc">关闭后所有充值都按本金到账（会员套餐 $99/$499 不受影响）</div>
             </template>
             <el-switch v-model="promoEnabled" />
           </el-form-item>
@@ -66,14 +66,14 @@
             <template #label>
               <div class="lbl">阶梯赠送规则</div>
               <div class="lbl-desc">
-                按"充值金额 ≥ 门槛"匹配最高档赠送。会员套餐 ¥99/¥499 不会触发阶梯。
+                按"充值金额 ≥ 门槛"匹配最高档赠送。会员套餐 $99/$499 不会触发阶梯。
                 <span style="color:#ef4444">⚠️ 单档赠送 ÷ 充值金额建议 ≤ 28%（避免负毛利）</span>
               </div>
             </template>
             <div class="tier-table">
               <div class="tier-head">
-                <span>充值门槛 (¥)</span>
-                <span>额外赠送 (¥)</span>
+                <span>充值门槛 ($)</span>
+                <span>额外赠送 ($)</span>
                 <span>赠送占比</span>
                 <span>毛利率(估)</span>
                 <span></span>
@@ -91,7 +91,7 @@
 
           <el-form-item>
             <template #label>
-              <div class="lbl">新人首充额外礼（¥）</div>
+              <div class="lbl">新人首充额外礼（$）</div>
               <div class="lbl-desc">仅第一次充值时叠加在阶梯之上，不论充多少都送这个固定金额。设为 0 关闭。</div>
             </template>
             <el-input-number v-model="firstRechargeBonus" :min="0" :max="500" :precision="2" :step="10" size="large" style="width: 240px" />
@@ -121,14 +121,14 @@
           </el-form-item>
           <el-form-item>
             <template #label>
-              <div class="lbl">⚠️ 警告阈值（¥）</div>
+              <div class="lbl">⚠️ 警告阈值（$）</div>
               <div class="lbl-desc">昨日上游成本超过此值发普通告警邮件</div>
             </template>
             <el-input-number v-model="alertWarn" :min="0" :max="100000" :precision="0" :step="50" size="large" style="width: 240px" />
           </el-form-item>
           <el-form-item>
             <template #label>
-              <div class="lbl">🚨 紧急阈值（¥）</div>
+              <div class="lbl">🚨 紧急阈值（$）</div>
               <div class="lbl-desc">超过此值邮件标题加 🚨 前缀</div>
             </template>
             <el-input-number v-model="alertCritical" :min="0" :max="100000" :precision="0" :step="100" size="large" style="width: 240px" />
@@ -227,8 +227,8 @@ const previewText = computed(() => {
     if (sampleMin >= t.min && t.bonus > bonus) bonus = t.bonus
   }
   const fb = firstRechargeBonus.value || 0
-  examples.push(`首充 ¥${sampleMin} → 实际到账 ¥${(sampleMin + bonus + fb).toFixed(2)}（本金 ¥${sampleMin} + 阶梯 ¥${bonus} + 新人 ¥${fb}）`)
-  examples.push(`第二次充 ¥${sampleMin} → 实际到账 ¥${(sampleMin + bonus).toFixed(2)}（仅享阶梯）`)
+  examples.push(`首充 $${sampleMin} → 实际到账 $${(sampleMin + bonus + fb).toFixed(2)}（本金 $${sampleMin} + 阶梯 $${bonus} + 新人 $${fb}）`)
+  examples.push(`第二次充 $${sampleMin} → 实际到账 $${(sampleMin + bonus).toFixed(2)}（仅享阶梯）`)
   return examples.join(' / ')
 })
 

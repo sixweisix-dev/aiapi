@@ -93,7 +93,7 @@ function shortName(m) {
 }
 
 function formatValue(v, axis) {
-  if (metric.value === 'cost') return '¥' + Number(v).toFixed(axis ? 2 : 4)
+  if (metric.value === 'cost') return '$' + Number(v).toFixed(axis ? 2 : 4)
   if (metric.value === 'tokens') {
     if (v >= 10000) return (v / 1000).toFixed(1) + 'K'
     return v.toString()

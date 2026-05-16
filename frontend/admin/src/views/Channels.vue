@@ -69,11 +69,11 @@
         </el-table-column>
 
         <el-table-column prop="daily_cost_cny" label="今日成本" width="100" align="right">
-          <template #default="{ row }">¥{{ Number(row.daily_cost_cny || 0).toFixed(4) }}</template>
+          <template #default="{ row }">${{ Number(row.daily_cost_cny || 0).toFixed(4) }}</template>
         </el-table-column>
 
         <el-table-column prop="monthly_cost_cny" label="本月成本" width="100" align="right">
-          <template #default="{ row }">¥{{ Number(row.monthly_cost_cny || 0).toFixed(2) }}</template>
+          <template #default="{ row }">${{ Number(row.monthly_cost_cny || 0).toFixed(2) }}</template>
         </el-table-column>
 
         <el-table-column prop="error_streak" label="连失败" width="80" align="center">

@@ -104,7 +104,7 @@
             <p class="price-tagline">{{ t('landing.proTag') }}</p>
           </div>
           <div class="price-amount">
-            <span class="price-num">¥99</span>
+            <span class="price-num">$99</span>
             <span class="price-unit">{{ t('landing.proUnit') }}</span>
           </div>
           <ul class="price-features">
@@ -125,7 +125,7 @@
             <p class="price-tagline">{{ t('landing.entTag') }}</p>
           </div>
           <div class="price-amount">
-            <span class="price-num">¥499</span>
+            <span class="price-num">$499</span>
             <span class="price-unit">{{ t('landing.entUnit') }}</span>
           </div>
           <ul class="price-features">
@@ -177,9 +177,9 @@
                     <span class="model-display-name">{{ m.display_name }}</span>
                     <code class="model-id-code">{{ m.name }}</code>
                   </td>
-                  <td class="price-cell">¥{{ (m.input_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
-                  <td class="price-cell">¥{{ (m.output_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
-                  <td class="price-cell price-dim">¥{{ (m.input_price * m.multiplier * m.group_multiplier * 1000 * 0.1).toFixed(4) }}</td>
+                  <td class="price-cell">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                  <td class="price-cell">${{ (m.output_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                  <td class="price-cell price-dim">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000 * 0.1).toFixed(4) }}</td>
                   <td class="ctx-cell">{{ m.context_length >= 1000 ? (m.context_length/1000).toFixed(0)+'K' : m.context_length }}</td>
                 </tr>
               </tbody>

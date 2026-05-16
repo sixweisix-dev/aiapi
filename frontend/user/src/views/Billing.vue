@@ -39,7 +39,7 @@
     <div class="data-card">
       <div class="card-header">
         <span class="card-title">{{ t('billing.listTitle') }}</span>
-        <span class="card-tag">{{ total }} {{ t('billing.rowsUnit') }} · {{ t('billing.pageSpent') }}: ¥{{ pageSpent.toFixed(4) }}</span>
+        <span class="card-tag">{{ total }} {{ t('billing.rowsUnit') }} · {{ t('billing.pageSpent') }}: ${{ pageSpent.toFixed(4) }}</span>
       </div>
       <div v-if="loading" class="empty-tip">{{ t('billing.loading') }}</div>
       <div v-else-if="items.length === 0" class="empty-tip">{{ t('billing.noBills') }}</div>
@@ -48,12 +48,12 @@
           <div class="bill-row">
             <span class="bill-tag" :class="tagCls(b.type)">{{ typeLabel(b.type) }}</span>
             <span class="bill-amount" :class="b.amount > 0 ? 'income' : 'outcome'">
-              {{ b.amount > 0 ? '+' : '' }}¥{{ Number(b.amount || 0).toFixed(6) }}
+              {{ b.amount > 0 ? '+' : '' }}${{ Number(b.amount || 0).toFixed(6) }}
             </span>
           </div>
           <div class="bill-desc">{{ b.description || '-' }}</div>
           <div class="bill-meta">
-            <span>{{ t('billing.balancePrefix') }}: ¥{{ Number(b.balance_after || 0).toFixed(4) }}</span>
+            <span>{{ t('billing.balancePrefix') }}: ${{ Number(b.balance_after || 0).toFixed(4) }}</span>
             <span>·</span>
             <span>{{ dayjs(b.created_at).format('YYYY-MM-DD HH:mm') }}</span>
           </div>
