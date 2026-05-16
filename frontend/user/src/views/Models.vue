@@ -13,7 +13,7 @@
       <div class="group-tabs">
         <button v-for="g in groups" :key="g.slug" :class="['group-tab', activeGroup === g.slug ? 'active' : '']" @click="activeGroup = g.slug">
           {{ g.name }}
-          <span class="tab-rate">{{ Number(g.multiplier).toFixed(2) }}×</span>
+          <span class="tab-rate" v-if="Number(g.multiplier) !== 1">{{ Number(g.multiplier).toFixed(2) }}×</span>
         </button>
       </div>
       <div v-if="activeGroupDesc" class="group-desc-card">
@@ -59,7 +59,7 @@
           <div class="model-meta">
             <span>{{ t('models.context') }} {{ (m.context_length / 1000).toFixed(0) }}K</span>
             <span>·</span>
-            <span>{{ t('models.multiplier') }} {{ Number((m.multiplier || 1) * (m.group_multiplier || 1)).toFixed(2) }}×</span>
+            <span v-if="Number((m.multiplier || 1) * (m.group_multiplier || 1)) !== 1">{{ t('models.multiplier') }} {{ Number((m.multiplier || 1) * (m.group_multiplier || 1)).toFixed(2) }}×</span>
           </div>
             <div v-if="m.description" class="model-desc">{{ m.description }}</div>
           </div>

@@ -106,13 +106,17 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	}
 
 	// Look up model in DB
-	resolvedModelID, provider, err := h.resolveModel(req.Model)
+	resolvedModelID, provider, upstreamName, err := h.resolveModel(req.Model)
 	if err != nil {
 		c.JSON(404, gin.H{"error": gin.H{"message": err.Error(), "type": "model_not_found"}})
 		return
 	}
 
 	// Get model pricing for later cost calculation
+	// 转发到上游时使用 upstream_name 别名 (适用于多模型聚合渠道,上游真实模型名与 TransitAI 内部名不同)
+	if upstreamName != "" && upstreamName != req.Model {
+		req.Model = upstreamName
+	}
 	priceRow, err := h.billingEngine.GetModelPrice(resolvedModelID)
 	if err != nil {
 		c.JSON(502, gin.H{"error": gin.H{"message": "pricing lookup failed", "type": "internal_error"}})
@@ -446,17 +450,22 @@ func (h *ChatHandler) postProcess(userID, modelID, apiKeyID string, ch *upstream
 		userID[:8], modelName, promptTokens, completionTokens, cost, durationMs)
 }
 
-func (h *ChatHandler) resolveModel(modelName string) (modelID, provider string, err error) {
+func (h *ChatHandler) resolveModel(modelName string) (modelID, provider, upstreamName string, err error) {
 	type modelRow struct {
-		ID       string
-		Provider string
+		ID           string
+		Provider     string
+		UpstreamName *string `gorm:"column:upstream_name"`
 	}
 	var row modelRow
-	result := h.db.Table("models").Select("id, provider").Where("name = ? AND is_enabled = ?", modelName, true).First(&row)
+	result := h.db.Table("models").Select("id, provider, upstream_name").Where("name = ? AND is_enabled = ?", modelName, true).First(&row)
 	if result.Error != nil {
-		return "", "", result.Error
+		return "", "", "", result.Error
 	}
-	return row.ID, row.Provider, nil
+	up := ""
+	if row.UpstreamName != nil {
+		up = *row.UpstreamName
+	}
+	return row.ID, row.Provider, up, nil
 }
 
 func (h *ChatHandler) checkAllowedModel(modelID, apiKeyHash string) error {

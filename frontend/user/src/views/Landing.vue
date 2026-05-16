@@ -154,7 +154,7 @@
               @click="activePricingGroup = g.slug"
             >
               {{ g.name }}
-              <span class="tab-rate-landing">{{ Number(g.multiplier).toFixed(2) }}×</span>
+              <span class="tab-rate-landing" v-if="Number(g.multiplier) !== 1">{{ Number(g.multiplier).toFixed(2) }}×</span>
             </button>
           </div>
             <div v-if="activePricingGroupDesc" class="group-desc-landing">

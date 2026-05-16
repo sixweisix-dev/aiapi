@@ -75,7 +75,7 @@
     </el-card>
 
     <!-- 模型分组与版本 (移到两种格式对比后) -->
-    <el-card v-if="channelGroups.length > 0" shadow="hover" class="doc-card">
+    <el-card v-if="channelGroups.length > 1" shadow="hover" class="doc-card">
       <template #header><span class="card-title">{{ t('apiDocs.groupsTitle') }}</span></template>
       <p class="desc-text">{{ t('apiDocs.groupsDesc') }}</p>
       <el-table :data="channelGroups" border class="compare-table">
@@ -96,8 +96,8 @@
         </el-table-column>
       </el-table>
       <p class="desc-text" style="margin-top: 12px;">{{ t('apiDocs.groupsExample') }}</p>
-      <pre class="code-block">claude-haiku-4-5-20251001         {{ t('apiDocs.groupExampleEcon') }}
-claude-haiku-4-5-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
+      <pre class="code-block">claude-mix-20251001         {{ t('apiDocs.groupExampleEcon') }}
+claude-mix-20251001-pro     {{ t('apiDocs.groupExamplePro') }}</pre>
 
       <!-- 完整格式示例 (合并 OpenAI/Anthropic 两种格式 + 多语言) -->
       <p class="desc-text" style="margin-top: 20px; font-weight: 600;">{{ t('apiDocs.groupCodeTitle') }}</p>
@@ -236,7 +236,7 @@ cc</pre>
           <ul class="config-list">
             <li><code>/help</code> — {{ t('apiDocs.ccFull5Cmd1').split('—')[1] }}</li>
             <li><code>/clear</code> — {{ t('apiDocs.ccFull5Cmd2').split('—')[1] }}</li>
-            <li><code>/model claude-opus-4-7</code> — {{ t('apiDocs.ccFull5Cmd3').split('—')[1] }}</li>
+            <li><code>/model claude-mix</code> — {{ t('apiDocs.ccFull5Cmd3').split('—')[1] }}</li>
             <li><code>/exit</code> — {{ t('apiDocs.ccFull5Cmd4').split('—')[1] }}</li>
           </ul>
           <p class="tip-text">💡 {{ t('apiDocs.ccFull5Tip') }}</p>
@@ -401,7 +401,7 @@ client = anthropic.Anthropic(
 )
 
 msg = client.messages.create(
-    model="claude-haiku-4-5-20251001-pro",   # -pro 后缀 → 官方直连
+    model="claude-mix-20251001-pro",   # -pro 后缀 → 官方直连
     max_tokens=1024,
     messages=[
         {"role": "user", "content": "Hello"}
@@ -435,7 +435,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="claude-sonnet-4-5",
+    model="claude-mix",
     messages=[
         {"role": "user", "content": "Hello, Claude!"}
     ],
@@ -451,7 +451,7 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: 'claude-sonnet-4-5',
+  model: 'claude-mix',
   messages: [{ role: 'user', content: 'Hello, Claude!' }],
   max_tokens: 1024,
 });
@@ -465,7 +465,7 @@ client = OpenAI(
 )
 
 with client.chat.completions.stream(
-    model="claude-sonnet-4-5",
+    model="claude-mix",
     messages=[{"role": "user", "content": "写一首诗"}],
     max_tokens=1024,
 ) as stream:
@@ -476,7 +476,7 @@ const curlOpenAI = `curl https://transitai.cloud/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-sonnet-4-5",
+    "model": "claude-mix",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 1024
   }'`
@@ -489,7 +489,7 @@ client = anthropic.Anthropic(
 )
 
 message = client.messages.create(
-    model="claude-sonnet-4-5",
+    model="claude-mix",
     max_tokens=1024,
     system="You are a helpful assistant.",
     messages=[
@@ -506,7 +506,7 @@ const client = new Anthropic({
 });
 
 const message = await client.messages.create({
-  model: "claude-sonnet-4-5",
+  model: "claude-mix",
   max_tokens: 1024,
   system: "You are a helpful assistant.",
   messages: [
@@ -521,7 +521,7 @@ const curlAnthropic = `curl https://transitai.cloud/v1/messages \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-sonnet-4-5",
+    "model": "claude-mix",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "Hello!"}]
   }'`
