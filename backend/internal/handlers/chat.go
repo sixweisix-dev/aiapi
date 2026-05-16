@@ -150,7 +150,7 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	if req.MaxTokens != nil && *req.MaxTokens > 0 {
 		maxCompletionTokens = *req.MaxTokens
 	}
-	estimatedCost := billing.CalculateCost(estPromptTokens, maxCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier)
+	estimatedCost := billing.CalculateCost(estPromptTokens, maxCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
 
 	// Pre-check balance
 	if err := h.billingEngine.PreCheckBalance(userIDStr, estimatedCost); err != nil {
@@ -255,7 +255,7 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 		promptTokens := openAIResp.Usage.PromptTokens
 		completionTokens := openAIResp.Usage.CompletionTokens
 		totalTokens := openAIResp.Usage.TotalTokens
-		cost := billing.CalculateCost(promptTokens, completionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier)
+		cost := billing.CalculateCost(promptTokens, completionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
 
 		apiKeyIDForLog := ""
 		if v, ok := c.Get("api_key_id"); ok {
@@ -361,7 +361,7 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 
 	// Post-process: billing + logging after stream ends
 	totalTokens := totalPromptTokens + totalCompletionTokens
-	cost := billing.CalculateCost(totalPromptTokens, totalCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier)
+	cost := billing.CalculateCost(totalPromptTokens, totalCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
 	apiKeyIDForLog := ""
 	if v, ok := c.Get("api_key_id"); ok {
 		if s, ok2 := v.(string); ok2 {

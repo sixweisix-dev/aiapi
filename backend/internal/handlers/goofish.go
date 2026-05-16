@@ -139,7 +139,8 @@ func (h *GoofishHandler) AdminExportRedeemCodes(c *gin.Context) {
 	}
 }
 
-// AdminStockSummary 库存概况(只显示当前 recharge_tiers 启用的档位 + 固定会员档位)
+// AdminStockSummary 库存概况
+// 严格按当前 recharge_tiers + 活动状态过滤, 自动忽略历史遗留档位 + 错配面额
 func (h *GoofishHandler) AdminStockSummary(c *gin.Context) {
 	type stockRow struct {
 		Note          string  `json:"note"`
@@ -147,27 +148,58 @@ func (h *GoofishHandler) AdminStockSummary(c *gin.Context) {
 		Unused        int64   `json:"unused"`
 		Used          int64   `json:"used"`
 	}
+	type stockCombo struct {
+		Note    string  `json:"note"`
+		Balance float64 `json:"balance"`
+	}
 
-	// 1. 解析当前启用的 recharge_tiers
+	// 1. 解析当前启用的 recharge_tiers (含 bonus)
 	tiersJSON := GetSettingValue(h.db, "recharge_tiers", "[]")
 	var tierDefs []struct {
-		Min float64 `json:"min"`
+		Min   float64 `json:"min"`
+		Bonus float64 `json:"bonus"`
 	}
 	json.Unmarshal([]byte(tiersJSON), &tierDefs)
 
-	// 2. 构造启用的 note 白名单
-	enabledNotes := []string{"闲鱼专业版30天", "闲鱼企业版30天"}
+	// 2. 活动状态: 决定期望面额
+	promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "false") == "true"
+
+	// 3. 构造 (note, expected_balance) 严格白名单
+	enabledCombos := []stockCombo{
+		{"闲鱼专业版30天", 120},
+		{"闲鱼企业版30天", 600},
+	}
 	for _, t := range tierDefs {
-		enabledNotes = append(enabledNotes, fmt.Sprintf("闲鱼¥%.0f充值码", t.Min))
+		note := fmt.Sprintf("闲鱼¥%.0f充值码", t.Min)
+		expectedBal := t.Min
+		if promoEnabled {
+			expectedBal = t.Min + t.Bonus
+		}
+		enabledCombos = append(enabledCombos, stockCombo{note, expectedBal})
 	}
 
+	// 4. 按 (note, balance) 双匹配查询 (用 OR 链, 任何错配 note/balance 都不会被算入)
 	var rows []stockRow
-	h.db.Raw(`SELECT note, balance_amount,
-	          SUM(CASE WHEN status='unused' THEN 1 ELSE 0 END) AS unused,
-	          SUM(CASE WHEN status='used' THEN 1 ELSE 0 END) AS used
-	          FROM redeem_codes WHERE note IN ?
-	          GROUP BY note, balance_amount ORDER BY balance_amount DESC`, enabledNotes).Scan(&rows)
+	if len(enabledCombos) > 0 {
+		query := h.db.Table("redeem_codes").
+			Select("note, balance_amount, SUM(CASE WHEN status='unused' THEN 1 ELSE 0 END) AS unused, SUM(CASE WHEN status='used' THEN 1 ELSE 0 END) AS used").
+			Group("note, balance_amount").
+			Order("balance_amount DESC")
+		for i, item := range enabledCombos {
+			if i == 0 {
+				query = query.Where("note = ? AND balance_amount = ?", item.Note, item.Balance)
+			} else {
+				query = query.Or("note = ? AND balance_amount = ?", item.Note, item.Balance)
+			}
+		}
+		query.Scan(&rows)
+	}
 
 	threshold, _ := strconv.Atoi(GetSettingValue(h.db, "goofish_stock_alert_threshold", "5"))
-	c.JSON(200, gin.H{"items": rows, "threshold": threshold, "enabled_notes": enabledNotes})
+	c.JSON(200, gin.H{
+		"items":          rows,
+		"threshold":      threshold,
+		"promo_enabled":  promoEnabled,
+		"enabled_combos": enabledCombos,
+	})
 }

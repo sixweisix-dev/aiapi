@@ -10,15 +10,17 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"ai-api-gateway/internal/billing"
 	"ai-api-gateway/internal/models"
 )
 
 type AdminHandler struct {
-	db *gorm.DB
+	db     *gorm.DB
+	engine *billing.Engine
 }
 
-func NewAdminHandler(db *gorm.DB) *AdminHandler {
-	return &AdminHandler{db: db}
+func NewAdminHandler(db *gorm.DB, engine *billing.Engine) *AdminHandler {
+	return &AdminHandler{db: db, engine: engine}
 }
 
 // ---- Dashboard ----
@@ -227,6 +229,12 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 			log.Printf("UpdateUser balance error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update balance"})
 			return
+		}
+		// 同步 Redis 热余额: 防止 playground/API 读旧 redis 值覆盖 admin 修改
+		if h.engine != nil {
+			if syncErr := h.engine.InitBalance(id); syncErr != nil {
+				log.Printf("UpdateUser: redis balance sync failed for %s: %v", id, syncErr)
+			}
 		}
 	}
 

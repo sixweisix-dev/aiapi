@@ -104,7 +104,7 @@ func main() {
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
-	adminHandler := handlers.NewAdminHandler(db)
+	adminHandler := handlers.NewAdminHandler(db, billingEngine)
 	goofishHandler := handlers.NewGoofishHandler(db)
 	goofishSupplierHandler := handlers.NewGoofishSupplierHandler(db)
 	userHandler := handlers.NewUserHandler(db)
@@ -180,6 +180,7 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 		xgj.POST("/goods/list", goofishSupplierHandler.GoodsList)
 		xgj.POST("/goods/detail", goofishSupplierHandler.GoodsInfo)
 		xgj.POST("/order/purchase/create", goofishSupplierHandler.OrderPurchaseCreate)
+		xgj.POST("/order/recharge/create", goofishSupplierHandler.OrderRechargeCreate)
 		xgj.POST("/order/detail", goofishSupplierHandler.OrderInfo)
 	}
 

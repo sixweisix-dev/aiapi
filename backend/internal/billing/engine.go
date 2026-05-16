@@ -22,10 +22,11 @@ type Engine struct {
 
 // PriceRow contains model pricing info from DB.
 type PriceRow struct {
-	ID         uuid.UUID
-	InputPrice  float64 // per 1K tokens (USD)
-	OutputPrice float64 // per 1K tokens (USD)
-	Multiplier  float64 // platform markup
+	ID              uuid.UUID
+	InputPrice      float64 // per 1K tokens (USD)
+	OutputPrice     float64 // per 1K tokens (USD)
+	Multiplier      float64 // model 自带 markup (models.multiplier)
+	GroupMultiplier float64 // model 所属 channel_group 的倍率 (经济版0.6/官方版2.0)
 }
 
 // NewEngine creates a billing engine.
@@ -40,7 +41,12 @@ func (e *Engine) GetModelPrice(modelID string) (*PriceRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid model ID: %w", err)
 	}
-	if err := e.db.Model(&models.Model{}).Where("id = ?", parsedID).First(&row).Error; err != nil {
+	// JOIN channel_groups 把 model 所属分组的 multiplier 一并取出,调用方决定怎么用
+	if err := e.db.Table("models AS m").
+		Select("m.id, m.input_price, m.output_price, m.multiplier, COALESCE(g.multiplier, 1.0) AS group_multiplier").
+		Joins("LEFT JOIN channel_groups g ON g.id = m.group_id AND g.deleted_at IS NULL").
+		Where("m.id = ? AND m.deleted_at IS NULL", parsedID).
+		First(&row).Error; err != nil {
 		return nil, fmt.Errorf("model not found: %w", err)
 	}
 	return &row, nil
