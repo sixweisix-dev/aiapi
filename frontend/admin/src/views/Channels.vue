@@ -165,7 +165,7 @@
           <span class="ml-2 text-xs text-gray-400">subscription = 上游每月固定费用; pay_as_you_go = 按 token 计费</span>
         </el-form-item>
 
-        <el-form-item label="月费 CNY" v-if="form.billing_mode === 'subscription'">
+        <el-form-item label="月费 USD" v-if="form.billing_mode === 'subscription'">
           <el-input-number v-model="form.monthly_fee_cny" :min="0" :step="1" :precision="2" controls-position="right" />
           <span class="ml-2 text-xs text-gray-400">每月固定支付的费用 (利润看板会按 月费/30 摊销到每天)</span>
         </el-form-item>
