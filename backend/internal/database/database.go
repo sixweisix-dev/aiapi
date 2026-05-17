@@ -221,7 +221,7 @@ func SeedDefaultModels(db *gorm.DB) error {
 	for _, model := range defaultModels {
 		// Check if model already exists
 		var count int64
-		if err := db.Model(&models.Model{}).Where("name = ?", model.Name).Count(&count).Error; err != nil {
+		if err := db.Unscoped().Model(&models.Model{}).Where("name = ?", model.Name).Count(&count).Error; err != nil {
 			return fmt.Errorf("failed to check model %s: %w", model.Name, err)
 		}
 

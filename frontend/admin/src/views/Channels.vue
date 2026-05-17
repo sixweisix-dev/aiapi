@@ -1,5 +1,52 @@
 <template>
   <div>
+    <!-- 🗂️ 渠道架构树形概览(分组 → 渠道 → 模型) -->
+    <el-card shadow="hover" class="mb-4">
+      <template #header>
+        <div class="flex justify-between items-center">
+          <span class="text-base font-medium">🗂️ 渠道架构</span>
+          <div style="display:flex;gap:8px;">
+            <el-button size="small" @click="$router.push('/channel-groups')">📦 管理分组</el-button>
+            <el-button size="small" @click="$router.push('/models')">🤖 管理模型</el-button>
+            <el-button size="small" type="primary" plain @click="refreshTree">🔄 刷新</el-button>
+          </div>
+        </div>
+      </template>
+      <el-tree
+        v-if="treeData.length > 0"
+        :data="treeData"
+        node-key="id"
+        :default-expand-all="true"
+        :indent="20"
+        :props="{ children: 'children', label: 'label' }"
+      >
+        <template #default="{ data }">
+          <span class="flex items-center" style="gap:8px;flex-wrap:wrap;padding:4px 0;">
+            <span>{{ data.type === 'group' ? '📦' : data.type === 'channel' ? '🔌' : '🤖' }}</span>
+            <span class="font-medium" style="min-width:140px;">{{ data.label }}</span>
+            <template v-if="data.type === 'group'">
+              <el-tag size="small" type="success">{{ Number(data.meta.multiplier).toFixed(2) }}×</el-tag>
+              <el-tag v-if="data.meta.is_default" size="small" type="warning">默认</el-tag>
+              <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 渠道</span>
+            </template>
+            <template v-if="data.type === 'channel'">
+              <el-tag size="small">{{ data.meta.provider }}</el-tag>
+              <el-tag :type="data.meta.health === 'healthy' ? 'success' : data.meta.health === 'unhealthy' ? 'danger' : 'info'" size="small">{{ data.meta.health }}</el-tag>
+              <el-tag size="small" type="info">权重 {{ data.meta.weight }}</el-tag>
+              <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 模型</span>
+            </template>
+            <template v-if="data.type === 'model'">
+              <el-tag size="small" type="info">${{ Number(data.meta.input).toFixed(3) }}/M in</el-tag>
+              <el-tag size="small" type="info">${{ Number(data.meta.output).toFixed(3) }}/M out</el-tag>
+              <el-tag v-if="!data.meta.enabled" size="small" type="danger">已禁用</el-tag>
+            </template>
+          </span>
+        </template>
+      </el-tree>
+      <el-empty v-else description="暂无数据" :image-size="60" />
+    </el-card>
+
+    <!-- 原渠道列表 -->
     <el-card shadow="hover" class="mb-4">
       <div class="flex justify-between items-center">
         <div class="flex items-center" style="gap:12px;">
@@ -256,7 +303,49 @@ async function loadGroups() {
   try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
 }
 
-onMounted(() => { fetchData(); loadGroups() })
+const modelsList = ref([])
+async function loadModels() {
+  try { const r = await api.get('/admin/models'); modelsList.value = r?.items || [] } catch (e) {}
+}
+async function refreshTree() {
+  await Promise.all([fetchData(), loadGroups(), loadModels()])
+}
+
+// 渠道架构树形:分组 → 渠道 → 模型(每渠道下显示该分组下所有模型)
+const treeData = computed(() => {
+  if (!channelGroups.value.length) return []
+  return channelGroups.value.map(g => {
+    const gChannels = channels.value.filter(c => c.group_id === g.id)
+    const gModels = modelsList.value.filter(m => m.group_id === g.id)
+    const mkModel = (c, m) => ({
+      id: `model-${c?.id || 'none'}-${m.id}`,
+      type: 'model',
+      label: m.display_name || m.name,
+      meta: {
+        input: (Number(m.input_price) || 0) * 1000 * (Number(m.multiplier) || 1) * (Number(g.multiplier) || 1),
+        output: (Number(m.output_price) || 0) * 1000 * (Number(m.multiplier) || 1) * (Number(g.multiplier) || 1),
+        enabled: m.is_enabled,
+      },
+    })
+    return {
+      id: `group-${g.id}`,
+      type: 'group',
+      label: g.name,
+      meta: { multiplier: g.multiplier, is_default: g.is_default },
+      children: gChannels.length > 0
+        ? gChannels.map(c => ({
+            id: `channel-${c.id}`,
+            type: 'channel',
+            label: c.name,
+            meta: { provider: c.provider, health: c.health_status, weight: c.weight },
+            children: gModels.map(m => mkModel(c, m)),
+          }))
+        : gModels.map(m => mkModel(null, m)),
+    }
+  })
+})
+
+onMounted(() => { fetchData(); loadGroups(); loadModels() })
 
 async function fetchData() {
   loading.value = true
