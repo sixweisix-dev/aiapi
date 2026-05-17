@@ -21,8 +21,34 @@
       </div>
     </div>
 
-    <!-- 兑换码（置顶） -->
-    <div class="data-card redeem-top-card">
+    <!-- Tab 切换:充值 / 兑换码 -->
+    <div class="tab-switch">
+      <button :class="{ active: activeTab === 'pay' }" @click="activeTab = 'pay'">💳 信用卡充值</button>
+      <button :class="{ active: activeTab === 'redeem' }" @click="activeTab = 'redeem'">🎫 兑换码</button>
+    </div>
+
+    <!-- 信用卡充值 Tab -->
+    <div v-if="activeTab === 'pay'" class="data-card stripe-pay-card">
+      <div class="stripe-header">💳 信用卡支付</div>
+      <div class="stripe-sub">
+        <span v-if="stripeEnabled">使用 Visa/Mastercard 等国际信用卡,即时到账</span>
+        <span v-else style="color:#f56c6c;">⚠️ 暂未开通,敬请期待</span>
+      </div>
+      <div class="stripe-tiers">
+        <button v-for="t in stripeTiers" :key="t.id"
+                class="stripe-tier-btn"
+                :class="{ disabled: !stripeEnabled }"
+                :disabled="!stripeEnabled || stripeLoading"
+                @click="payStripe(t.id)">
+          <div class="tier-cny">¥{{ t.cny }} 档</div>
+          <div class="tier-usd">${{ t.usd }}</div>
+          <div class="tier-balance">→ ${{ t.balance }} 余额</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- 兑换码 Tab -->
+    <div v-if="activeTab === 'redeem'" class="data-card redeem-top-card">
       <div class="redeem-header">{{ t('recharge.redeemHeader') }}</div>
       <div class="redeem-sub">{{ t('recharge.redeemSub') }}</div>
       <div class="redeem-row">
@@ -277,9 +303,39 @@ const doRedeem = async () => {
   }
 }
 
+// === Tab 切换 + Stripe 支付 ===
+const activeTab = ref('pay')
+const stripeEnabled = ref(false)
+const stripeLoading = ref(false)
+const stripeTiers = [
+  { id: '100',  cny: 100,  usd: '14.29', balance: 108 },
+  { id: '300',  cny: 300,  usd: '42.86', balance: 330 },
+  { id: '500',  cny: 500,  usd: '71.43', balance: 575 },
+  { id: '1000', cny: 1000, usd: '142.86', balance: 1200 },
+  { id: '3000', cny: 3000, usd: '428.57', balance: 3750 },
+]
+async function fetchStripeStatus() {
+  try {
+    const r = await api.get('/recharge/stripe/status')
+    stripeEnabled.value = !!r?.enabled
+  } catch (e) { stripeEnabled.value = false }
+}
+async function payStripe(tierId) {
+  if (!stripeEnabled.value) { ElMessage.warning('Stripe 暂未开通'); return }
+  stripeLoading.value = true
+  try {
+    const r = await api.post('/recharge/stripe/checkout', { tier_id: tierId })
+    if (r?.url) window.location.href = r.url
+    else ElMessage.error('未获取到支付链接')
+  } catch (e) {
+    ElMessage.error('Stripe 支付失败: ' + (e?.response?.data?.error || e.message))
+  } finally { stripeLoading.value = false }
+}
+
 onMounted(() => {
   fetchUserInfo()
   fetchOrders()
+  fetchStripeStatus()
 })
 </script>
 
@@ -337,6 +393,30 @@ onMounted(() => {
 }
 .redeem-ok { color: #67c23a; margin-top: 10px; font-size: 14px; font-weight: 600; }
 .redeem-err { color: #f56c6c; margin-top: 10px; font-size: 14px; }
+
+/* Tab 切换 */
+.tab-switch {
+  display: flex; gap: 4px;
+  background: #f3f4f6; padding: 4px;
+  border-radius: 12px; margin-bottom: 16px;
+}
+.tab-switch button {
+  flex: 1; padding: 10px 16px;
+  border: none; background: transparent;
+  border-radius: 8px; cursor: pointer;
+  font-size: 14px; font-weight: 600;
+  color: #6b7280; transition: all 0.2s;
+}
+.tab-switch button.active {
+  background: linear-gradient(135deg, #635bff, #4b41e0);
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(99,91,255,0.3);
+}
+
+/* Stripe 档位按钮内部 */
+.tier-cny { font-size: 13px; font-weight: 600; color: #fff; }
+.tier-usd { font-size: 18px; font-weight: 700; color: #fff; }
+.tier-balance { font-size: 11px; opacity: 0.9; color: #fff; }
 
 /* Stripe 支付卡片 */
 .stripe-pay-card {
