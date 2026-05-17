@@ -58,6 +58,7 @@ func (t *Tracker) RecordSuccess(channelID string, costCNY float64, cacheReadToke
 		"cache_hit_tokens":   gorm.Expr("cache_hit_tokens + ?", cacheReadTokens),
 		"cache_total_tokens": gorm.Expr("cache_total_tokens + ?", totalInputTokens),
 		"error_streak":       0,
+		"health_status":      "healthy", // 成功请求时反向恢复健康(防 unhealthy 误标卡死)
 		"total_requests":     gorm.Expr("total_requests + 1"),
 	}
 	if err := t.db.Model(&models.UpstreamChannel{}).Where("id = ?", channelID).Updates(updates).Error; err != nil {

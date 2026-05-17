@@ -6,8 +6,9 @@
         <div class="flex justify-between items-center">
           <span class="text-base font-medium">🗂️ 渠道架构</span>
           <div style="display:flex;gap:8px;">
-            <el-button size="small" @click="$router.push('/channel-groups')">📦 管理分组</el-button>
-            <el-button size="small" @click="$router.push('/models')">🤖 管理模型</el-button>
+            <el-button size="small" @click="openCreateGroup">+ 分组</el-button>
+            <el-button size="small" @click="openCreateModel">+ 模型</el-button>
+            <el-button size="small" type="primary" @click="openCreate">+ 渠道</el-button>
             <el-button size="small" type="primary" plain @click="refreshTree">🔄 刷新</el-button>
           </div>
         </div>
@@ -21,25 +22,40 @@
         :props="{ children: 'children', label: 'label' }"
       >
         <template #default="{ data }">
-          <span class="flex items-center" style="gap:8px;flex-wrap:wrap;padding:4px 0;">
-            <span>{{ data.type === 'group' ? '📦' : data.type === 'channel' ? '🔌' : '🤖' }}</span>
-            <span class="font-medium" style="min-width:140px;">{{ data.label }}</span>
-            <template v-if="data.type === 'group'">
-              <el-tag size="small" type="success">{{ Number(data.meta.multiplier).toFixed(2) }}×</el-tag>
-              <el-tag v-if="data.meta.is_default" size="small" type="warning">默认</el-tag>
-              <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 渠道</span>
-            </template>
-            <template v-if="data.type === 'channel'">
-              <el-tag size="small">{{ data.meta.provider }}</el-tag>
-              <el-tag :type="data.meta.health === 'healthy' ? 'success' : data.meta.health === 'unhealthy' ? 'danger' : 'info'" size="small">{{ data.meta.health }}</el-tag>
-              <el-tag size="small" type="info">权重 {{ data.meta.weight }}</el-tag>
-              <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 模型</span>
-            </template>
-            <template v-if="data.type === 'model'">
-              <el-tag size="small" type="info">${{ Number(data.meta.input).toFixed(3) }}/M in</el-tag>
-              <el-tag size="small" type="info">${{ Number(data.meta.output).toFixed(3) }}/M out</el-tag>
-              <el-tag v-if="!data.meta.enabled" size="small" type="danger">已禁用</el-tag>
-            </template>
+          <span style="display:flex;align-items:center;width:100%;">
+            <span class="flex items-center" style="gap:8px;flex-wrap:wrap;flex:1;padding:4px 0;">
+              <span>{{ data.type === 'group' ? '📦' : data.type === 'channel' ? '🔌' : '🤖' }}</span>
+              <span class="font-medium" style="min-width:140px;">{{ data.label }}</span>
+              <template v-if="data.type === 'group'">
+                <el-tag size="small" type="success">{{ Number(data.meta.multiplier).toFixed(2) }}×</el-tag>
+                <el-tag v-if="data.meta.is_default" size="small" type="warning">默认</el-tag>
+                <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 渠道</span>
+              </template>
+              <template v-if="data.type === 'channel'">
+                <el-tag size="small">{{ data.meta.provider }}</el-tag>
+                <el-tag :type="data.meta.health === 'healthy' ? 'success' : data.meta.health === 'unhealthy' ? 'danger' : 'info'" size="small">{{ data.meta.health }}</el-tag>
+                <el-tag size="small" type="info">权重 {{ data.meta.weight }}</el-tag>
+                <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 模型</span>
+              </template>
+              <template v-if="data.type === 'model'">
+                <el-tag size="small" type="info">${{ Number(data.meta.input).toFixed(3) }}/M in</el-tag>
+                <el-tag size="small" type="info">${{ Number(data.meta.output).toFixed(3) }}/M out</el-tag>
+                <el-tag v-if="!data.meta.enabled" size="small" type="danger">已禁用</el-tag>
+              </template>
+            </span>
+            <span style="margin-left:auto;display:flex;gap:4px;">
+              <template v-if="data.type === 'group'">
+                <el-button link size="small" @click.stop="openEditGroup(data.raw)">编辑</el-button>
+                <el-button link size="small" type="danger" @click.stop="handleDeleteGroup(data.raw)">删除</el-button>
+              </template>
+              <template v-if="data.type === 'channel'">
+                <el-button link size="small" @click.stop="openEdit(data.raw)">编辑</el-button>
+              </template>
+              <template v-if="data.type === 'model'">
+                <el-button link size="small" @click.stop="openEditModel(data.raw)">编辑</el-button>
+                <el-button link size="small" type="danger" @click.stop="handleDeleteModel(data.raw)">删除</el-button>
+              </template>
+            </span>
           </span>
         </template>
       </el-tree>
@@ -259,6 +275,71 @@
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+  
+    <!-- ========== 分组编辑 dialog ========== -->
+    <el-dialog v-model="groupDialogVisible" :title="isEditingGroup ? '编辑分组' : '新建分组'" width="600px">
+      <el-form :model="groupForm" :rules="groupRules" ref="groupFormRef" label-width="120px">
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="groupForm.name" placeholder="例如: 经济版 / 官方直连" />
+        </el-form-item>
+        <el-form-item label="slug" prop="slug">
+          <el-input v-model="groupForm.slug" :disabled="isEditingGroup" placeholder="economy / official" />
+          <span class="text-xs text-gray-400 ml-2">内部标识, 创建后不可修改</span>
+        </el-form-item>
+        <el-form-item label="倍率" prop="multiplier">
+          <el-input-number v-model="groupForm.multiplier" :min="0.01" :step="0.1" :precision="4" controls-position="right" />
+          <span class="ml-2 text-xs text-gray-400">用户付费 = 模型基础价 × 此倍率</span>
+        </el-form-item>
+        <el-form-item label="说明(中)"><el-input v-model="groupForm.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="英文名"><el-input v-model="groupForm.name_en" /></el-form-item>
+        <el-form-item label="说明(英)"><el-input v-model="groupForm.description_en" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="排序"><el-input-number v-model="groupForm.sort_order" :min="0" :step="1" /></el-form-item>
+        <el-form-item label="默认分组"><el-switch v-model="groupForm.is_default" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="groupDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveGroup">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ========== 模型编辑 dialog ========== -->
+    <el-dialog v-model="modelDialogVisible" :title="isEditingModel ? '编辑模型' : '添加模型'" width="600px">
+      <el-form :model="modelForm" :rules="modelRules" ref="modelFormRef" label-width="120px">
+        <el-form-item label="模型标识" prop="name"><el-input v-model="modelForm.name" :disabled="isEditingModel" placeholder="如: gpt-4" /></el-form-item>
+        <el-form-item label="显示名称" prop="display_name"><el-input v-model="modelForm.display_name" placeholder="如: GPT-4" /></el-form-item>
+        <el-form-item label="提供商" prop="provider">
+          <el-select v-model="modelForm.provider" style="width:100%" :disabled="isEditingModel">
+            <el-option label="OpenAI" value="openai" />
+            <el-option label="Anthropic" value="anthropic" />
+            <el-option label="Google" value="google" />
+            <el-option label="Qwen" value="qwen" />
+            <el-option label="DeepSeek" value="deepseek" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上下文长度"><el-input-number v-model="modelForm.context_length" :min="1024" :step="4096" /></el-form-item>
+        <el-row :gutter="10">
+          <el-col :span="12"><el-form-item label="输入单价" prop="input_price"><el-input-number v-model="modelForm.input_price" :precision="6" :step="0.001" :min="0" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="输出单价" prop="output_price"><el-input-number v-model="modelForm.output_price" :precision="6" :step="0.001" :min="0" /></el-form-item></el-col>
+        </el-row>
+        <el-form-item label="分组">
+          <el-select v-model="modelForm.group_id" placeholder="无分组" clearable style="width:280px">
+            <el-option :value="null" label="— 无分组 —" />
+            <el-option v-for="g in channelGroups" :key="g.id" :label="`${g.name} (${Number(g.multiplier).toFixed(2)}×)`" :value="g.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上游别名"><el-input v-model="modelForm.upstream_name" placeholder="留空 = 同模型标识" /></el-form-item>
+        <el-form-item label="倍率"><el-input-number v-model="modelForm.multiplier" :precision="2" :step="0.1" :min="0.5" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="modelForm.description" type="textarea" :rows="2" /></el-form-item>
+        <el-row :gutter="10">
+          <el-col :span="12"><el-form-item label="公开"><el-switch v-model="modelForm.is_public" /></el-form-item></el-col>
+          <el-col :span="12" v-if="isEditingModel"><el-form-item label="启用"><el-switch v-model="modelForm.is_enabled" /></el-form-item></el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="modelDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="savingModel" @click="handleSaveModel">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -326,24 +407,154 @@ const treeData = computed(() => {
         output: (Number(m.output_price) || 0) * 1000 * (Number(m.multiplier) || 1) * (Number(g.multiplier) || 1),
         enabled: m.is_enabled,
       },
+      raw: m,
     })
     return {
       id: `group-${g.id}`,
       type: 'group',
       label: g.name,
       meta: { multiplier: g.multiplier, is_default: g.is_default },
+      raw: g,
       children: gChannels.length > 0
         ? gChannels.map(c => ({
             id: `channel-${c.id}`,
             type: 'channel',
             label: c.name,
             meta: { provider: c.provider, health: c.health_status, weight: c.weight },
+            raw: c,
             children: gModels.map(m => mkModel(c, m)),
           }))
         : gModels.map(m => mkModel(null, m)),
     }
   })
 })
+
+// ========== Channel Group CRUD ==========
+const groupDialogVisible = ref(false)
+const isEditingGroup = ref(false)
+const editingGroupId = ref(null)
+const groupFormRef = ref(null)
+const groupForm = reactive({
+  name: '', slug: '', multiplier: 1.0, description: '',
+  name_en: '', description_en: '', sort_order: 0, is_default: false
+})
+const groupRules = {
+  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+  slug: [{ required: true, message: '请输入 slug', trigger: 'blur' }],
+  multiplier: [{ required: true, message: '请输入倍率', trigger: 'blur' }],
+}
+function openCreateGroup() {
+  isEditingGroup.value = false; editingGroupId.value = null
+  Object.assign(groupForm, { name:'', slug:'', multiplier:1.0, description:'', name_en:'', description_en:'', sort_order:0, is_default:false })
+  groupDialogVisible.value = true
+}
+function openEditGroup(row) {
+  isEditingGroup.value = true; editingGroupId.value = row.id
+  Object.assign(groupForm, {
+    name: row.name, slug: row.slug, multiplier: Number(row.multiplier),
+    description: row.description || '', name_en: row.name_en || '',
+    description_en: row.description_en || '', sort_order: row.sort_order || 0,
+    is_default: !!row.is_default
+  })
+  groupDialogVisible.value = true
+}
+async function handleSaveGroup() {
+  await groupFormRef.value?.validate?.().catch(() => null)
+  const payload = {
+    name: groupForm.name, slug: groupForm.slug,
+    multiplier: Number(groupForm.multiplier),
+    description: groupForm.description || '',
+    name_en: groupForm.name_en || '',
+    description_en: groupForm.description_en || '',
+    sort_order: Number(groupForm.sort_order) || 0,
+    is_default: !!groupForm.is_default,
+  }
+  try {
+    if (isEditingGroup.value) {
+      await api.put(`/admin/channel-groups/${editingGroupId.value}`, payload); ElMessage.success('已更新')
+    } else {
+      await api.post('/admin/channel-groups', payload); ElMessage.success('已创建')
+    }
+    groupDialogVisible.value = false; refreshTree()
+  } catch (e) { ElMessage.error('保存失败: ' + (e?.response?.data?.error || e.message)) }
+}
+async function handleDeleteGroup(row) {
+  try { await ElMessageBox.confirm(`确定删除分组「${row.name}」?`, '确认', { type: 'warning' }) } catch { return }
+  try {
+    await api.delete(`/admin/channel-groups/${row.id}`); ElMessage.success('已删除'); refreshTree()
+  } catch (e) {
+    const msg = e?.response?.data?.error || e.message || '未知错误'
+    if (msg.includes('channels') || msg.includes('models')) ElMessage.error('请先将该分组下的渠道/模型移到其他分组')
+    else ElMessage.error('删除失败: ' + msg)
+  }
+}
+
+// ========== Model CRUD ==========
+const modelDialogVisible = ref(false)
+const isEditingModel = ref(false)
+const editingModelId = ref(null)
+const modelFormRef = ref(null)
+const savingModel = ref(false)
+const modelForm = ref({
+  name: '', display_name: '', provider: 'openai', context_length: 4096,
+  input_price: 0, output_price: 0, multiplier: 1.0, description: '',
+  is_public: true, is_enabled: true, group_id: null, upstream_name: ''
+})
+const modelRules = {
+  name: [{ required: true, message: '请输入模型标识', trigger: 'blur' }],
+  display_name: [{ required: true, message: '请输入显示名称', trigger: 'blur' }],
+  provider: [{ required: true, message: '请选择提供商', trigger: 'change' }],
+  input_price: [{ required: true, message: '请输入输入单价', trigger: 'blur' }],
+  output_price: [{ required: true, message: '请输入输出单价', trigger: 'blur' }],
+}
+function openCreateModel() {
+  isEditingModel.value = false; editingModelId.value = null
+  modelForm.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
+  modelDialogVisible.value = true
+}
+function openEditModel(row) {
+  isEditingModel.value = true; editingModelId.value = row.id
+  modelForm.value = { ...row, upstream_name: row.upstream_name || '' }
+  modelDialogVisible.value = true
+}
+async function handleSaveModel() {
+  const valid = await modelFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+  savingModel.value = true
+  try {
+    const data = {
+      display_name: modelForm.value.display_name,
+      input_price: modelForm.value.input_price,
+      output_price: modelForm.value.output_price,
+      multiplier: modelForm.value.multiplier,
+      group_id: modelForm.value.group_id ? Number(modelForm.value.group_id) : 0,
+      upstream_name: modelForm.value.upstream_name || null,
+      is_public: modelForm.value.is_public,
+      description: modelForm.value.description || null,
+    }
+    if (isEditingModel.value) {
+      data.is_enabled = modelForm.value.is_enabled
+      await api.put(`/admin/models/${editingModelId.value}`, data); ElMessage.success('更新成功')
+    } else {
+      await api.post('/admin/models', {
+        name: modelForm.value.name, display_name: modelForm.value.display_name,
+        provider: modelForm.value.provider, context_length: modelForm.value.context_length,
+        input_price: modelForm.value.input_price, output_price: modelForm.value.output_price,
+        multiplier: modelForm.value.multiplier,
+        group_id: modelForm.value.group_id ? Number(modelForm.value.group_id) : null,
+        is_public: modelForm.value.is_public, description: modelForm.value.description || null,
+      })
+      ElMessage.success('创建成功')
+    }
+    modelDialogVisible.value = false; refreshTree()
+  } finally { savingModel.value = false }
+}
+async function handleDeleteModel(row) {
+  try {
+    await ElMessageBox.confirm(`确定要删除模型 "${row.display_name}" 吗?`, '提示')
+    await api.delete(`/admin/models/${row.id}`); ElMessage.success('已删除'); refreshTree()
+  } catch { /* cancelled */ }
+}
 
 onMounted(() => { fetchData(); loadGroups(); loadModels() })
 
