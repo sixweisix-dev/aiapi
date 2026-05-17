@@ -199,6 +199,8 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 			n, readErr := resp.Body.Read(tmp)
 			if n > 0 {
 				chunk := tmp[:n]
+				// 修复 id 前缀: chatcmpl- → msg_ (Anthropic 协议规范)
+				chunk = bytes.Replace(chunk, []byte(`"id":"chatcmpl-`), []byte(`"id":"msg_`), -1)
 				c.Writer.Write(chunk)
 				if canFlush {
 					flusher.Flush()
@@ -265,6 +267,8 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		h.billWithCache(userIDStr, model, ch, promptTokens, completionTokens, cacheCreate, cacheRead, startTime, resp.StatusCode)
 	} else {
 		respBody, _ := io.ReadAll(resp.Body)
+		// 修复 id 前缀: chatcmpl- → msg_ (Anthropic 协议规范)
+		respBody = bytes.Replace(respBody, []byte(`"id":"chatcmpl-`), []byte(`"id":"msg_`), 1)
 		c.Writer.Write(respBody)
 
 		var anthropicResp struct {
