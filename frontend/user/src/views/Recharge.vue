@@ -338,6 +338,27 @@ onMounted(() => {
 .redeem-ok { color: #67c23a; margin-top: 10px; font-size: 14px; font-weight: 600; }
 .redeem-err { color: #f56c6c; margin-top: 10px; font-size: 14px; }
 
+/* Stripe 支付卡片 */
+.stripe-pay-card {
+  background: #fff; border-radius: 16px;
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.stripe-header { font-size: 18px; font-weight: 700; margin-bottom: 6px; text-align: center; }
+.stripe-sub { font-size: 13px; color: #666; text-align: center; margin-bottom: 16px; }
+.stripe-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.stripe-tier-btn {
+  background: linear-gradient(135deg, #635bff, #4b41e0);
+  border: none; color: #fff; border-radius: 12px;
+  padding: 12px 8px; cursor: pointer; transition: transform 0.15s;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stripe-tier-btn:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99,91,255,0.3); }
+.stripe-tier-btn.disabled, .stripe-tier-btn:disabled { background: #d1d5db; cursor: not-allowed; opacity: 0.6; }
+.tier-cny { font-size: 13px; font-weight: 600; }
+.tier-usd { font-size: 18px; font-weight: 700; }
+.tier-balance { font-size: 11px; opacity: 0.9; }
+
 /* 套餐卡片 */
 .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .plan-card {

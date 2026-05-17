@@ -103,6 +103,7 @@ func main() {
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
+stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db, billingEngine)
 	goofishHandler := handlers.NewGoofishHandler(db)
@@ -212,6 +213,10 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 	r.POST("/v1/internal/promo-check", cronHandler.PromoDateCheck)
 	r.POST("/v1/recharge/alipay/notify", paymentHandler.AlipayNotify)
 	r.GET("/v1/recharge/alipay/return", paymentHandler.AlipayReturn)
+// === Stripe 信用卡支付 ===
+r.GET("/v1/recharge/stripe/status", stripeHandler.GetStatus)
+r.POST("/v1/recharge/stripe/checkout", middleware.JWTAuth(cfg.JWTSecret), stripeHandler.CreateCheckoutSession)
+r.POST("/v1/recharge/stripe/webhook", stripeHandler.HandleWebhook)
 
 	// iOS Scriptable widget (admin sk- via ?key=)
 	r.GET("/v1/widget/dashboard", widgetHandler.Dashboard)
