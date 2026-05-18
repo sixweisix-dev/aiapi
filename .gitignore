@@ -9,3 +9,4 @@ frontend/admin/dist/
 # Database backups (sensitive)
 backups/*.sql
 backups/*.dump
+secrets/

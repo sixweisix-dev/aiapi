@@ -435,7 +435,18 @@
     "balanceText": "余额 +${amount}",
     "firstBonusText": "首充礼 +${amount}",
     "redeemSuccess": "兑换成功！",
-    "redeemFail": "兑换失败，请检查兑换码"
+    "redeemFail": "兑换失败，请检查兑换码",
+    "stripe": {
+      "tabPay": "信用卡充值",
+      "tabRedeem": "兑换码",
+      "header": "信用卡支付",
+      "sub": "使用 Visa/Mastercard 等国际信用卡,即时到账",
+      "comingSoon": "⚠️ 暂未开通,敬请期待",
+      "balanceTitle": "💰 纯余额充值",
+      "membershipTitle": "👑 会员套餐(月费)",
+      "tier": "档",
+      "balance": "余额"
+    }
   },
   "billing": {
     "filterTitle": "🔍 筛选",

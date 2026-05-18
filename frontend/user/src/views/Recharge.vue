@@ -23,26 +23,40 @@
 
     <!-- Tab 切换:充值 / 兑换码 -->
     <div class="tab-switch">
-      <button :class="{ active: activeTab === 'pay' }" @click="activeTab = 'pay'">💳 信用卡充值</button>
-      <button :class="{ active: activeTab === 'redeem' }" @click="activeTab = 'redeem'">🎫 兑换码</button>
+      <button :class="{ active: activeTab === 'pay' }" @click="activeTab = 'pay'">💳 {{ t('recharge.stripe.tabPay') }}</button>
+      <button :class="{ active: activeTab === 'redeem' }" @click="activeTab = 'redeem'">🎫 {{ t('recharge.stripe.tabRedeem') }}</button>
     </div>
 
     <!-- 信用卡充值 Tab -->
     <div v-if="activeTab === 'pay'" class="data-card stripe-pay-card">
-      <div class="stripe-header">💳 信用卡支付</div>
+      <div class="stripe-header">💳 {{ t('recharge.stripe.header') }}</div>
       <div class="stripe-sub">
-        <span v-if="stripeEnabled">使用 Visa/Mastercard 等国际信用卡,即时到账</span>
-        <span v-else style="color:#f56c6c;">⚠️ 暂未开通,敬请期待</span>
+        <span v-if="stripeEnabled">{{ t('recharge.stripe.sub') }}</span>
+        <span v-else style="color:#f56c6c;">{{ t('recharge.stripe.comingSoon') }}</span>
       </div>
+      <div class="stripe-section-title">{{ t('recharge.stripe.balanceTitle') }}</div>
       <div class="stripe-tiers">
-        <button v-for="t in stripeTiers" :key="t.id"
+        <button v-for="item in stripeTiers" :key="item.id"
                 class="stripe-tier-btn"
                 :class="{ disabled: !stripeEnabled }"
                 :disabled="!stripeEnabled || stripeLoading"
-                @click="payStripe(t.id)">
-          <div class="tier-cny">¥{{ t.cny }} 档</div>
-          <div class="tier-usd">${{ t.usd }}</div>
-          <div class="tier-balance">→ ${{ t.balance }} 余额</div>
+                @click="payStripe(item.id)">
+          <div class="tier-cny">¥{{ item.cny }} {{ t('recharge.stripe.tier') }}</div>
+          <div class="tier-usd">${{ item.usd }}</div>
+          <div class="tier-balance">→ ${{ item.balance }} {{ t('recharge.stripe.balance') }}</div>
+        </button>
+      </div>
+      <div class="stripe-section-title membership-title">{{ t('recharge.stripe.membershipTitle') }}</div>
+      <div class="stripe-membership-tiers">
+        <button v-for="mt in stripeMembershipTiers" :key="mt.id"
+                class="stripe-membership-btn"
+                :class="['tier-' + mt.tier, { disabled: !stripeEnabled }]"
+                :disabled="!stripeEnabled || stripeLoading"
+                @click="payStripe(mt.id)">
+          <div class="m-badge">{{ mt.tier === 'pro' ? '⭐ ' + t('recharge.planPro') : '👑 ' + t('recharge.planEnterprise') }}</div>
+          <div class="m-price">¥{{ mt.cny }}<span class="m-period">{{ t('recharge.perMonth') }}</span></div>
+          <div class="m-usd">${{ mt.usd }}</div>
+          <div class="m-balance">+ ${{ mt.balance }} {{ t('recharge.stripe.balance') }}</div>
         </button>
       </div>
     </div>
@@ -314,6 +328,10 @@ const stripeTiers = [
   { id: '1000', cny: 1000, usd: '142.86', balance: 1200 },
   { id: '3000', cny: 3000, usd: '428.57', balance: 3750 },
 ]
+const stripeMembershipTiers = [
+  { id: 'pro',        cny: 99,  usd: '14.14', balance: 120, tier: 'pro' },
+  { id: 'enterprise', cny: 499, usd: '71.29', balance: 600, tier: 'enterprise' },
+]
 async function fetchStripeStatus() {
   try {
     const r = await api.get('/recharge/stripe/status')
@@ -535,4 +553,18 @@ onMounted(() => {
     margin: 0 !important;
   }
 }
+
+.stripe-section-title { font-size: 13px; font-weight: 600; color: #999; margin: 18px 0 10px; padding-left: 4px; }
+.stripe-section-title.membership-title { color: #6366f1; }
+.stripe-membership-tiers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stripe-membership-btn { padding: 16px 14px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; text-align: left; color: #fff; }
+.stripe-membership-btn.tier-pro { background: linear-gradient(145deg, #6366f1 0%, #4338ca 100%); }
+.stripe-membership-btn.tier-enterprise { background: linear-gradient(145deg, #fbbf24 0%, #d97706 100%); }
+.stripe-membership-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
+.stripe-membership-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.m-badge { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.m-price { font-size: 24px; font-weight: 700; }
+.m-period { font-size: 12px; font-weight: 400; opacity: 0.85; margin-left: 2px; }
+.m-usd { font-size: 13px; margin: 4px 0; opacity: 0.9; }
+.m-balance { font-size: 12px; opacity: 0.9; margin-top: 4px; }
 </style>

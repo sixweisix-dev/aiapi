@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -33,19 +34,27 @@ func NewStripeHandler(db *gorm.DB, engine *billing.Engine) *StripeHandler {
 }
 
 type stripeTier struct {
-	AmountCNY  int
-	PriceCents int64
-	BalanceUSD float64
-	BonusUSD   float64
-	Name       string
+	AmountCNY      int
+	PriceCents     int64
+	BalanceUSD     float64
+	BonusUSD       float64
+	UpgradesToTier string
+	DurationDays   int
+	Name           string
+	DisplayName    string
 }
 
+// USD → HKD 换算汇率 (HK Stripe 账户必须用 HKD 才能显示 wechat_pay)
+const usdToHKDx10 = 78 // 1 USD = 7.8 HKD; 用整数 x10 避免浮点
+
 var stripeTiers = map[string]stripeTier{
-	"100":  {100, 1429, 100, 8, "TransitAI Recharge 100"},
-	"300":  {300, 4286, 300, 30, "TransitAI Recharge 300"},
-	"500":  {500, 7143, 500, 75, "TransitAI Recharge 500"},
-	"1000": {1000, 14286, 1000, 200, "TransitAI Recharge 1000"},
-	"3000": {3000, 42857, 3000, 750, "TransitAI Recharge 3000"},
+	"100":        {100, 1429, 100, 8, "", 0, "TransitAI Recharge 100", "$100 Balance"},
+	"300":        {300, 4286, 300, 30, "", 0, "TransitAI Recharge 300", "$300 Balance"},
+	"500":        {500, 7143, 500, 75, "", 0, "TransitAI Recharge 500", "$500 Balance"},
+	"1000":       {1000, 14286, 1000, 200, "", 0, "TransitAI Recharge 1000", "$1000 Balance"},
+	"3000":       {3000, 42857, 3000, 750, "", 0, "TransitAI Recharge 3000", "$3000 Balance"},
+	"pro":        {99, 1414, 120, 0, "pro", 30, "TransitAI Pro Membership (30 days)", "Pro Membership"},
+	"enterprise": {499, 7129, 600, 0, "enterprise", 30, "TransitAI Enterprise Membership (30 days)", "Enterprise Membership"},
 }
 
 func (h *StripeHandler) readSetting(key string) string {
@@ -106,15 +115,25 @@ func (h *StripeHandler) CreateCheckoutSession(c *gin.Context) {
 		cancelURL = "https://transitai.cloud/recharge?stripe=cancel"
 	}
 
+	var productDesc string
+	if tier.UpgradesToTier != "" {
+		productDesc = fmt.Sprintf("%d-day %s + $%.0f balance included", tier.DurationDays, tier.DisplayName, tier.BalanceUSD)
+	} else {
+		productDesc = fmt.Sprintf("Adds $%.0f balance (CNY %d tier)", tier.BalanceUSD+tier.BonusUSD, tier.AmountCNY)
+	}
+
 	form := url.Values{}
 	form.Set("mode", "payment")
-	form.Set("payment_method_types[]", "card")
+	form.Add("payment_method_types[]", "card")
+	form.Add("payment_method_types[]", "alipay")
+	form.Add("payment_method_types[]", "wechat_pay")
+	form.Set("payment_method_options[wechat_pay][client]", "web")
 	form.Set("line_items[0][quantity]", "1")
-	form.Set("line_items[0][price_data][currency]", "usd")
-	form.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(tier.PriceCents, 10))
+	form.Set("line_items[0][price_data][currency]", "hkd")
+	hkdCents := tier.PriceCents * usdToHKDx10 / 10
+	form.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(hkdCents, 10))
 	form.Set("line_items[0][price_data][product_data][name]", tier.Name)
-	form.Set("line_items[0][price_data][product_data][description]",
-		fmt.Sprintf("Adds $%.0f balance (CNY %d tier)", tier.BalanceUSD+tier.BonusUSD, tier.AmountCNY))
+	form.Set("line_items[0][price_data][product_data][description]", productDesc)
 	form.Set("success_url", successURL)
 	form.Set("cancel_url", cancelURL)
 	form.Set("metadata[user_id]", userIDStr)
@@ -193,50 +212,113 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 	}
 	log.Printf("[stripe-webhook] received event %s type=%s", event.ID, event.Type)
 
-	if event.Type == "checkout.session.completed" {
-		var wrap checkoutSessionObject
-		if err := json.Unmarshal(event.Data, &wrap); err == nil && wrap.Object.PaymentStatus == "paid" {
-			sess := wrap.Object
-			userID := sess.Metadata["user_id"]
-			tierID := sess.Metadata["tier_id"]
-			tier, ok := stripeTiers[tierID]
-			if !ok || userID == "" {
-				log.Printf("[stripe-webhook] invalid metadata user=%s tier=%s", userID, tierID)
-				c.JSON(200, gin.H{"received": true, "warning": "invalid metadata"})
-				return
-			}
+	if event.Type != "checkout.session.completed" {
+		c.JSON(200, gin.H{"received": true, "ignored": true})
+		return
+	}
 
-			promo := h.readSetting("recharge_promo_enabled") == "true"
-			balance := tier.BalanceUSD
-			bonus := 0.0
-			if promo {
-				bonus = tier.BonusUSD
-				balance += bonus
-			}
+	var wrap checkoutSessionObject
+	if err := json.Unmarshal(event.Data, &wrap); err != nil {
+		c.JSON(200, gin.H{"received": true, "warning": "unparseable data"})
+		return
+	}
+	if wrap.Object.PaymentStatus != "paid" {
+		c.JSON(200, gin.H{"received": true, "ignored": "not paid"})
+		return
+	}
 
-			orderNo := "stripe_" + sess.ID
-			tx := h.db.Begin()
-			if err := tx.Exec("UPDATE users SET balance = balance + ? WHERE id = ?::uuid", balance, userID).Error; err != nil {
-				tx.Rollback()
-				log.Printf("[stripe-webhook] update balance failed: %v", err)
-				c.JSON(500, gin.H{"error": "add balance failed"})
-				return
-			}
-			insertErr := tx.Exec("INSERT INTO recharge_orders (user_id, order_no, amount, bonus_amount, payment_method, payment_status, payment_id, paid_at, created_at, updated_at, intent) VALUES (?::uuid, ?, ?, ?, 'stripe', 'paid', ?, NOW(), NOW(), NOW(), 'balance') ON CONFLICT (order_no) DO NOTHING",
-				userID, orderNo, float64(sess.AmountTotal)/100.0, bonus, sess.ID).Error
-			if insertErr != nil {
-				log.Printf("[stripe-webhook] insert order failed (non-fatal): %v", insertErr)
-			}
-			tx.Commit()
+	sess := wrap.Object
+	userID := sess.Metadata["user_id"]
+	tierID := sess.Metadata["tier_id"]
+	tier, ok := stripeTiers[tierID]
+	if !ok || userID == "" {
+		log.Printf("[stripe-webhook] invalid metadata user=%s tier=%s", userID, tierID)
+		c.JSON(200, gin.H{"received": true, "warning": "invalid metadata"})
+		return
+	}
 
-			if h.engine != nil {
-				_ = h.engine.InitBalance(userID)
-			}
+	isUpgrade := tier.UpgradesToTier != ""
+	promo := h.readSetting("recharge_promo_enabled") == "true"
 
-			log.Printf("[stripe-webhook] balance added: user=%s amount=$%.2f balance+=$%.2f session=%s",
-				userID, float64(sess.AmountTotal)/100.0, balance, sess.ID)
+	paidUSD := float64(sess.AmountTotal) / 100.0
+	actualAmount := tier.BalanceUSD
+	var bonus float64
+	intent := "balance"
+	if isUpgrade {
+		intent = "membership"
+		bonus = tier.BalanceUSD - paidUSD
+	} else if promo {
+		bonus = tier.BonusUSD
+		actualAmount += bonus
+	}
+
+	orderNo := "stripe_" + sess.ID
+	tx := h.db.Begin()
+
+	var balanceBefore float64
+	var existingTier string
+	var existingExpiresAt, existingStartedAt sql.NullTime
+	err = tx.Raw("SELECT balance, membership_tier, membership_expires_at, membership_started_at FROM users WHERE id = ?::uuid", userID).
+		Row().Scan(&balanceBefore, &existingTier, &existingExpiresAt, &existingStartedAt)
+	if err != nil {
+		tx.Rollback()
+		log.Printf("[stripe-webhook] read user failed: %v", err)
+		c.JSON(500, gin.H{"error": "read user failed"})
+		return
+	}
+
+	newBalance := balanceBefore + actualAmount
+
+	if err := tx.Exec("UPDATE users SET balance = balance + ? WHERE id = ?::uuid", actualAmount, userID).Error; err != nil {
+		tx.Rollback()
+		log.Printf("[stripe-webhook] update balance failed: %v", err)
+		c.JSON(500, gin.H{"error": "add balance failed"})
+		return
+	}
+
+	if isUpgrade {
+		now := time.Now()
+		startTime := now
+		if existingExpiresAt.Valid && existingExpiresAt.Time.After(now) && existingTier == tier.UpgradesToTier {
+			startTime = existingExpiresAt.Time
+		}
+		newExpiry := startTime.Add(time.Duration(tier.DurationDays) * 24 * time.Hour)
+		if !existingStartedAt.Valid {
+			tx.Exec("UPDATE users SET membership_tier = ?, membership_expires_at = ?, membership_started_at = ? WHERE id = ?::uuid",
+				tier.UpgradesToTier, newExpiry, now, userID)
+		} else {
+			tx.Exec("UPDATE users SET membership_tier = ?, membership_expires_at = ? WHERE id = ?::uuid",
+				tier.UpgradesToTier, newExpiry, userID)
 		}
 	}
+
+	var upgradesToTierVal interface{}
+	if isUpgrade {
+		upgradesToTierVal = tier.UpgradesToTier
+	}
+	insertErr := tx.Exec("INSERT INTO recharge_orders (user_id, order_no, amount, bonus_amount, payment_method, payment_status, payment_id, paid_at, created_at, updated_at, intent, upgrades_to_tier) VALUES (?::uuid, ?, ?, ?, 'stripe', 'paid', ?, NOW(), NOW(), NOW(), ?, ?) ON CONFLICT (order_no) DO NOTHING",
+		userID, orderNo, paidUSD, bonus, sess.ID, intent, upgradesToTierVal).Error
+	if insertErr != nil {
+		log.Printf("[stripe-webhook] insert order failed (non-fatal): %v", insertErr)
+	}
+
+	var desc string
+	if isUpgrade {
+		desc = fmt.Sprintf("Stripe recharge $%.2f (upgrade %s, received $%.2f)", paidUSD, tier.DisplayName, actualAmount)
+	} else {
+		desc = fmt.Sprintf("Stripe recharge $%.2f", actualAmount)
+	}
+	tx.Exec("INSERT INTO billing_records (user_id, type, amount, balance_before, balance_after, description, created_at) VALUES (?::uuid, 'recharge', ?, ?, ?, ?, NOW())",
+		userID, actualAmount, balanceBefore, newBalance, desc)
+
+	tx.Commit()
+
+	if h.engine != nil {
+		_ = h.engine.InitBalance(userID)
+	}
+
+	log.Printf("[stripe-webhook] processed: user=%s paid=$%.2f received=$%.2f tier=%s upgrade=%v session=%s",
+		userID, paidUSD, actualAmount, tierID, isUpgrade, sess.ID)
 
 	c.JSON(200, gin.H{"received": true})
 }

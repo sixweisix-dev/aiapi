@@ -435,7 +435,18 @@
     "balanceText": "Balance +${amount}",
     "firstBonusText": "First-deposit bonus +${amount}",
     "redeemSuccess": "Redeemed successfully!",
-    "redeemFail": "Redemption failed, please check the code"
+    "redeemFail": "Redemption failed, please check the code",
+    "stripe": {
+      "tabPay": "Credit Card",
+      "tabRedeem": "Redeem Code",
+      "header": "Credit Card Payment",
+      "sub": "Visa/Mastercard accepted, instant credit",
+      "comingSoon": "⚠️ Coming Soon",
+      "balanceTitle": "💰 Balance Recharge",
+      "membershipTitle": "👑 Membership Plans (Monthly)",
+      "tier": "tier",
+      "balance": "balance"
+    }
   },
   "billing": {
     "filterTitle": "🔍 Filter",
