@@ -437,10 +437,10 @@
     "redeemSuccess": "Redeemed successfully!",
     "redeemFail": "Redemption failed, please check the code",
     "stripe": {
-      "tabPay": "Credit Card",
+      "tabPay": "Online Pay",
       "tabRedeem": "Redeem Code",
-      "header": "Credit Card Payment",
-      "sub": "Visa/Mastercard accepted, instant credit",
+      "header": "Online Payment",
+      "sub": "Card · Alipay · WeChat · Apple Pay, instant credit",
       "comingSoon": "⚠️ Coming Soon",
       "balanceTitle": "💰 Balance Recharge",
       "membershipTitle": "👑 Membership Plans (Monthly)",

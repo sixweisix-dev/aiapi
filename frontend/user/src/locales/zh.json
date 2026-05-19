@@ -437,10 +437,10 @@
     "redeemSuccess": "兑换成功！",
     "redeemFail": "兑换失败，请检查兑换码",
     "stripe": {
-      "tabPay": "信用卡充值",
+      "tabPay": "在线支付",
       "tabRedeem": "兑换码",
-      "header": "信用卡支付",
-      "sub": "使用 Visa/Mastercard 等国际信用卡,即时到账",
+      "header": "在线支付",
+      "sub": "信用卡 · 支付宝 · 微信 · Apple Pay,即时到账",
       "comingSoon": "⚠️ 暂未开通,敬请期待",
       "balanceTitle": "💰 纯余额充值",
       "membershipTitle": "👑 会员套餐(月费)",
