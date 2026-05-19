@@ -37,6 +37,7 @@ type Channel struct {
 	DedicatedUserIDsAuto string  // 自动隔离名单
 	concurrent        int64
 	ErrorCount        int64
+	sem               chan struct{} // 信号量, 容量=MaxConcurrent, 超出排队等待
 }
 
 // Pool manages upstream channels with load balancing.
@@ -141,6 +142,7 @@ func (p *Pool) Refresh() {
 			BaseURL:          baseURL,
 			Weight:           r.Weight,
 			MaxConcurrent:    r.MaxConcurrent,
+			sem:              makeSemaphore(r.MaxConcurrent),
 			HealthStatus:     r.HealthStatus,
 			QuotaStatus:      r.QuotaStatus,
 			EnableCache1hBeta: r.EnableCache1hBeta,
@@ -169,7 +171,6 @@ func (p *Pool) Select(provider string) *Channel {
 	for _, c := range p.channels {
 		// 过滤: provider/并发/健康/额度状态/非专属
 		if strings.EqualFold(c.Provider, provider) &&
-			c.concurrent < int64(c.MaxConcurrent) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -222,7 +223,6 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	for _, c := range p.channels {
 		if strings.EqualFold(c.Provider, provider) &&
 			groupMatches(c.GroupID, groupID) &&
-			c.concurrent < int64(c.MaxConcurrent) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -264,8 +264,27 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	return healthy[len(healthy)-1]
 }
 
+// makeSemaphore 创建信号量; size <= 0 则 nil (不限流)
+func makeSemaphore(size int) chan struct{} {
+	if size <= 0 {
+		return nil
+	}
+	return make(chan struct{}, size)
+}
+
 // Do sends a request through the selected channel and handles retry.
 func (p *Pool) Do(ctx context.Context, ch *Channel, method, path string, reqBody []byte) (*http.Response, error) {
+	// 信号量排队: 超过 MaxConcurrent 时等待最多 10 秒
+	if ch.sem != nil {
+		select {
+		case ch.sem <- struct{}{}:
+			defer func() { <-ch.sem }()
+		case <-time.After(10 * time.Second):
+			return nil, fmt.Errorf("channel %s: queue timeout (>10s)", ch.Name)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	atomic.AddInt64(&ch.concurrent, 1)
 	defer atomic.AddInt64(&ch.concurrent, -1)
 
@@ -456,7 +475,6 @@ func (p *Pool) SelectAllHealthy(provider string) []*Channel {
 	var candidates []*Channel
 	for _, c := range p.channels {
 		if strings.EqualFold(c.Provider, provider) &&
-			c.concurrent < int64(c.MaxConcurrent) &&
 			c.HealthStatus != "unhealthy" {
 			candidates = append(candidates, c)
 		}

@@ -270,14 +270,26 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 
 	var balanceBefore float64
 	var existingTier string
-	var existingExpiresAt, existingStartedAt sql.NullTime
-	err = tx.Raw("SELECT balance, membership_tier, membership_expires_at, membership_started_at FROM users WHERE id = ?::uuid", userID).
-		Row().Scan(&balanceBefore, &existingTier, &existingExpiresAt, &existingStartedAt)
+	var existingExpiresAt, existingStartedAt, existingFirstRechargeAt sql.NullTime
+	err = tx.Raw("SELECT balance, membership_tier, membership_expires_at, membership_started_at, first_recharge_at FROM users WHERE id = ?::uuid", userID).
+		Row().Scan(&balanceBefore, &existingTier, &existingExpiresAt, &existingStartedAt, &existingFirstRechargeAt)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("[stripe-webhook] read user failed: %v", err)
 		c.JSON(500, gin.H{"error": "read user failed"})
 		return
+	}
+
+	// 首充赠送 (非 membership 升级)
+	isFirstRecharge := !existingFirstRechargeAt.Valid
+	if isFirstRecharge && !isUpgrade {
+		if firstBonusStr := h.readSetting("first_recharge_bonus"); firstBonusStr != "" {
+			if firstBonus, err := strconv.ParseFloat(firstBonusStr, 64); err == nil && firstBonus > 0 {
+				bonus += firstBonus
+				actualAmount += firstBonus
+				log.Printf("[stripe-webhook] first recharge bonus: user=%s +$%.2f", userID, firstBonus)
+			}
+		}
 	}
 
 	newBalance := balanceBefore + actualAmount
@@ -317,6 +329,11 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 		userID, orderNo, paidUSD, bonus, sess.ID, intent, upgradesToTierVal).Error
 	if insertErr != nil {
 		log.Printf("[stripe-webhook] insert order failed (non-fatal): %v", insertErr)
+	}
+
+	// 标记首充时间 (仅当 first_recharge_at 还是 NULL 时)
+	if isFirstRecharge {
+		tx.Exec("UPDATE users SET first_recharge_at = NOW() WHERE id = ?::uuid AND first_recharge_at IS NULL", userID)
 	}
 
 	var desc string

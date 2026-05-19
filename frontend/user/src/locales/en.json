@@ -445,7 +445,9 @@
       "balanceTitle": "💰 Balance Recharge",
       "membershipTitle": "👑 Membership Plans (Monthly)",
       "tier": "tier",
-      "balance": "balance"
+      "balance": "balance",
+      "firstRechargeBonus": "🎁 New User Bonus: $50 free credit",
+      "firstRechargeBonusSub": "First recharge only, automatically credited"
     }
   },
   "billing": {

@@ -445,7 +445,9 @@
       "balanceTitle": "💰 纯余额充值",
       "membershipTitle": "👑 会员套餐(月费)",
       "tier": "档",
-      "balance": "余额"
+      "balance": "余额",
+      "firstRechargeBonus": "🎁 新用户首充赠送 $50 余额",
+      "firstRechargeBonusSub": "仅限首次充值,自动到账"
     }
   },
   "billing": {

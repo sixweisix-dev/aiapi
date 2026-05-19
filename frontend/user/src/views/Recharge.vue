@@ -29,6 +29,10 @@
 
     <!-- 信用卡充值 Tab -->
     <div v-if="activeTab === 'pay'" class="data-card stripe-pay-card">
+      <div class="first-recharge-banner">
+        <div class="frb-title">{{ t('recharge.stripe.firstRechargeBonus') }}</div>
+        <div class="frb-sub">{{ t('recharge.stripe.firstRechargeBonusSub') }}</div>
+      </div>
       <div class="stripe-header">💳 {{ t('recharge.stripe.header') }}</div>
       <div class="stripe-sub">
         <span v-if="stripeEnabled">{{ t('recharge.stripe.sub') }}</span>
@@ -567,4 +571,20 @@ onMounted(() => {
 .m-period { font-size: 12px; font-weight: 400; opacity: 0.85; margin-left: 2px; }
 .m-usd { font-size: 13px; margin: 4px 0; opacity: 0.9; }
 .m-balance { font-size: 12px; opacity: 0.9; margin-top: 4px; }
+
+/* 首充赠送 banner */
+.first-recharge-banner {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.first-recharge-banner .frb-title {
+  font-size: 14px; font-weight: 700; color: #92400e;
+}
+.first-recharge-banner .frb-sub {
+  font-size: 12px; color: #b45309; margin-top: 2px;
+}
+
 </style>
