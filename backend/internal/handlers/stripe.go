@@ -185,6 +185,19 @@ type checkoutSessionObject struct {
 	} `json:"object"`
 }
 
+
+// rpmTpmForTier 返回不同会员等级对应的 RPM/TPM 限制
+func rpmTpmForTier(tier string) (int, int) {
+	switch tier {
+	case "pro":
+		return 60, 100000
+	case "enterprise":
+		return 600, 1000000
+	default:
+		return 10, 30000 // free
+	}
+}
+
 func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -290,6 +303,10 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 			tx.Exec("UPDATE users SET membership_tier = ?, membership_expires_at = ? WHERE id = ?::uuid",
 				tier.UpgradesToTier, newExpiry, userID)
 		}
+		// 同步升级该用户所有 API Key 的 RPM/TPM 限制
+		rpm, tpm := rpmTpmForTier(tier.UpgradesToTier)
+		tx.Exec("UPDATE api_keys SET rpm_limit = ?, tpm_limit = ? WHERE user_id = ?::uuid AND deleted_at IS NULL", rpm, tpm, userID)
+		log.Printf("[stripe-webhook] upgraded user %s to %s, set RPM=%d TPM=%d on all API keys", userID, tier.UpgradesToTier, rpm, tpm)
 	}
 
 	var upgradesToTierVal interface{}
