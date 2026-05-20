@@ -12,6 +12,7 @@ import (
 
 	"ai-api-gateway/internal/adapter"
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/channelmetrics"
 	"ai-api-gateway/internal/middleware"
 	"ai-api-gateway/internal/monitoring"
 	"ai-api-gateway/internal/models"
@@ -28,10 +29,11 @@ type ChatHandler struct {
 	alerter       *monitoring.TelegramAlerter
 	contentFilter *middleware.ContentFilter
 	mailCfg       *MailConfig
+	tracker       *channelmetrics.Tracker
 }
 
-func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter, cf *middleware.ContentFilter, mailCfg *MailConfig) *ChatHandler {
-	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter, contentFilter: cf, mailCfg: mailCfg}
+func NewChatHandler(db *gorm.DB, pool *upstream.Pool, be *billing.Engine, alerter *monitoring.TelegramAlerter, cf *middleware.ContentFilter, mailCfg *MailConfig, tracker *channelmetrics.Tracker) *ChatHandler {
+	return &ChatHandler{db: db, pool: pool, billingEngine: be, alerter: alerter, contentFilter: cf, mailCfg: mailCfg, tracker: tracker}
 }
 
 
@@ -218,8 +220,8 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 		log.Printf("[failover] all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
 		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
 		if h.alerter != nil {
-			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
-				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
+			go h.alerter.SendThrottled("upstream_exhausted_sync", fmt.Sprintf("🚨 <b>所有上游通道失败</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
+				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")), 5 * time.Minute)
 		}
 		c.JSON(502, gin.H{"error": gin.H{"message": "all upstream channels failed: " + err.Error(), "type": "upstream_error"}})
 		return
@@ -282,8 +284,8 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 		log.Printf("[failover] stream all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
 		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
 		if h.alerter != nil {
-			go h.alerter.Send(fmt.Sprintf("🚨 <b>所有上游通道失败 (流式)</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
-				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")))
+			go h.alerter.SendThrottled("upstream_exhausted_stream", fmt.Sprintf("🚨 <b>所有上游通道失败 (流式)</b>\n\n<b>Provider:</b> %s\n<b>Model:</b> %s\n<b>Error:</b> %s\n<b>Time:</b> %s",
+				provider, req.Model, err.Error(), time.Now().Format("2006-01-02 15:04:05")), 5 * time.Minute)
 		}
 		c.JSON(502, gin.H{"error": gin.H{"message": "all upstream channels failed: " + err.Error(), "type": "upstream_error"}})
 		return
@@ -443,8 +445,13 @@ func (h *ChatHandler) postProcess(userID, modelID, apiKeyID string, ch *upstream
 		go h.checkBudgetAlert(apiKeyHash)
 	}
 
-	// Update channel stats
-	h.db.Exec("UPDATE upstream_channels SET total_requests = total_requests + 1, total_tokens = total_tokens + ? WHERE id = ?", totalTokens, ch.ID)
+	// Update channel stats (basic)
+	h.db.Exec("UPDATE upstream_channels SET total_tokens = total_tokens + ? WHERE id = ?", totalTokens, ch.ID)
+
+	// 上报渠道指标 (cost / quota / health 等), 跟 messages.go 保持一致
+	if h.tracker != nil {
+		h.tracker.RecordSuccess(ch.ID, cost, 0, promptTokens, durationMs)
+	}
 
 	log.Printf("Usage: user=%s model=%s prompt=%d completion=%d cost=%.8f duration=%dms",
 		userID[:8], modelName, promptTokens, completionTokens, cost, durationMs)

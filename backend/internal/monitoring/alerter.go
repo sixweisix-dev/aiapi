@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type TelegramAlerter struct {
 	botToken string
 	chatID   string
 	client   *http.Client
+	lastSent sync.Map // key -> time.Time (cooldown)
 }
 
 func NewTelegramAlerter(botToken, chatID string) *TelegramAlerter {
@@ -51,4 +53,22 @@ func (a *TelegramAlerter) Send(message string) error {
 		return fmt.Errorf("telegram send: status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// SendThrottled sends an alert only if the same key wasn't sent within cooldown.
+// Used to avoid spam when an upstream error fires many times per minute.
+func (a *TelegramAlerter) SendThrottled(key, message string, cooldown time.Duration) error {
+	if a == nil {
+		return nil
+	}
+	now := time.Now()
+	if v, ok := a.lastSent.Load(key); ok {
+		if last, ok := v.(time.Time); ok {
+			if now.Sub(last) < cooldown {
+				return nil // 在 cooldown 内, 静默
+			}
+		}
+	}
+	a.lastSent.Store(key, now)
+	return a.Send(message)
 }

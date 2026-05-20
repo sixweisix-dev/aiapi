@@ -12,15 +12,17 @@ import (
 
 	"ai-api-gateway/internal/billing"
 	"ai-api-gateway/internal/models"
+	"ai-api-gateway/internal/upstream"
 )
 
 type AdminHandler struct {
 	db     *gorm.DB
 	engine *billing.Engine
+	pool *upstream.Pool
 }
 
-func NewAdminHandler(db *gorm.DB, engine *billing.Engine) *AdminHandler {
-	return &AdminHandler{db: db, engine: engine}
+func NewAdminHandler(db *gorm.DB, engine *billing.Engine, pool *upstream.Pool) *AdminHandler {
+	return &AdminHandler{db: db, engine: engine, pool: pool}
 }
 
 // ---- Dashboard ----
@@ -332,6 +334,7 @@ type ChannelListItem struct {
 	AutoInjectCache     bool       `json:"auto_inject_cache"`
 	GroupID             *uint      `json:"group_id,omitempty"`
 	GroupName           string     `json:"group_name,omitempty"`
+	Errors1h            int64      `json:"errors_1h"`
 }
 
 func (h *AdminHandler) ListChannels(c *gin.Context) {
@@ -394,6 +397,12 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 					}
 				}
 				return ""
+			}(),
+			Errors1h: func() int64 {
+				if h.pool != nil {
+					return h.pool.GetErrorsLastHour(ch.ID.String())
+				}
+				return 0
 			}(),
 		})
 	}

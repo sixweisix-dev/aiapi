@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ai-api-gateway/internal/models"
+	"ai-api-gateway/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -15,11 +16,12 @@ import (
 // WidgetHandler 提供 iOS Scriptable 锁屏组件用的精简 dashboard API。
 // 鉴权方式: ?key=sk-xxx (admin 用户的 API key)
 type WidgetHandler struct {
-	db *gorm.DB
+	db   *gorm.DB
+	pool *upstream.Pool
 }
 
-func NewWidgetHandler(db *gorm.DB) *WidgetHandler {
-	return &WidgetHandler{db: db}
+func NewWidgetHandler(db *gorm.DB, pool *upstream.Pool) *WidgetHandler {
+	return &WidgetHandler{db: db, pool: pool}
 }
 
 type widgetChannel struct {
@@ -29,6 +31,8 @@ type widgetChannel struct {
 	TodayCNY     float64 `json:"today_cny"`
 	RemainingUSD float64 `json:"remaining_usd"` // 剩余配额 USD
 SubscriptionEnd *string `json:"subscription_end,omitempty"` // YYYY-MM-DD, 仅 subscription 渠道
+Errors1h        int64   `json:"errors_1h"`
+HealthIndicator string  `json:"health_indicator"`
 }
 
 type widgetDashboardResp struct {
@@ -38,6 +42,7 @@ type widgetDashboardResp struct {
 	TotalQuotaPct  float64         `json:"total_quota_pct"`  // 所有渠道中最高的 quota_pct（最告警的渠道）
 	TotalRemainingUSD float64      `json:"total_remaining_usd"` // 所有渠道剩余配额 USD 总和
 	AlertsCount    int             `json:"alerts_count"`     // 非 normal 状态的渠道数量
+	TotalErrors1h  int64           `json:"total_errors_1h"`  // 所有渠道 1h 错误总数
 	UpdatedAt      string          `json:"updated_at"`
 }
 
@@ -94,14 +99,27 @@ func (h *WidgetHandler) Dashboard(c *gin.Context) {
 			e := ch.SubscriptionEnd.Format("2006-01-02")
 			subEnd = &e
 		}
+		errors1h := int64(0)
+		if h.pool != nil {
+			errors1h = h.pool.GetErrorsLastHour(ch.ID.String())
+		}
+		healthInd := "green"
+		if errors1h >= 30 {
+			healthInd = "red"
+		} else if errors1h > 0 {
+			healthInd = "yellow"
+		}
 		resp.Channels = append(resp.Channels, widgetChannel{
-			Name:         ch.Name,
-			Status:       ch.QuotaStatus,
-			QuotaPct:     pct,
-			TodayCNY:     ch.DailyCostCNY,
-			RemainingUSD: rem,
+			Name:            ch.Name,
+			Status:          ch.QuotaStatus,
+			QuotaPct:        pct,
+			TodayCNY:        ch.DailyCostCNY,
+			RemainingUSD:    rem,
 			SubscriptionEnd: subEnd,
+			Errors1h:        errors1h,
+			HealthIndicator: healthInd,
 		})
+		resp.TotalErrors1h += errors1h
 		resp.TotalRemainingUSD += rem
 		resp.TotalTodayCNY += ch.DailyCostCNY
 		resp.TotalMonthCNY += ch.MonthlyCostCNY

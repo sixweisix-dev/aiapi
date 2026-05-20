@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// Upstream pool
-	pool := upstream.NewPool(db)
+	pool := upstream.NewPool(db, redisClient)
 	go func() {
 		pool.HealthCheck()
 	}()
@@ -78,8 +78,6 @@ func main() {
 
 	// Handlers
 	var chatMailCfg *handlers.MailConfig // set after mailCfg is defined
-	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter, chatMailCfg)
-	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler)
 	modelsHandler := handlers.NewModelsHandler(db)
 	mailCfg := handlers.MailConfig{
         Host:     cfg.SMTPHost,
@@ -89,7 +87,6 @@ func main() {
         From:     cfg.EmailFrom,
     }
     handlers.SetGlobalDB(db)
-	chatHandler.SetMailCfg(&mailCfg)
 	authHandler := handlers.NewAuthHandler(db, cfg.JWTSecret, redisClient, mailCfg)
 	usageByModelHandler := handlers.NewUsageByModelHandler(db)
 	bark := monitoring.NewBarkNotifier(os.Getenv("BARK_DEVICE_KEY"))
@@ -98,14 +95,17 @@ func main() {
 		os.Getenv("SMTP_PASSWORD"), os.Getenv("SMTP_FROM"), os.Getenv("ALERT_EMAIL_TO"),
 	)
 	channelTracker := channelmetrics.New(db, redisClient, alerter, bark, mailAlert)
+	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter, chatMailCfg, channelTracker)
+	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler)
+	chatHandler.SetMailCfg(&mailCfg)
 	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
-	widgetHandler := handlers.NewWidgetHandler(db)
+	widgetHandler := handlers.NewWidgetHandler(db, pool)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
 stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
-	adminHandler := handlers.NewAdminHandler(db, billingEngine)
+	adminHandler := handlers.NewAdminHandler(db, billingEngine, pool)
 	goofishHandler := handlers.NewGoofishHandler(db)
 	goofishSupplierHandler := handlers.NewGoofishSupplierHandler(db)
 	userHandler := handlers.NewUserHandler(db)

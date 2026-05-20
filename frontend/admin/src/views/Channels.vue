@@ -124,6 +124,15 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="1h 错误" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.errors_1h > 0" :type="row.errors_1h >= 30 ? 'danger' : 'warning'" size="small">
+              ⚠ {{ row.errors_1h }}
+            </el-tag>
+            <span v-else class="text-gray-400">-</span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="缓存命中" width="100" align="center">
           <template #default="{ row }">
             <span v-if="row.cache_total_tokens > 0">{{ (row.cache_hit_rate * 100).toFixed(1) }}%</span>
@@ -170,6 +179,7 @@
           <el-select v-model="form.provider" style="width:100%">
             <el-option label="OpenAI" value="openai" />
             <el-option label="Anthropic" value="anthropic" />
+            <el-option label="多模型聚合" value="multi_aggregator" />
             <el-option label="Google" value="google" />
             <el-option label="Qwen" value="qwen" />
             <el-option label="DeepSeek" value="deepseek" />
@@ -311,6 +321,7 @@
           <el-select v-model="modelForm.provider" style="width:100%" :disabled="isEditingModel">
             <el-option label="OpenAI" value="openai" />
             <el-option label="Anthropic" value="anthropic" />
+            <el-option label="多模型聚合" value="multi_aggregator" />
             <el-option label="Google" value="google" />
             <el-option label="Qwen" value="qwen" />
             <el-option label="DeepSeek" value="deepseek" />

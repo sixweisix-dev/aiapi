@@ -8,11 +8,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"ai-api-gateway/internal/models"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -46,11 +48,13 @@ type Pool struct {
 	channels []*Channel
 	db       *gorm.DB
 	client   *http.Client
+	rdb      *redis.Client // 错误指标滑动窗口
 }
 
-func NewPool(db *gorm.DB) *Pool {
+func NewPool(db *gorm.DB, rdb *redis.Client) *Pool {
 	p := &Pool{
-		db: db,
+		db:  db,
+		rdb: rdb,
 		client: &http.Client{
 			Timeout: 120 * time.Second,
 			Transport: &http.Transport{
@@ -170,7 +174,7 @@ func (p *Pool) Select(provider string) *Channel {
 	var candidates []*Channel
 	for _, c := range p.channels {
 		// 过滤: provider/并发/健康/额度状态/非专属
-		if strings.EqualFold(c.Provider, provider) &&
+		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -208,7 +212,7 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	// 0. 优先看是否在某专属渠道列表中
 	if userID != "" {
 		for _, c := range p.channels {
-			if c.IsDedicated && strings.EqualFold(c.Provider, provider) &&
+			if c.IsDedicated && (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
 				groupMatches(c.GroupID, groupID) &&
 				c.concurrent < int64(c.MaxConcurrent) &&
 				c.HealthStatus != "unhealthy" &&
@@ -221,7 +225,7 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	}
 	var healthy []*Channel
 	for _, c := range p.channels {
-		if strings.EqualFold(c.Provider, provider) &&
+		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
 			groupMatches(c.GroupID, groupID) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
@@ -407,7 +411,7 @@ func (p *Pool) roundRobin(provider string) *Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		if strings.EqualFold(c.Provider, provider) {
+		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -426,7 +430,7 @@ func (p *Pool) leastUsed(provider string) *Channel {
 	var best *Channel
 	lowest := int64(1<<63 - 1)
 	for _, c := range p.channels {
-		if strings.EqualFold(c.Provider, provider) && c.concurrent < lowest {
+		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) && c.concurrent < lowest {
 			lowest = c.concurrent
 			best = c
 		}
@@ -474,7 +478,7 @@ func (p *Pool) SelectAllHealthy(provider string) []*Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		if strings.EqualFold(c.Provider, provider) &&
+		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
 			c.HealthStatus != "unhealthy" {
 			candidates = append(candidates, c)
 		}
@@ -509,6 +513,7 @@ func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string
 		if err != nil {
 			log.Printf("[failover] channel %s (%s) network error: %v, trying next", ch.Name, ch.ID, err)
 			atomic.AddInt64(&ch.ErrorCount, 1)
+			p.recordError(ch.ID, 0)
 			lastErr = err
 			continue
 		}
@@ -518,6 +523,7 @@ func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string
 			log.Printf("[failover] channel %s (%s) returned HTTP %d, trying next (attempt %d/%d)",
 				ch.Name, ch.ID, resp.StatusCode, i+1, len(candidates))
 			atomic.AddInt64(&ch.ErrorCount, 1)
+			p.recordError(ch.ID, resp.StatusCode)
 
 			// 401/403：标记为不健康，由下次 health check 复活
 			if resp.StatusCode == 401 || resp.StatusCode == 403 {
@@ -548,6 +554,47 @@ func shouldFailover(status int) bool {
 		return true
 	}
 	return false
+}
+
+// recordError 记录一次上游错误到 Redis (按分钟桶, 1h 滑动窗口)
+func (p *Pool) recordError(channelID string, statusCode int) {
+	if p.rdb == nil {
+		return
+	}
+	bucket := time.Now().Unix() / 60
+	key := fmt.Sprintf("errors:%s:%d", channelID, bucket)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	p.rdb.Incr(ctx, key)
+	p.rdb.Expire(ctx, key, 65*time.Minute)
+}
+
+// GetErrorsLastHour 返回最近 60 分钟某 channel 累计错误数 (429/5xx)
+func (p *Pool) GetErrorsLastHour(channelID string) int64 {
+	if p.rdb == nil {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	now := time.Now()
+	keys := make([]string, 60)
+	for i := 0; i < 60; i++ {
+		bucket := now.Add(-time.Duration(i)*time.Minute).Unix() / 60
+		keys[i] = fmt.Sprintf("errors:%s:%d", channelID, bucket)
+	}
+	res, err := p.rdb.MGet(ctx, keys...).Result()
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, v := range res {
+		if sv, ok := v.(string); ok {
+			if n, err := strconv.ParseInt(sv, 10, 64); err == nil {
+				total += n
+			}
+		}
+	}
+	return total
 }
 
 func (p *Pool) markUnhealthy(channelID string) {

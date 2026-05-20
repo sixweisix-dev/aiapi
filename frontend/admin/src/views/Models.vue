@@ -59,6 +59,7 @@
           <el-select v-model="form.provider" style="width:100%" :disabled="isEditing">
             <el-option label="OpenAI" value="openai" />
             <el-option label="Anthropic" value="anthropic" />
+            <el-option label="多模型聚合" value="multi_aggregator" />
             <el-option label="Google" value="google" />
             <el-option label="Qwen" value="qwen" />
             <el-option label="DeepSeek" value="deepseek" />
