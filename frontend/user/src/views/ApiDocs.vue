@@ -74,6 +74,61 @@
       </div>
     </el-card>
 
+    <!-- 模型选择教程 -->
+    <el-card shadow="hover" class="doc-card">
+      <template #header><span class="card-title">{{ t('apiDocs.guideTitle') }}</span></template>
+      <p class="desc-text">{{ t('apiDocs.guideDesc') }}</p>
+      <el-table :data="modelGuideRows" border class="guide-table">
+        <el-table-column :label="t('apiDocs.guideColScene')" prop="scene" min-width="160" />
+        <el-table-column :label="t('apiDocs.guideColModel')" prop="model" min-width="240">
+          <template #default="{ row }"><code class="model-code">{{ row.model }}</code></template>
+        </el-table-column>
+        <el-table-column :label="t('apiDocs.guideColNote')" prop="note" min-width="280" />
+      </el-table>
+      <div class="tips-block">
+        <p class="tip-text">{{ t('apiDocs.guideTip1') }}</p>
+        <p class="tip-text">{{ t('apiDocs.guideTip2') }}</p>
+        <p class="tip-text">{{ t('apiDocs.guideTip3') }}</p>
+      </div>
+
+      <!-- 调用示例 -->
+      <div class="guide-examples">
+        <h4 class="examples-title">{{ t('apiDocs.guideExamplesTitle') }}</h4>
+        <p class="desc-text">{{ t('apiDocs.guideExamplesDesc') }}</p>
+
+        <div class="example-block">
+          <div class="example-label">{{ t('apiDocs.guideExampleLabelOA') }}</div>
+          <pre class="code-block"><code>curl -X POST https://transitai.cloud/v1/chat/completions \
+  -H "Authorization: Bearer sk-..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-mix",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ]
+  }'</code></pre>
+        </div>
+
+        <div class="example-block">
+          <div class="example-label">{{ t('apiDocs.guideExampleLabelAN') }}</div>
+          <pre class="code-block"><code>curl -X POST https://transitai.cloud/v1/messages \
+  -H "x-api-key: sk-..." \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-mix",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ]
+  }'</code></pre>
+        </div>
+
+        <p class="tip-text">{{ t('apiDocs.guideExampleHint') }}</p>
+      </div>
+    </el-card>
+
     <!-- 模型分组与版本 (移到两种格式对比后) -->
     <el-card v-if="channelGroups.length > 1" shadow="hover" class="doc-card">
       <template #header><span class="card-title">{{ t('apiDocs.groupsTitle') }}</span></template>
@@ -545,6 +600,14 @@ const mcpExample = `# ~/.claude_desktop_config.json (MacOS)
   }
 }`
 
+const modelGuideRows = computed(() => [
+  { scene: t('apiDocs.guideSceneCoding'),  model: t('apiDocs.guideModelCoding'),  note: t('apiDocs.guideNoteCoding') },
+  { scene: t('apiDocs.guideSceneFast'),    model: t('apiDocs.guideModelFast'),    note: t('apiDocs.guideNoteFast') },
+  { scene: t('apiDocs.guideSceneReason'),  model: t('apiDocs.guideModelReason'),  note: t('apiDocs.guideNoteReason') },
+  { scene: t('apiDocs.guideSceneEcon'),    model: t('apiDocs.guideModelEcon'),    note: t('apiDocs.guideNoteEcon') },
+  { scene: t('apiDocs.guideSceneChinese'), model: t('apiDocs.guideModelChinese'), note: t('apiDocs.guideNoteChinese') },
+])
+
 const compareRows = computed(() => {
   const Y = t('apiDocs.compareYes')
   const N = t('apiDocs.compareNo')
@@ -707,4 +770,12 @@ onMounted(() => loadChannelGroups())
 .choose-block { margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
 .choose-block strong { color: #4338ca; }
 .choose-block p { margin: 4px 0 0; color: #4b5563; }
+
+.guide-examples { margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee; }
+.examples-title { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.example-block { margin: 12px 0; }
+.example-label { font-size: 13px; font-weight: 600; color: #6b7280; margin-bottom: 6px; }
+.code-block { background: #1e293b; color: #e2e8f0; padding: 12px 14px; border-radius: 6px; font-size: 12px; line-height: 1.55; overflow-x: auto; }
+.code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
 </style>

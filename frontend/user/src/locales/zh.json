@@ -446,8 +446,8 @@
       "membershipTitle": "👑 会员套餐(月费)",
       "tier": "档",
       "balance": "余额",
-      "firstRechargeBonus": "🎁 新用户首充赠送 $50 余额",
-      "firstRechargeBonusSub": "仅限首次充值,自动到账"
+      "firstRechargeBonus": "🎁 首充满 ¥300 送 $50 余额",
+      "firstRechargeBonusSub": "首次充值满 ¥300 自动到账,叠加梯度赠送"
     }
   },
   "billing": {
@@ -708,7 +708,35 @@
     "groupExamplePro": "→ 走官方直连分组",
     "groupCodeTitle": "📝 各分组代码示例",
     "groupCodeDesc": "同一份代码, 模型名加 -pro 后缀即切换到官方直连分组。两种 API 格式 × 两种分组 = 4 种组合",
-    "groupSwitchTip": "把示例中 model 名加 -pro 后缀即切换到官方直连分组 (如 claude-mix → claude-mix-pro)"
+    "groupSwitchTip": "把示例中 model 名加 -pro 后缀即切换到官方直连分组 (如 claude-mix → claude-mix-pro)",
+    "guideTitle": "🎯 如何选择模型",
+    "guideDesc": "不同模型有不同的特长和价格定位。根据你的使用场景挑选最合适的模型，可以兼顾效果和成本。",
+    "guideColScene": "使用场景",
+    "guideColModel": "推荐模型",
+    "guideColNote": "特点说明",
+    "guideSceneCoding": "编程 / 通用对话",
+    "guideModelCoding": "claude-mix",
+    "guideNoteCoding": "Claude 主用，遇到不稳定时自动降级到 MiniMax 230B；价格友好，能力均衡，推荐入门。",
+    "guideSceneFast": "快速短任务",
+    "guideModelFast": "gpt-5.4-compact, gpt-5.5-compact",
+    "guideNoteFast": "响应速度快，适合简短请求、补全建议、命令转换等小任务。",
+    "guideSceneReason": "复杂推理 / 长文档",
+    "guideModelReason": "gpt-5.5, deepseek-v4-pro",
+    "guideNoteReason": "推理能力强，适合代码审查、长文档分析、多步骤逻辑推导。",
+    "guideSceneEcon": "极致经济（高频大量）",
+    "guideModelEcon": "deepseek-v4-flash, qwen-3-6-35b",
+    "guideNoteEcon": "输入价格极低，适合需要海量 Token 的批量任务，例如向量预处理、数据标注。",
+    "guideSceneChinese": "中文优化",
+    "guideModelChinese": "deepseek-v4-pro, qwen-3-6-35b",
+    "guideNoteChinese": "对中文语料训练充分，处理中文复杂语义、文化语境时表现更自然。",
+    "guideTip1": "💡 第一次接入建议从 claude-mix 起步，能力均衡且兼容多种工具。",
+    "guideTip2": "💡 详细的输入/输出价格请查看顶部菜单「模型与价格」。",
+    "guideTip3": "💡 需要流式输出？参考下方「请求示例」章节的 stream: true 用法。",
+    "guideExamplesTitle": "📋 调用示例",
+    "guideExamplesDesc": "选好模型后，把示例中的 model 字段换成上表中需要的模型名即可。",
+    "guideExampleLabelOA": "OpenAI 格式",
+    "guideExampleLabelAN": "Anthropic 格式",
+    "guideExampleHint": "💡 把代码中的 \"claude-mix\" 改成上表中你需要的模型即可。"
   },
   "changePwd": {
     "heroTitle": "修改密码",

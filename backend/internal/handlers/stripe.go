@@ -280,15 +280,25 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 		return
 	}
 
-	// 首充赠送 (非 membership 升级)
+	// 首充赠送 (非 membership 升级, 充值金额 >= first_recharge_min_amount)
 	isFirstRecharge := !existingFirstRechargeAt.Valid
 	if isFirstRecharge && !isUpgrade {
-		if firstBonusStr := h.readSetting("first_recharge_bonus"); firstBonusStr != "" {
-			if firstBonus, err := strconv.ParseFloat(firstBonusStr, 64); err == nil && firstBonus > 0 {
-				bonus += firstBonus
-				actualAmount += firstBonus
-				log.Printf("[stripe-webhook] first recharge bonus: user=%s +$%.2f", userID, firstBonus)
+		minAmount := 0.0
+		if minStr := h.readSetting("first_recharge_min_amount"); minStr != "" {
+			if v, err := strconv.ParseFloat(minStr, 64); err == nil {
+				minAmount = v
 			}
+		}
+		if paidUSD >= minAmount {
+			if firstBonusStr := h.readSetting("first_recharge_bonus"); firstBonusStr != "" {
+				if firstBonus, err := strconv.ParseFloat(firstBonusStr, 64); err == nil && firstBonus > 0 {
+					bonus += firstBonus
+					actualAmount += firstBonus
+					log.Printf("[stripe-webhook] first recharge bonus: user=%s +$%.2f (paid $%.2f >= min $%.2f)", userID, firstBonus, paidUSD, minAmount)
+				}
+			}
+		} else {
+			log.Printf("[stripe-webhook] first recharge user=%s paid $%.2f < min $%.2f, no bonus", userID, paidUSD, minAmount)
 		}
 	}
 

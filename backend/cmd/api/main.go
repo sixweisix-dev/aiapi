@@ -171,6 +171,7 @@ stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	// === Public endpoints (no auth) ===
 r.GET("/v1/public/models", userHandler.ListPublicModels)
 	r.GET("/v1/public/channel-groups", userHandler.ListPublicChannelGroups)
+	r.GET("/v1/locale-detect", handlers.DetectLocale)
 	r.POST("/v1/integrations/goofish/order", goofishHandler.OrderWebhook)
 
 	// 闲管家自研系统 - 货源接口 (闲管家来调, 用签名验证)

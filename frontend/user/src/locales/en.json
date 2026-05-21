@@ -446,8 +446,8 @@
       "membershipTitle": "👑 Membership Plans (Monthly)",
       "tier": "tier",
       "balance": "balance",
-      "firstRechargeBonus": "🎁 New User Bonus: $50 free credit",
-      "firstRechargeBonusSub": "First recharge only, automatically credited"
+      "firstRechargeBonus": "🎁 First Top-up of $300+ → $50 Bonus",
+      "firstRechargeBonusSub": "Auto-credited on first top-up of $300+, stackable with tier bonus"
     }
   },
   "billing": {
@@ -708,7 +708,35 @@
     "groupExamplePro": "→ Official direct group",
     "groupCodeTitle": "📝 Code Examples per Group",
     "groupCodeDesc": "Same code, just append -pro to the model name to switch to Official group. Two API formats × Two groups = 4 combinations",
-    "groupSwitchTip": "Append -pro to the model name in any example to switch to Official direct group (e.g. claude-mix → claude-mix-pro)"
+    "groupSwitchTip": "Append -pro to the model name in any example to switch to Official direct group (e.g. claude-mix → claude-mix-pro)",
+    "guideTitle": "🎯 How to Choose a Model",
+    "guideDesc": "Different models have different strengths and pricing. Pick the right model for your use case to balance quality and cost.",
+    "guideColScene": "Use Case",
+    "guideColModel": "Recommended Model",
+    "guideColNote": "Notes",
+    "guideSceneCoding": "Coding / General Chat",
+    "guideModelCoding": "claude-mix",
+    "guideNoteCoding": "Claude primary; auto-fallback to MiniMax 230B when Claude is unstable. Balanced capability, friendly price — great default choice.",
+    "guideSceneFast": "Quick Short Tasks",
+    "guideModelFast": "gpt-5.4-compact, gpt-5.5-compact",
+    "guideNoteFast": "Fast response, optimized for brief requests, autocomplete suggestions, command translation, etc.",
+    "guideSceneReason": "Complex Reasoning / Long Docs",
+    "guideModelReason": "gpt-5.5, deepseek-v4-pro",
+    "guideNoteReason": "Strong reasoning capability — ideal for code review, long-document analysis, multi-step logical deduction.",
+    "guideSceneEcon": "Cost-Optimized (Heavy Use)",
+    "guideModelEcon": "deepseek-v4-flash, qwen-3-6-35b",
+    "guideNoteEcon": "Ultra-cheap input pricing, ideal for high-volume token tasks like embedding preprocessing or data labeling.",
+    "guideSceneChinese": "Chinese-Optimized",
+    "guideModelChinese": "deepseek-v4-pro, qwen-3-6-35b",
+    "guideNoteChinese": "Trained on extensive Chinese corpora — better handling of complex Chinese semantics and cultural context.",
+    "guideTip1": "💡 New to the platform? Start with claude-mix — balanced and compatible with most tools.",
+    "guideTip2": "💡 See \"Models & Pricing\" in the top menu for detailed input/output rates.",
+    "guideTip3": "💡 Need streaming output? See the 'Request Example' section below for stream: true usage.",
+    "guideExamplesTitle": "📋 Code Examples",
+    "guideExamplesDesc": "After choosing a model, replace the model field in the example with any model name from the table above.",
+    "guideExampleLabelOA": "OpenAI Format",
+    "guideExampleLabelAN": "Anthropic Format",
+    "guideExampleHint": "💡 Replace \"claude-mix\" in the code with any model from the table above."
   },
   "changePwd": {
     "heroTitle": "Change Password",

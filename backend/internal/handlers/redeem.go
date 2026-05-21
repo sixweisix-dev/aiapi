@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"strconv"
+	"database/sql"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -76,7 +78,31 @@ func (h *RedeemHandler) RedeemCode(c *gin.Context) {
 			return err
 		}
 		if rc.Type == "balance" || actualAmount > 0 {
-			if err := tx.Exec(`UPDATE users SET balance=balance+? WHERE id=?`, actualAmount, userID).Error; err != nil {
+			// 首充奖励 (与 Stripe 一致: actualAmount >= first_recharge_min_amount 才送)
+			var existingFirstRechargeAt sql.NullTime
+			tx.Raw(`SELECT first_recharge_at FROM users WHERE id=?`, userID).Row().Scan(&existingFirstRechargeAt)
+			isFirstRecharge := !existingFirstRechargeAt.Valid
+			firstBonus := 0.0
+			if isFirstRecharge {
+				var minStr, bonusStr string
+				tx.Raw(`SELECT value FROM settings WHERE key='first_recharge_min_amount'`).Scan(&minStr)
+				tx.Raw(`SELECT value FROM settings WHERE key='first_recharge_bonus'`).Scan(&bonusStr)
+				minAmount, _ := strconv.ParseFloat(minStr, 64)
+				bonusVal, _ := strconv.ParseFloat(bonusStr, 64)
+				// 严格: 按 face_value 判定 (不含梯度赠送), 与 Stripe paidUSD 一致
+				judgeAmount := rc.FaceValue
+				if judgeAmount == 0 { // 旧兑换码 face_value 为空, fallback 到 actualAmount
+					judgeAmount = actualAmount
+				}
+				if judgeAmount >= minAmount && bonusVal > 0 {
+					firstBonus = bonusVal
+					log.Printf("[redeem] first recharge bonus user=%s face=$%.2f bonus=$%.2f", userID, judgeAmount, firstBonus)
+				} else if minAmount > 0 {
+					log.Printf("[redeem] first recharge face=$%.2f < min $%.2f, no bonus", judgeAmount, minAmount)
+				}
+			}
+			totalAdd := actualAmount + firstBonus
+			if err := tx.Exec(`UPDATE users SET balance=balance+? WHERE id=?`, totalAdd, userID).Error; err != nil {
 				return err
 			}
 			// 首充标记
@@ -268,18 +294,28 @@ func (h *RedeemHandler) PreviewCode(c *gin.Context) {
 	h.db.Raw(`SELECT COUNT(*) FROM users WHERE id=? AND first_recharge_at IS NOT NULL`, userID).Scan(&firstRechargeCount)
 	isFirst := firstRechargeCount == 0
 
-	// 读取首充礼金额
-	var firstBonus float64
-	if isFirst && rc.Type == "balance" {
-		var val string
-		h.db.Raw(`SELECT value FROM settings WHERE key='first_recharge_bonus'`).Scan(&val)
-		fmt.Sscanf(val, "%f", &firstBonus)
-	}
-
 	promoEnabled := GetSettingValue(h.db, "recharge_promo_enabled", "true") == "true"
 	actualAmount := rc.BalanceAmount
 	if !promoEnabled && rc.FaceValue > 0 {
 		actualAmount = rc.FaceValue
+	}
+
+	// 读取首充礼金额 (严格: 按 face_value 判定, 与 Stripe paidUSD 一致)
+	var firstBonus float64
+	if isFirst && rc.Type == "balance" {
+		var val, minVal string
+		h.db.Raw(`SELECT value FROM settings WHERE key='first_recharge_bonus'`).Scan(&val)
+		h.db.Raw(`SELECT value FROM settings WHERE key='first_recharge_min_amount'`).Scan(&minVal)
+		var bonus, minAmount float64
+		fmt.Sscanf(val, "%f", &bonus)
+		fmt.Sscanf(minVal, "%f", &minAmount)
+		judgeAmount := rc.FaceValue
+		if judgeAmount == 0 {
+			judgeAmount = actualAmount
+		}
+		if judgeAmount >= minAmount {
+			firstBonus = bonus
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
