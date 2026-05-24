@@ -246,8 +246,8 @@
         <el-divider>对账倍率（widget 用）</el-divider>
 
         <el-form-item label="对账倍率">
-          <el-input-number v-model="form.reconcile_multiplier" :min="0.1" :max="2" :step="0.01" :precision="2" controls-position="right" />
-          <span class="ml-2 text-xs text-gray-400">默认 1.0。用法：跑一段时间后对比上游后台真实消耗 vs 我方 quota_used_today_usd（DB），算出实际比值填入。Widget 余额 = daily_quota − quota_used_today / 对账倍率</span>
+          <el-input-number v-model="form.reconcile_multiplier" :min="0.1" :max="10" :step="0.01" :precision="2" controls-position="right" />
+          <span class="ml-2 text-xs text-gray-400">⚠ 仅用于「后台对账核算」,不影响用户实际付费单价。例:上游 USD × 此倍率 × 7 (汇率) = 应得 CNY,用于判断 channel 盈利。Aitechflux/Vertex 都应是 2.5。</span>
         </el-form-item>
 
         <el-divider>Cache 优化</el-divider>
@@ -298,7 +298,7 @@
         </el-form-item>
         <el-form-item label="倍率" prop="multiplier">
           <el-input-number v-model="groupForm.multiplier" :min="0.01" :step="0.1" :precision="4" controls-position="right" />
-          <span class="ml-2 text-xs text-gray-400">用户付费 = 模型基础价 × 此倍率</span>
+          <span class="ml-2 text-xs text-gray-400">分组级倍率,影响该分组下所有模型。最终用户付费 = input_price × group × model 倍率。默认 1.0 = 不调整,例:VIP 分组 0.8x 打折。</span>
         </el-form-item>
         <el-form-item label="说明(中)"><el-input v-model="groupForm.description" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="英文名"><el-input v-model="groupForm.name_en" /></el-form-item>
@@ -339,7 +339,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="上游别名"><el-input v-model="modelForm.upstream_name" placeholder="留空 = 同模型标识" /></el-form-item>
-        <el-form-item label="倍率"><el-input-number v-model="modelForm.multiplier" :precision="2" :step="0.1" :min="0.5" /></el-form-item>
+        <el-form-item label="倍率">
+          <el-input-number v-model="modelForm.multiplier" :precision="2" :step="0.1" :min="0.5" />
+          <span class="ml-2 text-xs text-gray-400">单模型倍率,只影响此模型。默认 1.0 = 不调整,例:促销期 0.8x 限时半价。</span>
+        </el-form-item>
         <el-form-item label="描述"><el-input v-model="modelForm.description" type="textarea" :rows="2" /></el-form-item>
         <el-row :gutter="10">
           <el-col :span="12"><el-form-item label="公开"><el-switch v-model="modelForm.is_public" /></el-form-item></el-col>
@@ -403,6 +406,13 @@ async function refreshTree() {
   await Promise.all([fetchData(), loadGroups(), loadModels()])
 }
 
+// Provider 兼容性: multi_aggregator 通配 (除 vertex_ai), 其他严格匹配
+const isProviderCompatible = (channelProvider, modelProvider) => {
+  if (!channelProvider || !modelProvider) return false
+  if (channelProvider === 'multi_aggregator') return modelProvider !== 'vertex_ai'
+  return channelProvider === modelProvider
+}
+
 // 渠道架构树形:分组 → 渠道 → 模型(每渠道下显示该分组下所有模型)
 const treeData = computed(() => {
   if (!channelGroups.value.length) return []
@@ -433,7 +443,7 @@ const treeData = computed(() => {
             label: c.name,
             meta: { provider: c.provider, health: c.health_status, weight: c.weight },
             raw: c,
-            children: gModels.map(m => mkModel(c, m)),
+            children: gModels.filter(m => isProviderCompatible(c.provider, m.provider)).map(m => mkModel(c, m)),
           }))
         : gModels.map(m => mkModel(null, m)),
     }

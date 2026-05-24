@@ -19,6 +19,7 @@ import (
 	"ai-api-gateway/internal/middleware"
 	"ai-api-gateway/internal/monitoring"
 	"ai-api-gateway/internal/upstream"
+	"ai-api-gateway/internal/vertex"
 )
 
 func main() {
@@ -49,8 +50,14 @@ func main() {
 		log.Printf("WARN: seed models: %v", err)
 	}
 
+	// Vertex AI token manager (Gemini 通过 Service Account 鉴权)
+	vertexTM, vErr := vertex.New(os.Getenv("VERTEX_CREDENTIALS_PATH"))
+	if vErr != nil {
+		log.Printf("WARN: vertex init: %v (vertex_ai channels disabled)", vErr)
+	}
+
 	// Upstream pool
-	pool := upstream.NewPool(db, redisClient)
+	pool := upstream.NewPool(db, redisClient, vertexTM)
 	go func() {
 		pool.HealthCheck()
 	}()
@@ -96,7 +103,8 @@ func main() {
 	)
 	channelTracker := channelmetrics.New(db, redisClient, alerter, bark, mailAlert)
 	chatHandler := handlers.NewChatHandler(db, pool, billingEngine, alerter, contentFilter, chatMailCfg, channelTracker)
-	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler)
+	imageHandler := handlers.NewImageHandler(db, pool, billingEngine, channelTracker)
+	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler, imageHandler)
 	chatHandler.SetMailCfg(&mailCfg)
 	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
 	widgetHandler := handlers.NewWidgetHandler(db, pool)
@@ -191,6 +199,8 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 	v1.Use(middleware.APIKeyAuth(db))
 	{
 		v1.POST("/chat/completions", middleware.APIKeyRateLimit(rateLimiter), chatHandler.Handle)
+	v1.POST("/images/generations", middleware.APIKeyRateLimit(rateLimiter), imageHandler.HandleGenerate)
+	v1.POST("/images/edits", middleware.APIKeyRateLimit(rateLimiter), imageHandler.HandleEdit)
 	v1.POST("/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle)
 	v1.POST("/v1/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle) // 兼容 base_url=/v1 的错误配置
 		v1.GET("/models", modelsHandler.List)

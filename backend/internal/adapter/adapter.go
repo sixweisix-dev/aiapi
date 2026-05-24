@@ -23,6 +23,7 @@ var registry = map[string]ChatAdapter{
 	"openai":    &OpenAIAdapter{},
 	"anthropic": &AnthropicAdapter{},
 	"google":    &GeminiAdapter{},
+	"vertex_ai": &OpenAIAdapter{}, // Vertex AI 用 OpenAI 兼容端点
 }
 
 func GetAdapter(provider string) (ChatAdapter, bool) {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"ai-api-gateway/internal/models"
+	"ai-api-gateway/internal/vertex"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -49,12 +50,14 @@ type Pool struct {
 	db       *gorm.DB
 	client   *http.Client
 	rdb      *redis.Client // 错误指标滑动窗口
+	vertexTM *vertex.TokenManager
 }
 
-func NewPool(db *gorm.DB, rdb *redis.Client) *Pool {
+func NewPool(db *gorm.DB, rdb *redis.Client, vertexTM *vertex.TokenManager) *Pool {
 	p := &Pool{
-		db:  db,
-		rdb: rdb,
+		db:       db,
+		rdb:      rdb,
+		vertexTM: vertexTM,
 		client: &http.Client{
 			Timeout: 120 * time.Second,
 			Transport: &http.Transport{
@@ -174,7 +177,7 @@ func (p *Pool) Select(provider string) *Channel {
 	var candidates []*Channel
 	for _, c := range p.channels {
 		// 过滤: provider/并发/健康/额度状态/非专属
-		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
+		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -212,7 +215,7 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	// 0. 优先看是否在某专属渠道列表中
 	if userID != "" {
 		for _, c := range p.channels {
-			if c.IsDedicated && (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
+			if c.IsDedicated && (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 				groupMatches(c.GroupID, groupID) &&
 				c.concurrent < int64(c.MaxConcurrent) &&
 				c.HealthStatus != "unhealthy" &&
@@ -225,7 +228,7 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	}
 	var healthy []*Channel
 	for _, c := range p.channels {
-		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
+		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 			groupMatches(c.GroupID, groupID) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
@@ -297,6 +300,30 @@ func (p *Pool) Do(ctx context.Context, ch *Channel, method, path string, reqBody
 		baseURL = defaultBaseURL(ch.Provider)
 	}
 
+	// === Vertex AI: 动态拼 baseURL ===
+	if strings.EqualFold(ch.Provider, "vertex_ai") {
+		if p.vertexTM == nil || !p.vertexTM.IsEnabled() {
+			return nil, fmt.Errorf("vertex_ai channel %s but TokenManager disabled (set VERTEX_CREDENTIALS_PATH)", ch.Name)
+		}
+		parts := strings.SplitN(ch.APIKey, "|", 2)
+		var projectID, region string
+		if len(parts) == 2 {
+			projectID = strings.TrimSpace(parts[0])
+			region = strings.TrimSpace(parts[1])
+		} else {
+			region = strings.TrimSpace(parts[0])
+		}
+		if projectID == "" {
+			projectID = p.vertexTM.ProjectID()
+		}
+		if region == "" {
+			region = "us-central1"
+		}
+		baseURL = fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi", region, projectID, region)
+		// Vertex OpenAI 兼容端点 path 不带 /v1 前缀
+		path = strings.TrimPrefix(path, "/v1")
+	}
+
 	url := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
 	bodyReader := bytes.NewReader(reqBody)
 
@@ -306,6 +333,15 @@ func (p *Pool) Do(ctx context.Context, ch *Channel, method, path string, reqBody
 	}
 
 	setHeaders(httpReq, ch)
+
+	// === Vertex AI: 用 OAuth2 token 覆盖 Authorization header ===
+	if strings.EqualFold(ch.Provider, "vertex_ai") && p.vertexTM != nil && p.vertexTM.IsEnabled() {
+		token, terr := p.vertexTM.GetToken(ctx)
+		if terr != nil {
+			return nil, fmt.Errorf("vertex token: %w", terr)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := p.client.Do(httpReq)
 	if err != nil {
@@ -352,6 +388,10 @@ func (p *Pool) HealthCheck() {
 }
 
 func (p *Pool) ping(ch *Channel) bool {
+	// vertex_ai: URL 是运行时动态构建, 没有静态 /v1/models 端点, 直接判健康
+	if strings.EqualFold(ch.Provider, "vertex_ai") {
+		return true
+	}
 	baseURL := ch.BaseURL
 	if baseURL == "" {
 		baseURL = defaultBaseURL(ch.Provider)
@@ -411,7 +451,7 @@ func (p *Pool) roundRobin(provider string) *Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) {
+		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -430,7 +470,7 @@ func (p *Pool) leastUsed(provider string) *Channel {
 	var best *Channel
 	lowest := int64(1<<63 - 1)
 	for _, c := range p.channels {
-		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) && c.concurrent < lowest {
+		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) && c.concurrent < lowest {
 			lowest = c.concurrent
 			best = c
 		}
@@ -446,6 +486,8 @@ func defaultBaseURL(provider string) string {
 		return "https://api.anthropic.com"
 	case "google":
 		return "https://generativelanguage.googleapis.com"
+	case "vertex_ai":
+		return "" // dynamically built in Do()
 	default:
 		return "https://api.openai.com"
 	}
@@ -478,7 +520,7 @@ func (p *Pool) SelectAllHealthy(provider string) []*Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		if (strings.EqualFold(c.Provider, provider) || strings.EqualFold(c.Provider, "multi_aggregator")) &&
+		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 			c.HealthStatus != "unhealthy" {
 			candidates = append(candidates, c)
 		}

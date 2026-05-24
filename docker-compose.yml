@@ -57,6 +57,9 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/ai_gateway?sslmode=disable
       REDIS_URL: redis://redis:6379/0
+      VERTEX_CREDENTIALS_PATH: /secrets/vertex.json
+    volumes:
+      - /home/ubuntu/secrets:/secrets:ro
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

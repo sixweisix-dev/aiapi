@@ -261,7 +261,13 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 		promptTokens := openAIResp.Usage.PromptTokens
 		completionTokens := openAIResp.Usage.CompletionTokens
 		totalTokens := openAIResp.Usage.TotalTokens
-		cost := billing.CalculateCost(promptTokens, completionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
+		// Gemini 2.5+ thinking tokens: total > prompt+completion æ¶å¤åºçæ output è®¡è´¹
+		billableCompletion := completionTokens
+		if totalTokens > promptTokens + completionTokens {
+			billableCompletion = totalTokens - promptTokens
+			log.Printf("[billing] thinking tokens: model=%s prompt=%d completion=%d total=%d billable=%d", req.Model, promptTokens, completionTokens, totalTokens, billableCompletion)
+		}
+		cost := billing.CalculateCost(promptTokens, billableCompletion, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
 
 		apiKeyIDForLog := ""
 		if v, ok := c.Get("api_key_id"); ok {
