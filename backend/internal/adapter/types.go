@@ -11,12 +11,16 @@ type OpenAIRequest struct {
 	TopP        *float64     `json:"top_p,omitempty"`
 	Stop        []string     `json:"stop,omitempty"`
 	User        string       `json:"user,omitempty"`
+	Tools       interface{}  `json:"tools,omitempty"`
+	ToolChoice  interface{}  `json:"tool_choice,omitempty"`
 }
 
 type Message struct {
 	Role       string        `json:"role"`
 	Content    interface{}   `json:"content"`
 	Name       string        `json:"name,omitempty"`
+	ToolCalls  interface{}   `json:"tool_calls,omitempty"`
+	ToolCallID string        `json:"tool_call_id,omitempty"`
 }
 
 type OpenAIResponse struct {
@@ -36,8 +40,9 @@ type Choice struct {
 }
 
 type Delta struct {
-	Role    string `json:"role,omitempty"`
-	Content string `json:"content,omitempty"`
+	Role      string      `json:"role,omitempty"`
+	Content   string      `json:"content,omitempty"`
+	ToolCalls interface{} `json:"tool_calls,omitempty"`
 }
 
 type Usage struct {
