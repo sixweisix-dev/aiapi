@@ -158,7 +158,7 @@ func convertMessages(msgs []Message) []geminiContent {
 		if m.Role == "system" {
 			contents = append(contents, geminiContent{
 				Role:  "user",
-				Parts: []geminiPart{{Text: fmt.Sprintf("[System instruction] %s", m.Content)}},
+				Parts: []geminiPart{{Text: fmt.Sprintf("[System instruction] %s", m.ContentString())}},
 			})
 			continue
 		}
@@ -168,7 +168,7 @@ func convertMessages(msgs []Message) []geminiContent {
 		}
 		contents = append(contents, geminiContent{
 			Role:  role,
-			Parts: []geminiPart{{Text: m.Content}},
+			Parts: []geminiPart{{Text: m.ContentString()}},
 		})
 	}
 

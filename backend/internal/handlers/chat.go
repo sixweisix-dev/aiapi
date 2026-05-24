@@ -62,8 +62,8 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	if h.contentFilter != nil {
 		var checkText strings.Builder
 		for _, m := range req.Messages {
-			if m.Content != "" {
-				checkText.WriteString(m.Content)
+			if text := m.ContentString(); text != "" {
+				checkText.WriteString(text)
 				checkText.WriteString(" ")
 			}
 		}
@@ -578,7 +578,8 @@ func upstreamPath(provider string) string {
 func estimatePromptTokens(req *adapter.OpenAIRequest) int {
 	total := 0
 	for _, msg := range req.Messages {
-		total += len([]rune(msg.Content)) / 4 // rough: ~4 chars per token
+		total += len([]rune(msg.ContentString())) / 4 // text: ~4 chars per token
+		total += msg.CountImages() * 85         // image: ~85 tokens each (low detail)
 		total += 4                            // overhead per message
 	}
 	if total < 50 {

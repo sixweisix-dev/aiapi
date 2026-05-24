@@ -15,7 +15,7 @@ type OpenAIRequest struct {
 
 type Message struct {
 	Role       string        `json:"role"`
-	Content    string        `json:"content"`
+	Content    interface{}   `json:"content"`
 	Name       string        `json:"name,omitempty"`
 }
 
@@ -71,4 +71,46 @@ type ModelInfo struct {
 type ModelsListResponse struct {
 	Object string      `json:"object"`
 	Data   []ModelInfo `json:"data"`
+}
+
+
+// ContentString extracts text from Content (handles string or OpenAI multimodal array).
+func (m Message) ContentString() string {
+	if s, ok := m.Content.(string); ok {
+		return s
+	}
+	if arr, ok := m.Content.([]interface{}); ok {
+		result := ""
+		for _, p := range arr {
+			if pm, ok := p.(map[string]interface{}); ok {
+				if pm["type"] == "text" {
+					if t, ok := pm["text"].(string); ok {
+						if result != "" {
+							result += " "
+						}
+						result += t
+					}
+				}
+			}
+		}
+		return result
+	}
+	return ""
+}
+
+// CountImages counts image_url parts in Content array (OpenAI multimodal format).
+func (m Message) CountImages() int {
+	arr, ok := m.Content.([]interface{})
+	if !ok {
+		return 0
+	}
+	n := 0
+	for _, p := range arr {
+		if pm, ok := p.(map[string]interface{}); ok {
+			if pm["type"] == "image_url" {
+				n++
+			}
+		}
+	}
+	return n
 }

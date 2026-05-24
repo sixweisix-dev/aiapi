@@ -69,14 +69,14 @@ func (a *AnthropicAdapter) ConvertReq(req *OpenAIRequest) ([]byte, error) {
 	messages := make([]anthropicMsg, 0, len(req.Messages))
 	for _, m := range req.Messages {
 		if m.Role == "system" {
-			system = m.Content
+			system = m.ContentString()
 			continue
 		}
 		role := m.Role
 		if role == "assistant" {
 			role = "assistant"
 		}
-		messages = append(messages, anthropicMsg{Role: role, Content: m.Content})
+		messages = append(messages, anthropicMsg{Role: role, Content: m.ContentString()})
 	}
 
 	ar := anthropicReq{
