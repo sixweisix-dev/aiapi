@@ -321,7 +321,7 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 		return
 	}
 
-	var totalPromptTokens, totalCompletionTokens int
+	var totalPromptTokens, totalCompletionTokens, streamUpstreamTotal int
 	reader := NewSSEBufferedReader(resp.Body)
 
 	for {
@@ -354,9 +354,14 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 				continue
 			}
 
-			// Count completion tokens from content
-			if len(chunk.Choices) > 0 {
-				totalCompletionTokens += len([]rune(chunk.Choices[0].Delta.Content)) / 4 // rough estimate
+			// 真实 usage (OpenAI 协议最后 chunk, 含 Vertex Gemini)
+			if chunk.Usage != nil {
+				totalPromptTokens = chunk.Usage.PromptTokens
+				totalCompletionTokens = chunk.Usage.CompletionTokens
+				streamUpstreamTotal = chunk.Usage.TotalTokens
+			} else if len(chunk.Choices) > 0 {
+				// fallback: rough estimate (上游没返回 usage 时)
+				totalCompletionTokens += len([]rune(chunk.Choices[0].Delta.Content)) / 4
 			}
 
 			b, _ := json.Marshal(chunk)
@@ -372,8 +377,17 @@ func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.O
 	}
 
 	// Post-process: billing + logging after stream ends
-	totalTokens := totalPromptTokens + totalCompletionTokens
-	cost := billing.CalculateCost(totalPromptTokens, totalCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
+	// thinking tokens (Gemini 2.5+): 上游 total > prompt+completion 时多出按 output 计费
+	billableCompletion := totalCompletionTokens
+	if streamUpstreamTotal > totalPromptTokens + totalCompletionTokens {
+		billableCompletion = streamUpstreamTotal - totalPromptTokens
+		log.Printf("[billing-stream] thinking tokens: model=%s prompt=%d completion=%d total=%d billable=%d", req.Model, totalPromptTokens, totalCompletionTokens, streamUpstreamTotal, billableCompletion)
+	}
+	totalTokens := streamUpstreamTotal
+	if totalTokens == 0 {
+		totalTokens = totalPromptTokens + totalCompletionTokens
+	}
+	cost := billing.CalculateCost(totalPromptTokens, billableCompletion, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
 	apiKeyIDForLog := ""
 	if v, ok := c.Get("api_key_id"); ok {
 		if s, ok2 := v.(string); ok2 {
