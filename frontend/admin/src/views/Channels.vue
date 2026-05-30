@@ -203,6 +203,11 @@
           <span class="ml-2 text-xs text-gray-400">渠道隶属哪个分组, 决定路由 + 倍率</span>
         </el-form-item>
 
+        <el-form-item label="支持模型">
+          <el-input v-model="form.supported_models" placeholder="留空=支持本组所有模型 / 限定示例: gpt-image-2,gpt-image-2-1k" style="width:480px" />
+          <span class="ml-2 text-xs text-gray-400">逗号分隔模型名, 空白=承接分组所有模型</span>
+        </el-form-item>
+
         <el-divider>额度管理</el-divider>
 
         <el-form-item label="额度模式">
@@ -443,7 +448,15 @@ const treeData = computed(() => {
             label: c.name,
             meta: { provider: c.provider, health: c.health_status, weight: c.weight },
             raw: c,
-            children: gModels.filter(m => isProviderCompatible(c.provider, m.provider)).map(m => mkModel(c, m)),
+            children: gModels.filter(m => {
+              if (!isProviderCompatible(c.provider, m.provider)) return false
+              // supported_models whitelist 过滤: 空表示支持本组所有
+              if (c.supported_models && c.supported_models.trim() !== '') {
+                const allowed = c.supported_models.split(',').map(s => s.trim()).filter(Boolean)
+                return allowed.includes(m.name)
+              }
+              return true
+            }).map(m => mkModel(c, m)),
           }))
         : gModels.map(m => mkModel(null, m)),
     }
@@ -614,7 +627,7 @@ function formatUSD(v) { return '$' + Number(v || 0).toFixed(2) }
 
 function openCreate() {
   isEditing.value = false; editingId.value = null
-  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, enable_cache_1h_beta:false, auto_inject_cache:false, group_id:null, account_balance_usd:0 })
+  Object.assign(form, { name:'', provider:'anthropic', api_key:'', base_url:'', weight:1, is_enabled:true, quota_type:'unlimited', daily_quota_usd:0, total_quota_usd:0, subscription_start:'', subscription_end:'', is_dedicated:false, dedicated_user_ids:'', reconcile_multiplier:1.0, billing_mode:'pay_as_you_go', monthly_fee_cny:0, enable_cache_1h_beta:false, auto_inject_cache:false, group_id:null, account_balance_usd:0, supported_models:'' })
   dialogVisible.value = true
 }
 
@@ -636,7 +649,8 @@ function openEdit(row) {
     monthly_fee_cny: Number(row.monthly_fee_cny) || 0,
     enable_cache_1h_beta: !!row.enable_cache_1h_beta,
     auto_inject_cache: !!row.auto_inject_cache,
-    group_id: row.group_id || null
+    group_id: row.group_id || null,
+    supported_models: row.supported_models || ''
   })
   dialogVisible.value = true
 }
@@ -657,6 +671,7 @@ async function handleSave() {
     enable_cache_1h_beta: !!form.enable_cache_1h_beta,
     auto_inject_cache: !!form.auto_inject_cache,
     group_id: form.group_id ? Number(form.group_id) : 0,
+    supported_models: form.supported_models || '',
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url

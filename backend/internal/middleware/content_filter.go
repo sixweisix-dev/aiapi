@@ -126,6 +126,13 @@ func (cf *ContentFilter) LogViolation(userID uuid.UUID, apiKeyID *uuid.UUID, vio
 func (cf *ContentFilter) IncrementViolation(userID uuid.UUID, reason string) (count int64, blacklisted bool) {
 	const threshold = 5
 
+	// Admin 角色豁免拉黑(避免管理员累计岁越)
+	var role string
+	cf.db.Raw("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
+	if role == "admin" {
+		return 0, false
+	}
+
 	// 原子增加 violation_count
 	cf.db.Exec("UPDATE users SET violation_count = violation_count + 1 WHERE id = ?", userID)
 
@@ -146,6 +153,12 @@ func (cf *ContentFilter) IncrementViolation(userID uuid.UUID, reason string) (co
 
 // MarkBlacklist 直接拉黑用户（高严重度 severity=3 直接调用）
 func (cf *ContentFilter) MarkBlacklist(userID uuid.UUID, reason string) {
+	// Admin 角色豁免拉黑(避免误伤管理员测试)
+	var role string
+	cf.db.Raw("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
+	if role == "admin" {
+		return
+	}
 	cf.db.Exec(`
 		UPDATE users 
 		SET is_active = false, 

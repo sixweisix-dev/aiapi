@@ -3,6 +3,7 @@ package upstream
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -35,6 +36,7 @@ type Channel struct {
 	GroupID           *uint   // channel_group 关联
 	GroupSlug         string  // 分组 slug (economy/official)
 	GroupMultiplier   float64 // 分组倍率
+	SupportedModels   string  // 模型 whitelist (逗号分隔), 空=支持本组所有模型
 	IsDedicated       bool
 	DedicatedUserIDs  string  // 逗号分隔
 	DedicatedUserIDsAuto string  // 自动隔离名单
@@ -160,6 +162,7 @@ func (p *Pool) Refresh() {
 			IsDedicated:      r.IsDedicated,
 			DedicatedUserIDs: r.DedicatedUserIDs,
 			DedicatedUserIDsAuto: r.DedicatedUserIDsAuto,
+			SupportedModels:    r.SupportedModels,
 		})
 	}
 
@@ -170,14 +173,21 @@ func (p *Pool) Refresh() {
 }
 
 // Select picks a channel for the given provider using weighted random.
-func (p *Pool) Select(provider string) *Channel {
+func (p *Pool) Select(provider string, modelGroupID ...*uint) *Channel {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
+	// variadic 实现可选参数, 向后兼容旧 caller
+	var groupID *uint
+	if len(modelGroupID) > 0 {
+		groupID = modelGroupID[0]
+	}
+
 	var candidates []*Channel
 	for _, c := range p.channels {
-		// 过滤: provider/并发/健康/额度状态/非专属
+		// 过滤: provider/group/并发/健康/额度状态/非专属
 		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
+			groupMatches(c.GroupID, groupID) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -514,14 +524,20 @@ func setHeaders(req *http.Request, ch *Channel) {
 
 // SelectAllHealthy 返回该 provider 下所有健康可用通道（按权重降序）。
 // 用于故障转移：第一个失败时尝试第二个、第三个。
-func (p *Pool) SelectAllHealthy(provider string) []*Channel {
+func (p *Pool) SelectAllHealthy(provider string, modelName ...string) []*Channel {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
+	var mName string
+	if len(modelName) > 0 {
+		mName = modelName[0]
+	}
 
 	var candidates []*Channel
 	for _, c := range p.channels {
 		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
-			c.HealthStatus != "unhealthy" {
+			c.HealthStatus != "unhealthy" &&
+			channelSupportsModel(c, mName) {
 			candidates = append(candidates, c)
 		}
 	}
@@ -542,18 +558,44 @@ func (p *Pool) SelectAllHealthy(provider string) []*Channel {
 // 触发故障转移的条件：5xx 错误 / 网络错误 / 429 限流 / 401 认证失败
 // 返回值: (响应, 实际使用的 channel, 错误)
 func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string, reqBody []byte) (*http.Response, *Channel, error) {
-	candidates := p.SelectAllHealthy(provider)
+	modelName := extractModelFromBody(reqBody)
+	candidates := p.SelectAllHealthy(provider, modelName)
 	if len(candidates) == 0 {
 		return nil, nil, fmt.Errorf("no healthy upstream channels for provider %s", provider)
 	}
 
 	var lastErr error
+	const sameChannelRetries = 3 // 5xx 临时故障时同通道重试次数
 	for i, ch := range candidates {
-		resp, err := p.Do(ctx, ch, method, path, reqBody)
+		var resp *http.Response
+		var err error
+		var attempt int
+		for attempt = 1; attempt <= sameChannelRetries; attempt++ {
+			resp, err = p.Do(ctx, ch, method, path, reqBody)
+
+			// 网络错误：可重试同通道一次, 再失败转下一个
+			if err != nil {
+				if attempt < sameChannelRetries {
+					log.Printf("[failover] channel %s network error: %v, retry %d/%d on same channel", ch.Name, err, attempt+1, sameChannelRetries)
+					continue
+				}
+				break // 用完重试次数, 跳出去切下一个通道
+			}
+
+			// 5xx 临时故障: 同通道重试
+			if resp.StatusCode >= 500 && attempt < sameChannelRetries {
+				log.Printf("[failover] channel %s HTTP %d, retry %d/%d on same channel", ch.Name, resp.StatusCode, attempt+1, sameChannelRetries)
+				resp.Body.Close()
+				continue
+			}
+
+			// 非 5xx 或重试用完, 退出循环走 failover 判定
+			break
+		}
 
 		// 网络错误：尝试下一个
 		if err != nil {
-			log.Printf("[failover] channel %s (%s) network error: %v, trying next", ch.Name, ch.ID, err)
+			log.Printf("[failover] channel %s (%s) network error: %v, trying next channel", ch.Name, ch.ID, err)
 			atomic.AddInt64(&ch.ErrorCount, 1)
 			p.recordError(ch.ID, 0)
 			lastErr = err
@@ -671,6 +713,37 @@ return false
 }
 
 // groupMatches: model 没指定 group → 任何 channel 都行(向后兼容); 否则严格匹配
+
+// channelSupportsModel 检查渠道是否支持给定模型名 (空 SupportedModels 表示支持所有)
+// 自动处理 "google/" 前缀 (Vertex AI 协议要求): google/gemini-2.5-flash 等同于 gemini-2.5-flash
+func channelSupportsModel(c *Channel, modelName string) bool {
+	if c.SupportedModels == "" || modelName == "" {
+		return true
+	}
+	// 去掉常见前缀做兼容匹配
+	normalized := strings.TrimPrefix(modelName, "google/")
+	normalized = strings.TrimPrefix(normalized, "publishers/google/models/")
+	for _, m := range strings.Split(c.SupportedModels, ",") {
+		name := strings.TrimSpace(m)
+		if name == modelName || name == normalized {
+			return true
+		}
+	}
+	return false
+}
+
+// extractModelFromBody 从 JSON 请求体中提取 model 字段 (chat/images 通用)
+func extractModelFromBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var m struct{ Model string `json:"model"` }
+	if err := json.Unmarshal(body, &m); err != nil {
+		return ""
+	}
+	return m.Model
+}
+
 func groupMatches(channelGroupID, modelGroupID *uint) bool {
 	if modelGroupID == nil {
 		return true

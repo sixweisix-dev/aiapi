@@ -174,12 +174,19 @@
               <tbody>
                 <tr v-for="m in filteredPricingModels" :key="m.id">
                   <td class="model-name-cell">
-                    <span class="model-display-name">{{ m.display_name }}</span>
+                    <span class="model-display-name">{{ locale === 'en' && m.display_name_en ? m.display_name_en : m.display_name }}</span>
                     <code class="model-id-code">{{ m.name }}</code>
                   </td>
-                  <td class="price-cell">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
-                  <td class="price-cell">${{ (m.output_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
-                  <td class="price-cell price-dim">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000 * 0.1).toFixed(4) }}</td>
+                  <!-- 按次计费模型 (合并 3 列为单价) -->
+                  <td v-if="m.cost_per_call > 0" colspan="3" class="price-cell price-per-call">
+                    ${{ Number(m.cost_per_call).toFixed(4) }} <span class="price-unit-inline">{{ t('landing.perImage') || '/ 张' }}</span>
+                  </td>
+                  <!-- 按 token 计费模型 -->
+                  <template v-else>
+                    <td class="price-cell">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                    <td class="price-cell">${{ (m.output_price * m.multiplier * m.group_multiplier * 1000).toFixed(4) }}</td>
+                    <td class="price-cell price-dim">${{ (m.input_price * m.multiplier * m.group_multiplier * 1000 * 0.1).toFixed(4) }}</td>
+                  </template>
                   <td class="ctx-cell">{{ m.context_length >= 1000 ? (m.context_length/1000).toFixed(0)+'K' : m.context_length }}</td>
                 </tr>
               </tbody>
@@ -318,7 +325,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { i18n, setLocale, currentLocale } from '@/i18n'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const lang = ref(currentLocale())
 function toggleLang() {
   const next = lang.value === 'zh' ? 'en' : 'zh'
@@ -764,4 +771,7 @@ onMounted(async () => {
 .price-dim { color: #9ca3af !important; font-weight: 500 !important; }
 .ctx-cell { color: #6b7280; font-size: 13px; }
 
+
+.price-per-call { font-weight: 700; text-align: center; }
+.price-unit-inline { color: #888; font-weight: 500; font-size: 0.85em; margin-left: 4px; }
 </style>

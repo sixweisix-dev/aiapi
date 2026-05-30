@@ -140,6 +140,9 @@ type UpstreamChannel struct {
 	DedicatedUserIDs    string     `gorm:"type:text;not null;default:''"`                // 逗号分隔 UUID
 	DedicatedUserIDsAuto string    `gorm:"type:text;not null;default:''"`                // 自动隔离名单(每日0点重置)
 
+	// === 模型 whitelist (限定本渠道只承接特定模型) ===
+	SupportedModels string `gorm:"type:text;not null;default:''" json:"supported_models"`  // 逗号分隔, 空=支持本组所有模型
+
 	// === 对账倍率（让 widget 余额跟上游后台对齐用）===
 	// 默认 1.0；用法：跑一段时间后对比上游真实消耗 vs 我方 quota_used_today_usd
 	// reconcile_multiplier = quota_used_today_usd / 上游真实消耗
@@ -178,6 +181,7 @@ type Model struct {
 	ID           uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
 	Name         string    `gorm:"type:varchar(100);uniqueIndex;not null"`
 	DisplayName  string    `gorm:"type:varchar(100);not null"`
+	DisplayNameEn string   `gorm:"type:varchar(100);default:''"`
 	Provider     string    `gorm:"type:varchar(50);not null;check:provider IN ('openai','anthropic','google','qwen','deepseek')"`
 	ContextLength int      `gorm:"not null;default:4096"`
 	InputPrice   float64   `gorm:"type:decimal(20,8);not null"`
@@ -188,6 +192,7 @@ type Model struct {
 	Description  *string   `gorm:"type:text"`
 	GroupID      *uint     `gorm:"index" json:"group_id"`
 	UpstreamName *string   `gorm:"type:varchar(100)" json:"upstream_name,omitempty"`
+	CostPerCall  float64   `gorm:"type:decimal(20,8);not null;default:0" json:"cost_per_call"` // >0 = 按调用计费 (覆盖 token 计费)
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`

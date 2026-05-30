@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 "net/http"
 
 "ai-api-gateway/internal/models"
@@ -14,10 +17,11 @@ import (
 type PlaygroundHandler struct {
 db          *gorm.DB
 chatHandler *ChatHandler
+imageHandler *ImageHandler
 }
 
-func NewPlaygroundHandler(db *gorm.DB, chatHandler *ChatHandler) *PlaygroundHandler {
-return &PlaygroundHandler{db: db, chatHandler: chatHandler}
+func NewPlaygroundHandler(db *gorm.DB, chatHandler *ChatHandler, imageHandler *ImageHandler) *PlaygroundHandler {
+return &PlaygroundHandler{db: db, chatHandler: chatHandler, imageHandler: imageHandler}
 }
 
 // PlaygroundChat: JWT 认证 → 查指定 / 第一个 active 的 API key → 塞 context → 转发到 chat handler
@@ -57,6 +61,20 @@ c.Set("api_key_rpm", key.RPMLimit)
 c.Set("api_key_tpm", key.TPMLimit)
 c.Set("auth_method", "playground")
 
-// 直接转发到现有 chat handler（共享所有上游、内容过滤、计费、预算逻辑）
+// 读取 body 检查模型类型 - 图像模型走 image handler
+bodyBytes, _ := io.ReadAll(c.Request.Body)
+c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+var peek struct{ Model string `json:"model"` }
+_ = json.Unmarshal(bodyBytes, &peek)
+if peek.Model != "" {
+var mrec models.Model
+if h.db.Where("name = ? AND is_enabled = ?", peek.Model, true).First(&mrec).Error == nil && mrec.CostPerCall > 0 {
+c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+h.imageHandler.HandleGenerate(c)
+return
+}
+}
+
+// 默认: 转发到现有 chat handler
 h.chatHandler.Handle(c)
 }

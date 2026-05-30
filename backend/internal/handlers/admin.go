@@ -261,6 +261,7 @@ type CreateChannelRequest struct {
 	APIKey  string  `json:"api_key" binding:"required"`
 	BaseURL *string `json:"base_url,omitempty"`
 	Weight  *int    `json:"weight,omitempty"`
+	SupportedModels string `json:"supported_models,omitempty"`
 }
 
 type UpdateChannelRequest struct {
@@ -283,7 +284,9 @@ type UpdateChannelRequest struct {
 	AutoInjectCache     *bool    `json:"auto_inject_cache,omitempty"`
 	GroupID             *uint    `json:"group_id,omitempty"`
 	GroupIDNull         bool     `json:"-"` // true = 前端传了 null，清空分组
+	SupportedModels     string   `json:"supported_models"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
+	SupportedModelsP    *string    `json:"supported_models,omitempty"`
 }
 
 type ChannelListItem struct {
@@ -334,6 +337,7 @@ type ChannelListItem struct {
 	AutoInjectCache     bool       `json:"auto_inject_cache"`
 	GroupID             *uint      `json:"group_id,omitempty"`
 	GroupName           string     `json:"group_name,omitempty"`
+	SupportedModels     string     `json:"supported_models"`
 	Errors1h            int64      `json:"errors_1h"`
 }
 
@@ -390,6 +394,7 @@ func (h *AdminHandler) ListChannels(c *gin.Context) {
 			EnableCache1hBeta:   ch.EnableCache1hBeta,
 			AutoInjectCache:     ch.AutoInjectCache,
 			GroupID:             ch.GroupID,
+		SupportedModels:     ch.SupportedModels,
 			GroupName:           func() string {
 				if ch.GroupID != nil {
 					if n, ok := groupNameMap[*ch.GroupID]; ok {
@@ -427,6 +432,9 @@ func (h *AdminHandler) CreateChannel(c *gin.Context) {
 	}
 	if req.BaseURL != nil {
 		channel.BaseURL = req.BaseURL
+	}
+	if req.SupportedModels != "" {
+		channel.SupportedModels = req.SupportedModels
 	}
 	if req.Weight != nil {
 		channel.Weight = *req.Weight
@@ -488,6 +496,10 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.TotalQuotaUSD != nil {
 		updates["total_quota_usd"] = *req.TotalQuotaUSD
+		// 修改总额时同步清零 used_total_usd
+		if *req.TotalQuotaUSD != channel.TotalQuotaUSD {
+			updates["used_total_usd"] = 0
+		}
 	}
 	if req.SubscriptionStart != nil {
 		if t, err := time.Parse("2006-01-02", *req.SubscriptionStart); err == nil {
@@ -519,6 +531,9 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	}
 	if req.AutoInjectCache != nil {
 		updates["auto_inject_cache"] = *req.AutoInjectCache
+	}
+	if req.SupportedModelsP != nil {
+		updates["supported_models"] = *req.SupportedModelsP
 	}
 	if req.GroupID != nil {
 		if *req.GroupID == 0 {

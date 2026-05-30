@@ -102,6 +102,7 @@ func (e *Engine) PreCheckBalance(userID string, estimatedCost float64) error {
 // DeductBalance atomically deducts from user balance in Redis and asynchronously persists to DB.
 // Returns the balance after deduction.
 func (e *Engine) DeductBalance(userID string, amount float64) (float64, error) {
+	log.Printf("[Deduct] called uid=%s amt=%.4f redis_nil=%v", userID, amount, e.redis == nil)
 	if amount <= 0 {
 		// Still get current balance
 		return e.getBalance(userID)
@@ -142,8 +143,7 @@ func (e *Engine) DeductBalance(userID string, amount float64) (float64, error) {
 			if err != nil {
 				return
 			}
-			if err := e.db.Model(&models.User{}).Where("id = ?", parsedID).
-				Update("balance", newBalance).Error; err != nil {
+			if err := e.db.Exec("UPDATE users SET balance = balance - ? WHERE id = ?", amount, parsedID).Error; err != nil {
 				// 失败容忍：下次请求会重新写。日志告警避免悄无声息丢钱
 				fmt.Printf("[billing] WARN: failed to persist balance to DB for user %s: %v\n", userID, err)
 			}
@@ -212,6 +212,30 @@ func (e *Engine) RecordBilling(userID, modelID, requestID string, promptTokens, 
 	// Update user totals
 	updateUserTotals(e.db, parsedUserID, cost, totalTokens)
 
+	return record, nil
+}
+
+// RecordImageBilling: 专为按次计费(图像生成等)的扣费记录, description 友好显示
+func (e *Engine) RecordImageBilling(userID, modelName string, cost float64, count int) (*models.BillingRecord, error) {
+	parsedUserID, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	balanceBefore, _ := e.getBalance(userID)
+	desc := fmt.Sprintf("\u56fe\u50cf\u751f\u6210 (%s x %d \u5f20)", modelName, count)
+
+	record := &models.BillingRecord{
+		UserID:        parsedUserID,
+		Type:          "chat_completion",
+		Amount:        -cost,
+		BalanceBefore: balanceBefore,
+		BalanceAfter:  balanceBefore - cost,
+		Description:   &desc,
+	}
+	if err := e.db.Create(record).Error; err != nil {
+		return nil, fmt.Errorf("failed to create image billing record: %w", err)
+	}
 	return record, nil
 }
 

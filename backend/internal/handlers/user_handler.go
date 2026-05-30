@@ -313,12 +313,14 @@ type publicModelItem struct {
 	ID                 string  `json:"id"`
 	Name               string  `json:"name"`
 	DisplayName        string  `json:"display_name"`
+	DisplayNameEn      string  `json:"display_name_en,omitempty"`
 	Provider           string  `json:"provider"`
 	ContextLength      int     `json:"context_length"`
 	InputPrice         float64 `json:"input_price"`
 	OutputPrice        float64 `json:"output_price"`
 	Multiplier         float64 `json:"multiplier"`
 	Description        *string `json:"description,omitempty"`
+	CostPerCall        float64 `json:"cost_per_call,omitempty"`
 	GroupID            *uint   `json:"group_id,omitempty"`
 	GroupName          string  `json:"group_name,omitempty"`
 	GroupNameEn        string  `json:"group_name_en,omitempty"`
@@ -357,12 +359,14 @@ func (h *UserHandler) ListPublicModels(c *gin.Context) {
 			ID:                 r.ID.String(),
 			Name:               r.Name,
 			DisplayName:        r.DisplayName,
+			DisplayNameEn:      r.DisplayNameEn,
 			Provider:           r.Provider,
 			ContextLength:      r.ContextLength,
 			InputPrice:         r.InputPrice,
 			OutputPrice:        r.OutputPrice,
 			Multiplier:         r.Multiplier,
 			Description:        r.Description,
+CostPerCall:        r.CostPerCall,
 			GroupID:            gid,
 			GroupName:          r.GroupName,
 			GroupNameEn:        r.GroupNameEn,

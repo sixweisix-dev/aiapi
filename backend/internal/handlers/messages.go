@@ -37,6 +37,22 @@ type anthropicPassthruReq struct {
 }
 
 func (h *MessagesHandler) Handle(c *gin.Context) {
+	// === DEBUG: 临时记录所有 messages 请求基本信息 ===
+	defer func() {
+		if c.Writer.Status() >= 400 {
+			log.Printf("[messages-debug] 400+ status=%d path=%s query=%s ua=%s content_len=%d",
+				c.Writer.Status(), c.Request.URL.Path, c.Request.URL.RawQuery,
+				c.Request.UserAgent(), c.Request.ContentLength)
+			// 看所有 anthropic-* / x-* header
+			for k, v := range c.Request.Header {
+				lk := strings.ToLower(k)
+				if strings.HasPrefix(lk, "anthropic-") || strings.HasPrefix(lk, "x-") {
+					log.Printf("[messages-debug]   header %s = %v", k, v)
+				}
+			}
+		}
+	}()
+
 	userID, _ := c.Get("user_id")
 	userIDStr, _ := userID.(string)
 	if userIDStr == "" {
@@ -85,6 +101,17 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		return
 	}
 
+	// 预先 strip Anthropic 独有 content blocks (target model 不是 Claude 时)
+	// 上游不识别 thinking/reasoning blocks 会返回 400 "unknown content type" 等错误
+	modelLower := strings.ToLower(peek.Model)
+	if !strings.HasPrefix(modelLower, "claude") {
+		original := bodyBytes
+		bodyBytes = stripThinkingBlocks(bodyBytes)
+		if len(bodyBytes) != len(original) {
+			log.Printf("[messages] pre-strip thinking blocks for non-claude model=%s, saved %d bytes", peek.Model, len(original)-len(bodyBytes))
+		}
+	}
+
 	baseURL := strings.TrimRight(ch.BaseURL, "/")
 	upstreamURL := baseURL + "/v1/messages"
 	startTime := time.Now()
@@ -127,19 +154,46 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		upstreamReq.Header.Set("anthropic-beta", ab)
 	}
 
+	// 预先发 SSE 注释让 Cloudflare 看到 stream 已开始, 避免 524
+	if strings.Contains(c.GetHeader("Accept"), "text/event-stream") || peek.Stream {
+		c.Header("Content-Type", "text/event-stream")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Writer.WriteString(": keep-alive\n\n")
+		c.Writer.Flush()
+	}
+
+	// 起一个 goroutine 定时发 keep-alive 直到 channel close
+	keepAliveDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-keepAliveDone:
+				return
+			case <-ticker.C:
+				if _, err := c.Writer.WriteString(": ping\n\n"); err != nil {
+					return
+				}
+				c.Writer.Flush()
+			}
+		}
+	}()
+	defer close(keepAliveDone)
+
 	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Do(upstreamReq)
 
 	// 上游失败/thinking-signature 错误 → 剥离 thinking blocks 并切到其他上游重试一次
 	needFallback := err != nil
-	if !needFallback && resp != nil && resp.StatusCode == 400 {
+	if !needFallback && resp != nil && resp.StatusCode >= 400 && resp.StatusCode < 500 {
 		peekBody, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if bytes.Contains(peekBody, []byte("thinking")) || bytes.Contains(peekBody, []byte("signature")) {
-			needFallback = true
-		} else {
-			resp.Body = io.NopCloser(bytes.NewReader(peekBody))
-		}
+		// 任何 4xx 错误都试 strip+retry (覆盖 "unknown content type" 等非 thinking 字样错误)
+		log.Printf("[messages] upstream 4xx (status=%d), will strip+retry. body sample: %.200s", resp.StatusCode, string(peekBody))
+		needFallback = true
+		_ = peekBody
 	}
 	if needFallback {
 		// 剥离 thinking blocks 并选另一个上游
@@ -363,7 +417,7 @@ func stripThinkingBlocks(body []byte) []byte {
 				cleaned = append(cleaned, blk)
 				continue
 			}
-			if t, _ := bm["type"].(string); t == "thinking" || t == "redacted_thinking" {
+			if t, _ := bm["type"].(string); t == "thinking" || t == "redacted_thinking" || t == "reasoning" {
 				continue
 			}
 			cleaned = append(cleaned, blk)

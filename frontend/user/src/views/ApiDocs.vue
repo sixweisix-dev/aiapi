@@ -410,6 +410,35 @@ cc  # 走官方</pre>
           <p class="tip-text">{{ t('apiDocs.cuFull6Note') }}</p>
         </el-tab-pane>
 
+        <!-- Photoshop 插件 -->
+        <el-tab-pane label="Photoshop" name="ps">
+          <h4 class="tut-title">{{ t('apiDocs.tutPS') }}</h4>
+          <p class="desc-text">{{ t('apiDocs.tutPSDesc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.psFull1Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.psFull1Desc') }}</p>
+          <div style="margin: 12px 0;">
+            <a href="/downloads/transitai-image-ps.ccx" download class="download-btn">
+              {{ t('apiDocs.psDownloadBtn') }}
+            </a>
+          </div>
+
+          <div class="tut-step">{{ t('apiDocs.psFull2Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.psFull2Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.psFull3Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.psFull3Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.psFull4Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.psFull4Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.psFull5Title') }}</div>
+          <p class="desc-text">{{ t('apiDocs.psFull5Desc') }}</p>
+
+          <div class="tut-step">{{ t('apiDocs.psFull6Title') }}</div>
+          <p class="tip-text">{{ t('apiDocs.psFull6Note') }}</p>
+        </el-tab-pane>
+
       </el-tabs>
 
       <el-alert type="info" :closable="false" class="mt-4">{{ t('apiDocs.tutCommonNote') }}</el-alert>
@@ -601,11 +630,20 @@ const mcpExample = `# ~/.claude_desktop_config.json (MacOS)
 }`
 
 const modelGuideRows = computed(() => [
-  { scene: t('apiDocs.guideSceneCoding'),  model: t('apiDocs.guideModelCoding'),  note: t('apiDocs.guideNoteCoding') },
-  { scene: t('apiDocs.guideSceneFast'),    model: t('apiDocs.guideModelFast'),    note: t('apiDocs.guideNoteFast') },
-  { scene: t('apiDocs.guideSceneReason'),  model: t('apiDocs.guideModelReason'),  note: t('apiDocs.guideNoteReason') },
-  { scene: t('apiDocs.guideSceneEcon'),    model: t('apiDocs.guideModelEcon'),    note: t('apiDocs.guideNoteEcon') },
-  { scene: t('apiDocs.guideSceneChinese'), model: t('apiDocs.guideModelChinese'), note: t('apiDocs.guideNoteChinese') },
+  { scene: t('apiDocs.guideSceneCoding'),      model: t('apiDocs.guideModelCoding'),      note: t('apiDocs.guideNoteCoding') },
+  { scene: t('apiDocs.guideSceneCodeReview'),  model: t('apiDocs.guideModelCodeReview'),  note: t('apiDocs.guideNoteCodeReview') },
+  { scene: t('apiDocs.guideSceneImage1K'),     model: t('apiDocs.guideModelImage1K'),     note: t('apiDocs.guideNoteImage1K') },
+  { scene: t('apiDocs.guideSceneImagePro'),    model: t('apiDocs.guideModelImagePro'),    note: t('apiDocs.guideNoteImagePro') },
+  { scene: t('apiDocs.guideSceneImage4K'),     model: t('apiDocs.guideModelImage4K'),     note: t('apiDocs.guideNoteImage4K') },
+  { scene: t('apiDocs.guideSceneGPT55'),       model: t('apiDocs.guideModelGPT55'),       note: t('apiDocs.guideNoteGPT55') },
+  { scene: t('apiDocs.guideSceneFast'),        model: t('apiDocs.guideModelFast'),        note: t('apiDocs.guideNoteFast') },
+  { scene: t('apiDocs.guideSceneReason'),      model: t('apiDocs.guideModelReason'),      note: t('apiDocs.guideNoteReason') },
+  { scene: t('apiDocs.guideSceneGeminiPro'),   model: t('apiDocs.guideModelGeminiPro'),   note: t('apiDocs.guideNoteGeminiPro') },
+  { scene: t('apiDocs.guideSceneGeminiFlash'), model: t('apiDocs.guideModelGeminiFlash'), note: t('apiDocs.guideNoteGeminiFlash') },
+  { scene: t('apiDocs.guideSceneGeminiLite'),  model: t('apiDocs.guideModelGeminiLite'),  note: t('apiDocs.guideNoteGeminiLite') },
+  { scene: t('apiDocs.guideSceneVision'),      model: t('apiDocs.guideModelVision'),      note: t('apiDocs.guideNoteVision') },
+  { scene: t('apiDocs.guideSceneEcon'),        model: t('apiDocs.guideModelEcon'),        note: t('apiDocs.guideNoteEcon') },
+  { scene: t('apiDocs.guideSceneChinese'),     model: t('apiDocs.guideModelChinese'),     note: t('apiDocs.guideNoteChinese') },
 ])
 
 const compareRows = computed(() => {
@@ -778,4 +816,15 @@ onMounted(() => loadChannelGroups())
 .code-block { background: #1e293b; color: #e2e8f0; padding: 12px 14px; border-radius: 6px; font-size: 12px; line-height: 1.55; overflow-x: auto; }
 .code-block code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
+
+.download-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white !important;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.download-btn:hover { transform: translateY(-1px); }
 </style>

@@ -54,8 +54,12 @@
         </div>
       </div>
       <div ref="responseRef" class="response-box">
-        <span v-if="!response" class="response-placeholder">{{ t('playground.responsePh') }}</span>
-        <template v-else>{{ response }}</template>
+        <span v-if="!response && !imageResult" class="response-placeholder">{{ t('playground.responsePh') }}</span>
+        <template v-else>
+          <div v-if="response" style="white-space: pre-wrap;">{{ response }}</div>
+          <img v-if="imageResult" :src="imageResult" alt="Generated image" style="max-width: 100%; max-height: 600px; border-radius: 8px; margin-top: 12px; display: block;" />
+          <a v-if="imageResult" :href="imageResult" download="generated.png" style="display: inline-block; margin-top: 8px; color: #4facfe; text-decoration: underline;">⬇️ 下载图片</a>
+        </template>
       </div>
     </div>
   </div>
@@ -84,6 +88,7 @@ const statusText = computed(() => {
 })
 const latency = ref(0)
 const tokenCount = ref(0)
+const imageResult = ref('')  // b64 image data url for image models
 const responseRef = ref(null)
 
 const statusClass = computed(() => {
@@ -113,6 +118,7 @@ async function handleSend() {
 
   sending.value = true
   response.value = ''
+  imageResult.value = ''
   statusCode.value = 'pending'
   tokenCount.value = 0
   const start = performance.now()
@@ -122,6 +128,42 @@ async function handleSend() {
     if (systemPrompt.value.trim()) messages.push({ role: 'system', content: systemPrompt.value })
     messages.push({ role: 'user', content: userMessage.value })
     const token = localStorage.getItem('user_token')
+
+    // 判断是否图像模型 (cost_per_call > 0)
+    const modelMeta = models.value.find(m => m.name === selectedModel.value)
+    const isImageModel = modelMeta && modelMeta.cost_per_call > 0
+
+    if (isImageModel) {
+      // 走图像端点 - body 格式不同 (prompt 字段, 不是 messages)
+      imageResult.value = ''
+      response.value = '生成图片中... (约需 30-60 秒)'
+      const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          model: selectedModel.value,
+          prompt: userMessage.value,
+          size: '1024x1024',
+          quality: 'high',
+          n: 1
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error?.message || err.error || 'Image gen failed')
+      }
+      const data = await res.json()
+      const b64 = data.data?.[0]?.b64_json
+      if (b64) {
+        imageResult.value = `data:image/png;base64,${b64}`
+        response.value = '✅ 图片已生成 (扣费 $0.6650)'
+        statusCode.value = 'done'
+        window.dispatchEvent(new Event('balance-changed'))
+      } else {
+        throw new Error('No image data in response')
+      }
+      return
+    }
 
     if (streamMode.value) {
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {

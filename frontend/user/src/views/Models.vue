@@ -29,12 +29,20 @@
           <div v-for="m in filteredModels" :key="m.id" class="model-card">
           <div class="model-head">
             <div class="model-name-block">
-              <div class="model-name">{{ m.display_name }}</div>
+              <div class="model-name">{{ locale === 'en' && m.display_name_en ? m.display_name_en : m.display_name }}</div>
               <code class="model-id">{{ m.name }}</code>
             </div>
             <span class="provider-tag">{{ m.provider }}</span>
           </div>
-          <div class="price-grid four-col">
+          <!-- 按次计费模型 -->
+          <div v-if="m.cost_per_call > 0" class="price-grid one-col">
+            <div class="price-block image-price">
+              <div class="price-label">{{ t('models.perCall') }}</div>
+              <div class="price-value">${{ Number(m.cost_per_call).toFixed(4) }}</div>
+              <div class="price-unit">{{ t('models.perImage') }}</div>
+            </div>
+          </div>
+          <div v-else class="price-grid four-col">
             <div class="price-block">
               <div class="price-label">{{ t('models.input') }}</div>
               <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000).toFixed(4) }}</div>
@@ -319,4 +327,9 @@ onMounted(async () => {
   font-size: 18px;
   line-height: 1.2;
 }
+
+.price-grid.one-col {
+  grid-template-columns: 1fr !important;
+}
+
 </style>
