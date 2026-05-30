@@ -37,21 +37,6 @@ type anthropicPassthruReq struct {
 }
 
 func (h *MessagesHandler) Handle(c *gin.Context) {
-	// === DEBUG: 临时记录所有 messages 请求基本信息 ===
-	defer func() {
-		if c.Writer.Status() >= 400 {
-			log.Printf("[messages-debug] 400+ status=%d path=%s query=%s ua=%s content_len=%d",
-				c.Writer.Status(), c.Request.URL.Path, c.Request.URL.RawQuery,
-				c.Request.UserAgent(), c.Request.ContentLength)
-			// 看所有 anthropic-* / x-* header
-			for k, v := range c.Request.Header {
-				lk := strings.ToLower(k)
-				if strings.HasPrefix(lk, "anthropic-") || strings.HasPrefix(lk, "x-") {
-					log.Printf("[messages-debug]   header %s = %v", k, v)
-				}
-			}
-		}
-	}()
 
 	userID, _ := c.Get("user_id")
 	userIDStr, _ := userID.(string)
