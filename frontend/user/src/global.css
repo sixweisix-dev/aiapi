@@ -18,3 +18,15 @@ body.locked-viewport #app {
   height: 100%;
   overflow: hidden;
 }
+
+
+/* iOS Safari: 优化触摸体验, 不强制高度 (Landing 等公开页需要滚动) */
+html, body {
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  overflow-x: hidden;
+}
+
+/* 私有页 (Layout 内) 通过 .locked-viewport class 锁高度, 公开页保持滚动 */

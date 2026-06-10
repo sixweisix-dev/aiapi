@@ -77,7 +77,7 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	ch := h.pool.SelectSticky(model.Provider, model.GroupID, userIDStr)
+	ch := h.pool.SelectSticky(model.Provider, peek.Model, model.GroupID, userIDStr)
 	if ch != nil {
 		log.Printf("[messages] route user=%s -> ch=%s name=%s", userIDStr, ch.ID, ch.Name)
 	}
@@ -183,7 +183,7 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 	if needFallback {
 		// 剥离 thinking blocks 并选另一个上游
 		cleanedBody := stripThinkingBlocks(bodyBytes)
-		altCh := h.pool.Select(model.Provider)
+		altCh := h.pool.Select(model.Provider, peek.Model, model.GroupID)
 		if altCh != nil && altCh.ID != ch.ID {
 			log.Printf("[messages] sticky failed, fallback %s -> %s, stripped thinking", ch.ID, altCh.ID)
 			ch = altCh

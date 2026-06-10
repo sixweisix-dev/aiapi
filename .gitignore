@@ -10,3 +10,8 @@ frontend/admin/dist/
 backups/*.sql
 backups/*.dump
 secrets/
+
+# Responses.go iteration backups
+backend/internal/handlers/responses.go.bak*
+backend/cmd/api/main.go.bak*
+frontend/user/src/views/Playground.vue.bak*

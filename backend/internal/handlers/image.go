@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"log"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -39,9 +42,15 @@ func (h *ImageHandler) HandleGenerate(c *gin.Context) {
 	h.handleImage(c, "/v1/images/generations", false)
 }
 
-// HandleEdit POST /v1/images/edits (multipart/form-data)
+// HandleEdit POST /v1/images/edits (multipart/form-data 或 JSON via playground)
 func (h *ImageHandler) HandleEdit(c *gin.Context) {
-	h.handleImage(c, "/v1/images/edits", true)
+	isMultipart := true
+	if v, exists := c.Get("playground_edits_json"); exists {
+		if b, ok := v.(bool); ok && b {
+			isMultipart = false  // playground JSON path
+		}
+	}
+	h.handleImage(c, "/v1/images/edits", isMultipart)
 }
 
 func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart bool) {
@@ -55,7 +64,12 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 	// 0. 解析请求 body 拿 model 字段(只读, 不消费 body)
 	var reqBodyBytes []byte
 	modelName := "gpt-image-2"
-	if !isMultipart {
+	// 如果是 playground JSON edits (isMultipart=false 但 endpoint 是 edits), 也读 JSON body
+	isPlaygroundJSONEdits := false
+	if _, exists := c.Get("playground_edits_json"); exists {
+		isPlaygroundJSONEdits = true
+	}
+	if !isMultipart || isPlaygroundJSONEdits {
 		var err error
 		reqBodyBytes, err = io.ReadAll(c.Request.Body)
 		if err == nil && len(reqBodyBytes) > 0 {
@@ -64,8 +78,37 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 				modelName = tmp.Model
 			}
 		}
-	} else {
-		// multipart edits 端点 - model 在 form data 里, 不解析了, 默认 gpt-image-2
+	} else if isMultipart {
+		// multipart edits: 读 form 取 model 字段, 然后重新构造 body
+		var err error
+		reqBodyBytes, err = io.ReadAll(c.Request.Body)
+		if err == nil && len(reqBodyBytes) > 0 {
+			// 解析 multipart 取 model
+			ctType := c.Request.Header.Get("Content-Type")
+			if idx := strings.Index(ctType, "boundary="); idx >= 0 {
+				boundary := ctType[idx+9:]
+				if semi := strings.Index(boundary, ";"); semi >= 0 {
+					boundary = boundary[:semi]
+				}
+				boundary = strings.Trim(boundary, "\"")
+				mpReader := multipart.NewReader(bytes.NewReader(reqBodyBytes), boundary)
+				for {
+					part, e := mpReader.NextPart()
+					if e != nil {
+						break
+					}
+					if part.FormName() == "model" {
+						vbuf, _ := io.ReadAll(part)
+						if len(vbuf) > 0 {
+							modelName = string(vbuf)
+						}
+						part.Close()
+						break
+					}
+					part.Close()
+				}
+			}
+		}
 	}
 
 	// 1. 查 model 拿单价
@@ -100,7 +143,7 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 	if providerForChannel == "" {
 		providerForChannel = "multi_aggregator"
 	}
-	ch := h.pool.Select(providerForChannel, modelRec.GroupID)
+	ch := h.pool.Select(providerForChannel, modelName, modelRec.GroupID)
 	log.Printf("[image] model=%s provider=%s -> selecting channel", modelName, providerForChannel)
 	if ch == nil {
 		c.JSON(503, gin.H{"error": gin.H{"message": "no upstream available for image generation"}})
@@ -128,11 +171,137 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		}
 	}
 
-	if isMultipart {
-		// edits 端点用 multipart, 直接传 raw body
-		reqBody = c.Request.Body
+	playgroundMultipartCT := ""
+	if isPlaygroundJSONEdits {
+		// playground JSON edits -> 转成 multipart 发给上游
+		var jsonBody map[string]interface{}
+		if err := json.Unmarshal(reqBodyBytes, &jsonBody); err != nil {
+			c.JSON(400, gin.H{"error": gin.H{"message": "invalid JSON body"}})
+			return
+		}
+		imgDataURL, _ := jsonBody["image"].(string)
+		if imgDataURL == "" {
+			c.JSON(400, gin.H{"error": gin.H{"message": "image field missing"}})
+			return
+		}
+		b64Part := imgDataURL
+		if idx := strings.Index(imgDataURL, "base64,"); idx >= 0 {
+			b64Part = imgDataURL[idx+7:]
+		}
+		imgBytes, err := base64.StdEncoding.DecodeString(b64Part)
+		if err != nil {
+			c.JSON(400, gin.H{"error": gin.H{"message": "invalid base64 image: " + err.Error()}})
+			return
+		}
+		var mpBuf bytes.Buffer
+		mpWriter := multipart.NewWriter(&mpBuf)
+		// 从 data URL 提取真实 mime type (Playground 可能上传 jpg/png/webp)
+		imgMime := "image/png"
+		imgFilename := "image.png"
+		if strings.HasPrefix(imgDataURL, "data:") {
+			if semi := strings.Index(imgDataURL, ";"); semi > 5 {
+				imgMime = imgDataURL[5:semi]
+				switch imgMime {
+				case "image/jpeg", "image/jpg":
+					imgFilename = "image.jpg"
+				case "image/webp":
+					imgFilename = "image.webp"
+				case "image/gif":
+					imgFilename = "image.gif"
+				}
+			}
+		}
+		log.Printf("[image] playground upload mime=%s filename=%s bytes=%d", imgMime, imgFilename, len(imgBytes))
+		imgHdr := make(textproto.MIMEHeader)
+		imgHdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename=%q`, imgFilename))
+		imgHdr.Set("Content-Type", imgMime)
+		imgPart, _ := mpWriter.CreatePart(imgHdr)
+		imgPart.Write(imgBytes)
+		// 用重写后的 model name (yyapi upstream_name 已应用)
+		modelToSend := modelName
+		if modelRec.UpstreamName != nil && *modelRec.UpstreamName != "" {
+			modelToSend = *modelRec.UpstreamName
+		}
+		mpWriter.WriteField("model", modelToSend)
+		if p, ok := jsonBody["prompt"].(string); ok && p != "" {
+			mpWriter.WriteField("prompt", p)
+		}
+		if s, ok := jsonBody["size"].(string); ok && s != "" {
+			mpWriter.WriteField("size", s)
+		}
+		if q, ok := jsonBody["quality"].(string); ok && q != "" {
+			mpWriter.WriteField("quality", q)
+		}
+		if n, ok := jsonBody["n"].(float64); ok {
+			mpWriter.WriteField("n", fmt.Sprintf("%d", int(n)))
+		}
+		mpWriter.Close()
+		reqBody = &mpBuf
+		playgroundMultipartCT = mpWriter.FormDataContentType()
+		log.Printf("[image] playground JSON->multipart, CT=%s body=%d bytes", playgroundMultipartCT, mpBuf.Len())
+	} else if isMultipart {
+		// multipart edits: 重新构造 body, 把 model 字段重写为 upstream_name
+		if modelRec.UpstreamName != nil && *modelRec.UpstreamName != "" && *modelRec.UpstreamName != modelRec.Name && len(reqBodyBytes) > 0 {
+			ctType := c.Request.Header.Get("Content-Type")
+			if idx := strings.Index(ctType, "boundary="); idx >= 0 {
+				boundary := ctType[idx+9:]
+				if semi := strings.Index(boundary, ";"); semi >= 0 {
+					boundary = boundary[:semi]
+				}
+				boundary = strings.Trim(boundary, "\"")
+				mpReader := multipart.NewReader(bytes.NewReader(reqBodyBytes), boundary)
+				var mpBuf bytes.Buffer
+				mpWriter := multipart.NewWriter(&mpBuf)
+				for {
+					part, e := mpReader.NextPart()
+					if e != nil {
+						break
+					}
+					name := part.FormName()
+					if name == "model" {
+						mpWriter.WriteField("model", *modelRec.UpstreamName)
+						part.Close()
+						continue
+					}
+					if fname := part.FileName(); fname != "" {
+						// file field — 保留原 Content-Type (yyapi 严格要求, 默认 octet-stream 会 500)
+						fileHdr := make(textproto.MIMEHeader)
+						fileHdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, name, fname))
+						ct := part.Header.Get("Content-Type")
+						if ct == "" {
+							// 根据 fname 后缀猜
+							lower := strings.ToLower(fname)
+							switch {
+							case strings.HasSuffix(lower, ".png"):
+								ct = "image/png"
+							case strings.HasSuffix(lower, ".jpg"), strings.HasSuffix(lower, ".jpeg"):
+								ct = "image/jpeg"
+							case strings.HasSuffix(lower, ".webp"):
+								ct = "image/webp"
+							default:
+								ct = "image/png"
+							}
+						}
+						fileHdr.Set("Content-Type", ct)
+						newPart, _ := mpWriter.CreatePart(fileHdr)
+						io.Copy(newPart, part)
+					} else {
+						vbuf, _ := io.ReadAll(part)
+						mpWriter.WriteField(name, string(vbuf))
+					}
+					part.Close()
+				}
+				mpWriter.Close()
+				reqBody = &mpBuf
+				playgroundMultipartCT = mpWriter.FormDataContentType()
+				log.Printf("[image] multipart model rewritten %s -> %s body=%d bytes", modelName, *modelRec.UpstreamName, mpBuf.Len())
+			} else {
+				reqBody = bytes.NewReader(reqBodyBytes)
+			}
+		} else {
+			reqBody = bytes.NewReader(reqBodyBytes)
+		}
 	} else {
-		// generations 端点 - body 已在前面读过, 复用
 		reqBody = bytes.NewReader(reqBodyBytes)
 	}
 
@@ -142,8 +311,9 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		return
 	}
 	upstreamReq.Header.Set("Authorization", "Bearer "+ch.APIKey)
-	if isMultipart {
-		// 透传原 Content-Type (含 boundary)
+	if playgroundMultipartCT != "" {
+		upstreamReq.Header.Set("Content-Type", playgroundMultipartCT)
+	} else if isMultipart {
 		upstreamReq.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	} else {
 		upstreamReq.Header.Set("Content-Type", "application/json")

@@ -209,10 +209,25 @@ if (auth.isLoggedIn) auth.fetchMe()
 
 <style scoped>
 .user-layout {
+  /* Mobile: fixed 钉死在 visual viewport, 配合 JS visualViewport 监听更新高度 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 100vh;
+  height: 100dvh;
+  height: var(--vvh, 100dvh);
   display: flex;
   flex-direction: column;
   background: #f5f7fa;
+  overflow: hidden;
+}
+/* PC 端: 用普通流布局, 不要 fixed (PC 无键盘问题) */
+@media (min-width: 769px) {
+  .user-layout {
+    position: relative;
+    height: 100vh;
+  }
 }
 /* 顶部栏 */
 .topbar {

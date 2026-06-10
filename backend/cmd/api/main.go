@@ -107,6 +107,7 @@ func main() {
 	playgroundHandler := handlers.NewPlaygroundHandler(db, chatHandler, imageHandler)
 	chatHandler.SetMailCfg(&mailCfg)
 	messagesHandler := handlers.NewMessagesHandler(db, pool, billingEngine, channelTracker)
+responsesHandler := handlers.NewResponsesHandler(db, pool, billingEngine, channelTracker, redisClient)
 	widgetHandler := handlers.NewWidgetHandler(db, pool)
 	emailCodeHandler := handlers.NewEmailCodeHandler(db, redisClient, mailCfg)
 	cronHandler := handlers.NewCronHandler(db, mailCfg, os.Getenv("INTERNAL_CRON_TOKEN"))
@@ -203,6 +204,11 @@ r.GET("/v1/public/models", userHandler.ListPublicModels)
 	v1.POST("/images/edits", middleware.APIKeyRateLimit(rateLimiter), imageHandler.HandleEdit)
 	v1.POST("/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle)
 	v1.POST("/v1/messages", middleware.APIKeyRateLimit(rateLimiter), messagesHandler.Handle) // 兼容 base_url=/v1 的错误配置
+v1.POST("/responses", middleware.APIKeyRateLimit(rateLimiter), responsesHandler.Create)
+v1.GET("/responses", responsesHandler.List)
+v1.GET("/responses/:id", responsesHandler.Get)
+v1.POST("/responses/:id/cancel", responsesHandler.Cancel)
+v1.DELETE("/responses/:id", responsesHandler.Delete)
 		v1.GET("/models", modelsHandler.List)
 	}
 

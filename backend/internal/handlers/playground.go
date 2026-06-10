@@ -70,7 +70,18 @@ if peek.Model != "" {
 var mrec models.Model
 if h.db.Where("name = ? AND is_enabled = ?", peek.Model, true).First(&mrec).Error == nil && mrec.CostPerCall > 0 {
 c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+// 检测 body 是否含 image 字段 (base64), 有则走 edits (JSON 形式, 非 multipart)
+var imgCheck struct {
+Image string `json:"image"`
+}
+_ = json.Unmarshal(bodyBytes, &imgCheck)
+if imgCheck.Image != "" {
+// 标记为 JSON edits, 让 image handler 走 JSON path (model 重写, upstream_name 替换)
+c.Set("playground_edits_json", true)
+h.imageHandler.HandleEdit(c)
+} else {
 h.imageHandler.HandleGenerate(c)
+}
 return
 }
 }

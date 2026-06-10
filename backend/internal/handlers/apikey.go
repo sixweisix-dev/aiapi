@@ -214,6 +214,8 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// 先标记 is_active=false (防止 GORM 软删除后 zombie sk 仍能通过 auth)
+	h.db.Model(&models.APIKey{}).Where("id = ? AND user_id = ?", keyID, userID).Update("is_active", false)
 	result := h.db.Where("id = ? AND user_id = ?", keyID, userID).Delete(&models.APIKey{})
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete API key"})

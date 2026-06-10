@@ -61,7 +61,7 @@ func NewPool(db *gorm.DB, rdb *redis.Client, vertexTM *vertex.TokenManager) *Poo
 		rdb:      rdb,
 		vertexTM: vertexTM,
 		client: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: 240 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:          200,
 				MaxIdleConnsPerHost:   50,
@@ -173,7 +173,8 @@ func (p *Pool) Refresh() {
 }
 
 // Select picks a channel for the given provider using weighted random.
-func (p *Pool) Select(provider string, modelGroupID ...*uint) *Channel {
+// modelName 用于按渠道 SupportedModels 白名单过滤; 空字符串表示不按模型过滤
+func (p *Pool) Select(provider, modelName string, modelGroupID ...*uint) *Channel {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -185,9 +186,10 @@ func (p *Pool) Select(provider string, modelGroupID ...*uint) *Channel {
 
 	var candidates []*Channel
 	for _, c := range p.channels {
-		// 过滤: provider/group/并发/健康/额度状态/非专属
+		// 过滤: provider/group/模型白名单/并发/健康/额度状态/非专属
 		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 			groupMatches(c.GroupID, groupID) &&
+			channelSupportsModel(c, modelName) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -220,13 +222,15 @@ func (p *Pool) Select(provider string, modelGroupID ...*uint) *Channel {
 
 
 // SelectSticky 基于 userID 一致性哈希选择上游, 失败时回退到 weighted Select
-func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Channel {
+// modelName 用于按渠道 SupportedModels 白名单过滤; 空字符串表示不按模型过滤
+func (p *Pool) SelectSticky(provider, modelName string, groupID *uint, userID string) *Channel {
 	p.mu.RLock()
 	// 0. 优先看是否在某专属渠道列表中
 	if userID != "" {
 		for _, c := range p.channels {
 			if c.IsDedicated && (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 				groupMatches(c.GroupID, groupID) &&
+				channelSupportsModel(c, modelName) &&
 				c.concurrent < int64(c.MaxConcurrent) &&
 				c.HealthStatus != "unhealthy" &&
 				c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
@@ -240,6 +244,7 @@ func (p *Pool) SelectSticky(provider string, groupID *uint, userID string) *Chan
 	for _, c := range p.channels {
 		if (strings.EqualFold(c.Provider, provider) || (strings.EqualFold(c.Provider, "multi_aggregator") && !strings.EqualFold(provider, "vertex_ai"))) &&
 			groupMatches(c.GroupID, groupID) &&
+			channelSupportsModel(c, modelName) &&
 			c.HealthStatus != "unhealthy" &&
 			c.QuotaStatus != "critical" && c.QuotaStatus != "exhausted" &&
 			!c.IsDedicated {
@@ -445,13 +450,13 @@ const (
 func (p *Pool) SelectWithStrategy(provider string, strategy SelectStrategy) *Channel {
 	switch strategy {
 	case StrategyWeighted:
-		return p.Select(provider)
+		return p.Select(provider, "")
 	case StrategyRoundRobin:
 		return p.roundRobin(provider)
 	case StrategyLeastUsed:
 		return p.leastUsed(provider)
 	default:
-		return p.Select(provider)
+		return p.Select(provider, "")
 	}
 }
 
@@ -557,9 +562,14 @@ func (p *Pool) SelectAllHealthy(provider string, modelName ...string) []*Channel
 // DoWithFailover 按权重顺序依次尝试通道，遇上游故障自动切到下一个。
 // 触发故障转移的条件：5xx 错误 / 网络错误 / 429 限流 / 401 认证失败
 // 返回值: (响应, 实际使用的 channel, 错误)
-func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string, reqBody []byte) (*http.Response, *Channel, error) {
-	modelName := extractModelFromBody(reqBody)
-	candidates := p.SelectAllHealthy(provider, modelName)
+func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string, reqBody []byte, modelName ...string) (*http.Response, *Channel, error) {
+	var mName string
+	if len(modelName) > 0 && modelName[0] != "" {
+		mName = modelName[0]
+	} else {
+		mName = extractModelFromBody(reqBody)
+	}
+	candidates := p.SelectAllHealthy(provider, mName)
 	if len(candidates) == 0 {
 		return nil, nil, fmt.Errorf("no healthy upstream channels for provider %s", provider)
 	}

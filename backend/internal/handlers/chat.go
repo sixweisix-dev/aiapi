@@ -115,6 +115,8 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	}
 
 	// Get model pricing for later cost calculation
+	// 保留 transitai 原始 model name 用于 SelectAllHealthy whitelist 匹配
+	originalModelName := req.Model
 	// 转发到上游时使用 upstream_name 别名 (适用于多模型聚合渠道,上游真实模型名与 TransitAI 内部名不同)
 	if upstreamName != "" && upstreamName != req.Model {
 		req.Model = upstreamName
@@ -205,17 +207,17 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 	startTime := time.Now()
 
 	if req.Stream {
-		h.handleStream(c, userIDStr, &req, chatAdapter, ch, upstreamReq, upstreamPath, resolvedModelID, provider, priceRow, apiKeyHash, startTime)
+		h.handleStream(c, userIDStr, &req, chatAdapter, ch, upstreamReq, upstreamPath, resolvedModelID, provider, priceRow, apiKeyHash, startTime, originalModelName)
 	} else {
-		h.handleNonStream(c, userIDStr, &req, chatAdapter, ch, upstreamReq, upstreamPath, resolvedModelID, provider, priceRow, apiKeyHash, startTime)
+		h.handleNonStream(c, userIDStr, &req, chatAdapter, ch, upstreamReq, upstreamPath, resolvedModelID, provider, priceRow, apiKeyHash, startTime, originalModelName)
 	}
 }
 
-func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapter.OpenAIRequest, chatAdapter adapter.ChatAdapter, ch *upstream.Channel, upstreamReq []byte, upstreamPath, modelID, provider string, priceRow *billing.PriceRow, apiKeyHash string, startTime time.Time) {
+func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapter.OpenAIRequest, chatAdapter adapter.ChatAdapter, ch *upstream.Channel, upstreamReq []byte, upstreamPath, modelID, provider string, priceRow *billing.PriceRow, apiKeyHash string, startTime time.Time, originalModelName string) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
 	defer cancel()
 
-	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
+	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq, originalModelName)
 	if err != nil {
 		log.Printf("[failover] all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
 		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")
@@ -281,11 +283,11 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 	c.JSON(200, openAIResp)
 }
 
-func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.OpenAIRequest, chatAdapter adapter.ChatAdapter, ch *upstream.Channel, upstreamReq []byte, upstreamPath, modelID, provider string, priceRow *billing.PriceRow, apiKeyHash string, startTime time.Time) {
+func (h *ChatHandler) handleStream(c *gin.Context, userID string, req *adapter.OpenAIRequest, chatAdapter adapter.ChatAdapter, ch *upstream.Channel, upstreamReq []byte, upstreamPath, modelID, provider string, priceRow *billing.PriceRow, apiKeyHash string, startTime time.Time, originalModelName string) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
 	defer cancel()
 
-	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq)
+	resp, usedCh, err := h.pool.DoWithFailover(ctx, provider, "POST", upstreamPath, upstreamReq, originalModelName)
 	if err != nil {
 		log.Printf("[failover] stream all channels failed: provider=%s model=%s err=%v", provider, req.Model, err)
 		h.logRequest(c, userID, getAPIKeyIDPtr(c), modelID, nil, req, 502, 0, 0, 0, 0, startTime, "all upstream channels failed")

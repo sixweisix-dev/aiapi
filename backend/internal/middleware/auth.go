@@ -125,7 +125,7 @@ func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {
 		err := db.Table("api_keys").
 			Select("api_keys.user_id, users.role AS user_role, api_keys.is_active, users.is_active AS user_active, api_keys.id AS api_key_id, api_keys.rpm_limit, api_keys.tpm_limit, users.blacklist_reason, users.membership_tier, users.membership_expires_at").
 			Joins("JOIN users ON users.id = api_keys.user_id").
-			Where("api_keys.key_hash = ?", keyHash).
+			Where("api_keys.key_hash = ? AND api_keys.is_active = ? AND api_keys.deleted_at IS NULL", keyHash, true).
 			First(&row).Error
 
 		if err != nil {
