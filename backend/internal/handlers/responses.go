@@ -323,6 +323,11 @@ func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *r
 	startTime := time.Now()
 
 	// Provider 路由: 非 openai 走 chat→responses 转换
+	if ch.Provider == "anthropic" {
+		anthBody, _ := buildAnthropicMessagesBody(req, model, nil)
+		h.handleStreamMessagesToResponses(c, userIDStr, req, model, ch, anthBody, startTime)
+		return
+	}
 	if ch.Provider != "openai" && ch.Provider != "multi_aggregator" {
 		h.handleStreamChatToResponses(c, userIDStr, req, model, ch, ccBody, startTime)
 		return
@@ -1439,3 +1444,316 @@ OutputTokensDetails: map[string]interface{}{"reasoning_tokens": 0},
 }
 
 
+
+func buildAnthropicMessagesBody(req *responseCreateRequest, model *models.Model, prevMessages []map[string]interface{}) ([]byte, error) {
+	messages := []map[string]interface{}{}
+
+	if len(prevMessages) > 0 {
+		messages = append(messages, prevMessages...)
+	}
+
+	if len(req.Input) > 0 {
+		var strInput string
+		if err := json.Unmarshal(req.Input, &strInput); err == nil {
+			messages = append(messages, map[string]interface{}{
+				"role":    "user",
+				"content": strInput,
+			})
+		} else {
+			var items []map[string]interface{}
+			if err := json.Unmarshal(req.Input, &items); err != nil {
+				return nil, fmt.Errorf("invalid input format")
+			}
+			for _, item := range items {
+				role, _ := item["role"].(string)
+				if role == "" {
+					role = "user"
+				}
+				if role == "system" {
+					continue
+				}
+				content := item["content"]
+				if str, ok := content.(string); ok {
+					messages = append(messages, map[string]interface{}{
+						"role":    role,
+						"content": str,
+					})
+				} else if parts, ok := content.([]interface{}); ok {
+					anthContent := []map[string]interface{}{}
+					for _, p := range parts {
+						pm, ok := p.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						partType, _ := pm["type"].(string)
+						switch partType {
+						case "input_text", "text", "output_text":
+							anthContent = append(anthContent, map[string]interface{}{
+								"type": "text",
+								"text": pm["text"],
+							})
+						}
+					}
+					if len(anthContent) > 0 {
+						messages = append(messages, map[string]interface{}{
+							"role":    role,
+							"content": anthContent,
+						})
+					}
+				}
+			}
+		}
+	}
+
+	body := map[string]interface{}{
+		"model":    req.Model,
+		"messages": messages,
+		"stream":   true,
+	}
+
+	if req.MaxOutputTokens > 0 {
+		body["max_tokens"] = req.MaxOutputTokens
+	} else {
+		body["max_tokens"] = 4096
+	}
+
+	if req.Instructions != "" {
+		body["system"] = req.Instructions
+	}
+
+	if req.Temperature != nil {
+		body["temperature"] = *req.Temperature
+	}
+	if req.TopP != nil {
+		body["top_p"] = *req.TopP
+	}
+
+	return json.Marshal(body)
+}
+
+func (h *ResponsesHandler) handleStreamMessagesToResponses(c *gin.Context, userIDStr string, req *responseCreateRequest, model *models.Model, ch *upstream.Channel, anthBody []byte, startTime time.Time) {
+	atomic.StoreInt64(&sseSeqCounter, 0)
+
+	resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/messages", anthBody)
+	if err != nil {
+		log.Printf("[responses-msgs-stream] upstream error: %v", err)
+		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "api_error"}})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		errBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[responses-msgs-stream] upstream %d: %.300s", resp.StatusCode, string(errBody))
+		c.Data(resp.StatusCode, "application/json", errBody)
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(200)
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		return
+	}
+
+	// 初始化 response object
+	respID := "resp_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15]
+	respObj := &responseObject{
+		ID:                  respID,
+		Object:              "response",
+		CreatedAt:           time.Now().Unix(),
+		Status:              "in_progress",
+		Model:               req.Model,
+		Output:              []outputItem{},
+		Tools:               []responseTool{},
+		ParallelToolCalls:   true,
+		Temperature:         1.0,
+		TopP:                0.98,
+		Metadata:            map[string]string{},
+		Instructions:        req.Instructions,
+		PromptCacheKey:      respID,
+		PromptCacheRetention: "24h",
+		SafetyIdentifier:    "user-" + userIDStr[:12],
+		ServiceTier:         "default",
+		Background:          false,
+		FrequencyPenalty:    0.0,
+		PresencePenalty:     0.0,
+		MaxToolCalls:        nil,
+		Moderation:          nil,
+		MaxOutputTokens:     nil,
+		Reasoning:           map[string]interface{}{"effort": "low", "summary": "detailed"},
+		Text:                map[string]interface{}{"format": map[string]interface{}{"type": "text"}, "verbosity": "medium"},
+		ToolUsage:           map[string]interface{}{"image_gen": map[string]interface{}{"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}, "web_search": map[string]interface{}{"num_requests": 0}},
+		Store:               false,
+		Truncation:          "disabled",
+		ToolChoice:          "auto",
+	}
+
+	// state
+	msgID := "msg_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15]
+	var fullText string
+	var totalPrompt, totalCompletion int
+
+	// 发期断事䶯: response.created + response.in_progress
+	writeSSEEvent(c.Writer, "response.created", map[string]interface{}{"response": respObj})
+	flusher.Flush()
+	writeSSEEvent(c.Writer, "response.in_progress", map[string]interface{}{"response": respObj})
+	flusher.Flush()
+
+	// 发 output_item.added
+	initItem := outputItem{
+		Type:    "message",
+		ID:      msgID,
+		Role:    "assistant",
+		Status:  "in_progress",
+		Content: []contentPart{},
+	}
+	writeSSEEvent(c.Writer, "response.output_item.added", map[string]interface{}{
+		"output_index": 0,
+		"item":         initItem,
+	})
+	flusher.Flush()
+
+	// 发 content_part.added
+	writeSSEEvent(c.Writer, "response.content_part.added", map[string]interface{}{
+		"item_id":       msgID,
+		"output_index":  0,
+		"content_index": 0,
+		"part": contentPart{
+			Type:        "output_text",
+			Text:        "",
+			Annotations: []interface{}{},
+			Logprobs:    []interface{}{},
+		},
+	})
+	flusher.Flush()
+
+	// 读上游 Anthropic SSE
+	reader := bufio.NewReaderSize(resp.Body, 65536)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			line = bytes.TrimRight(line, "\r\n")
+			if len(line) == 0 {
+				continue
+			}
+			if !bytes.HasPrefix(line, []byte("data:")) {
+				continue
+			}
+			data := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+			if len(data) == 0 {
+				continue
+			}
+
+			var evt map[string]interface{}
+			if jerr := json.Unmarshal(data, &evt); jerr != nil {
+				continue
+			}
+
+			evtType, _ := evt["type"].(string)
+			switch evtType {
+			case "content_block_delta":
+				if delta, ok := evt["delta"].(map[string]interface{}); ok {
+					if dType, _ := delta["type"].(string); dType == "text_delta" {
+						if text, ok := delta["text"].(string); ok {
+							fullText += text
+							writeSSEEvent(c.Writer, "response.output_text.delta", map[string]interface{}{
+								"item_id":       msgID,
+								"output_index":  0,
+								"content_index": 0,
+								"delta":         text,
+								"logprobs":      []interface{}{},
+							})
+							flusher.Flush()
+						}
+					}
+				}
+			case "message_start":
+				if msg, ok := evt["message"].(map[string]interface{}); ok {
+					if usage, ok := msg["usage"].(map[string]interface{}); ok {
+						if v, ok := usage["input_tokens"].(float64); ok {
+							totalPrompt = int(v)
+						}
+					}
+				}
+			case "message_delta":
+				if usage, ok := evt["usage"].(map[string]interface{}); ok {
+					if v, ok := usage["output_tokens"].(float64); ok {
+						totalCompletion = int(v)
+					}
+				}
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("[responses-msgs-stream] read error: %v", err)
+			break
+		}
+	}
+
+	// 发期断事: response.output_text.done + content_part.done + output_item.done
+	writeSSEEvent(c.Writer, "response.output_text.done", map[string]interface{}{
+		"item_id":       msgID,
+		"output_index":  0,
+		"content_index": 0,
+		"text":          fullText,
+		"logprobs":      []interface{}{},
+	})
+	flusher.Flush()
+
+	finalPart := contentPart{
+		Type:        "output_text",
+		Text:        fullText,
+		Annotations: []interface{}{},
+		Logprobs:    []interface{}{},
+	}
+	writeSSEEvent(c.Writer, "response.content_part.done", map[string]interface{}{
+		"item_id":       msgID,
+		"output_index":  0,
+		"content_index": 0,
+		"part":          finalPart,
+	})
+	flusher.Flush()
+
+	finalItem := outputItem{
+		Type:    "message",
+		ID:      msgID,
+		Role:    "assistant",
+		Status:  "completed",
+		Phase:   "final_answer",
+		Content: []contentPart{finalPart},
+	}
+	writeSSEEvent(c.Writer, "response.output_item.done", map[string]interface{}{
+		"output_index": 0,
+		"item":         finalItem,
+	})
+	flusher.Flush()
+
+	respObj.Output = append(respObj.Output, finalItem)
+	respObj.Status = "completed"
+	respObj.CompletedAt = time.Now().Unix()
+	if totalPrompt > 0 || totalCompletion > 0 {
+		respObj.Usage = &responseUsage{
+			InputTokens:         totalPrompt,
+			OutputTokens:        totalCompletion,
+			TotalTokens:         totalPrompt + totalCompletion,
+			InputTokensDetails:  map[string]interface{}{"cached_tokens": 0},
+			OutputTokensDetails: map[string]interface{}{"reasoning_tokens": 0},
+		}
+	}
+
+	writeSSEEvent(c.Writer, "response.completed", map[string]interface{}{"response": respObj})
+	flusher.Flush()
+
+	log.Printf("[responses-msgs-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms", userIDStr[:8], req.Model, totalPrompt, totalCompletion, time.Since(startTime).Milliseconds())
+
+	if totalPrompt > 0 || totalCompletion > 0 {
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200)
+	}
+}
