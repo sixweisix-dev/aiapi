@@ -410,55 +410,6 @@ cc  # 走官方</pre>
           <p class="tip-text">{{ t('apiDocs.cuFull6Note') }}</p>
         </el-tab-pane>
 
-        <!-- Codex App (TransitAI 推荐 ⭐) -->
-        <el-tab-pane label="Codex App ⭐" name="codex">
-          <h4 class="tut-title">通过 cc-switch 接入 Codex App</h4>
-          <p class="desc-text">TransitAI 完整兼容 OpenAI Responses API，支持 25+ 模型 (GPT/Claude/Gemini/DeepSeek/MiniMax/Qwen)。推荐通过 cc-switch 桌面版一键接入。</p>
-
-          <div class="tut-step">步骤 1：下载安装 cc-switch</div>
-          <p class="desc-text">访问 <a href="https://ccswitch.io" target="_blank" rel="noopener">ccswitch.io</a> 下载对应平台版本（Windows / macOS / Linux），安装后启动应用。</p>
-
-          <div class="tut-step">步骤 2：添加 TransitAI Provider</div>
-          <p class="desc-text">在 cc-switch 中点击 "添加 Provider"，类型选择 "自定义"，填入下列配置：</p>
-          <pre class="code-block">名称（Name）: TransitAI
-Base URL: https://transitai.cloud/v1
-API Key: 你的 TransitAI sk-xxx
-模型（Model）: gpt-5.4
-Wire API: responses</pre>
-
-          <div class="tut-step">步骤 3：启用 TransitAI 并启动 Codex App</div>
-          <p class="desc-text">cc-switch 会自动生成 Codex 配置文件。点击 "Use" 启用 TransitAI，然后启动或重启 Codex App 即可。</p>
-
-          <div class="tut-step">手动配置（不使用 cc-switch）</div>
-          <p class="desc-text">编辑 <code>~/.codex/config.toml</code>（Windows: <code>%USERPROFILE%\.codex\config.toml</code>）：</p>
-          <pre class="code-block">model_provider = "transitai"
-model = "gpt-5.4"
-
-[model_providers.transitai]
-name = "TransitAI"
-base_url = "https://transitai.cloud/v1"
-wire_api = "responses"
-env_key = "OPENAI_API_KEY"
-requires_openai_auth = false</pre>
-
-          <p class="desc-text">编辑 <code>~/.codex/auth.json</code>：</p>
-          <pre class="code-block">{
-  "OPENAI_API_KEY": "你的 TransitAI sk-xxx"
-}</pre>
-
-          <div class="tut-step">推荐模型</div>
-          <ul class="config-list">
-            <li><code>gpt-5.4</code> — 高质量代码生成，OpenAI 系</li>
-            <li><code>deepseek-v4-flash</code> — 速度快价格低，国产推理模型</li>
-            <li><code>gemini-2.5-flash</code> — 性价比高，Google 系</li>
-            <li><code>claude-sonnet-4-6-pro</code> — Anthropic 强力代码模型</li>
-            <li><code>minimax-m3.6</code> / <code>qwen-3-6-35b</code> — 国产备选</li>
-          </ul>
-
-          <p class="tip-text">💡 完整支持流式 / 函数调用 / Reasoning 模型 / previous_response_id 多轮会话延续。</p>
-        </el-tab-pane>
-
-
         <!-- Photoshop 插件 -->
         <el-tab-pane label="Photoshop" name="ps">
           <h4 class="tut-title">{{ t('apiDocs.tutPS') }}</h4>

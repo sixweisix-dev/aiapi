@@ -20,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"math/rand"
 	"time"
 "sync/atomic"
 
@@ -93,15 +94,31 @@ type responseObject struct {
 	Output             []outputItem           `json:"output"`
 	Usage              *responseUsage         `json:"usage,omitempty"`
 	Reasoning          map[string]interface{} `json:"reasoning,omitempty"`
-	PreviousResponseID string                 `json:"previous_response_id,omitempty"`
-	Tools              []responseTool         `json:"tools,omitempty"`
+	PreviousResponseID *string               `json:"previous_response_id"`
+	Tools              []responseTool         `json:"tools"`
 	ParallelToolCalls  bool                   `json:"parallel_tool_calls"`
 	ToolChoice         interface{}            `json:"tool_choice,omitempty"`
-	Temperature        *float64               `json:"temperature,omitempty"`
-	TopP               *float64               `json:"top_p,omitempty"`
+	Temperature        interface{}            `json:"temperature"`
+	TopP               interface{}            `json:"top_p"`
 	Truncation         string                 `json:"truncation,omitempty"`
-	User               string                 `json:"user,omitempty"`
+	User               interface{}            `json:"user"`
 	Metadata           map[string]string      `json:"metadata"`
+Instructions       string                 `json:"instructions"`
+PromptCacheKey     string                 `json:"prompt_cache_key,omitempty"`
+PromptCacheRetention string                 `json:"prompt_cache_retention,omitempty"`
+SafetyIdentifier   string                 `json:"safety_identifier,omitempty"`
+ServiceTier        string                 `json:"service_tier,omitempty"`
+Text               map[string]interface{} `json:"text,omitempty"`
+ToolUsage          map[string]interface{} `json:"tool_usage,omitempty"`
+TopLogprobs        int                    `json:"top_logprobs"`
+Store              bool                   `json:"store"`
+Background         bool                   `json:"background"`
+CompletedAt        int64                  `json:"completed_at,omitempty"`
+FrequencyPenalty   float64                `json:"frequency_penalty"`
+PresencePenalty    float64                `json:"presence_penalty"`
+MaxToolCalls       interface{}            `json:"max_tool_calls"`
+Moderation         interface{}            `json:"moderation"`
+MaxOutputTokens    interface{}            `json:"max_output_tokens"`
 }
 
 type outputItem struct {
@@ -109,6 +126,7 @@ type outputItem struct {
 	ID        string             `json:"id,omitempty"`
 	Role      string             `json:"role,omitempty"`
 	Content   []contentPart      `json:"content,omitempty"`
+Phase     string             `json:"phase,omitempty"`
 	Name      string             `json:"name,omitempty"`
 	Arguments string             `json:"arguments,omitempty"`
 	CallID    string             `json:"call_id,omitempty"`
@@ -119,7 +137,8 @@ type outputItem struct {
 type contentPart struct {
 	Type        string        `json:"type"`
 	Text        string        `json:"text,omitempty"`
-	Annotations []interface{} `json:"annotations,omitempty"`
+	Annotations []interface{} `json:"annotations"`
+Logprobs    []interface{} `json:"logprobs"`
 }
 
 type reasoningSummary struct {
@@ -208,7 +227,7 @@ func (h *ResponsesHandler) Create(c *gin.Context) {
 
 	if req.Stream {
 		log.Printf("[responses-stream] route user=%s -> ch=%s name=%s model=%s", userIDStr, ch.ID, ch.Name, req.Model)
-		h.handleStream(c, userIDStr, &req, &model, ch, ccBody)
+		h.handleStream(c, userIDStr, &req, &model, ch, bodyBytes, ccBody)
 		return
 	}
 
@@ -300,18 +319,26 @@ type streamState struct {
 	totalUpstream    int
 }
 
-func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *responseCreateRequest, model *models.Model, ch *upstream.Channel, ccBody []byte) {
+func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *responseCreateRequest, model *models.Model, ch *upstream.Channel, bodyBytes []byte, ccBody []byte) {
 	startTime := time.Now()
 
-	// 改 ccBody 强制 stream=true
-	var ccBodyMap map[string]interface{}
-	if err := json.Unmarshal(ccBody, &ccBodyMap); err == nil {
-		ccBodyMap["stream"] = true
-		ccBodyMap["stream_options"] = map[string]interface{}{"include_usage": true}
-		ccBody, _ = json.Marshal(ccBodyMap)
+	// Provider 路由: 非 openai 走 chat→responses 转换
+	if ch.Provider != "openai" && ch.Provider != "multi_aggregator" {
+		h.handleStreamChatToResponses(c, userIDStr, req, model, ch, ccBody, startTime)
+		return
 	}
 
-resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", ccBody)
+	// 强制 stream=true 到 body
+	var reqMap map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &reqMap); err != nil {
+		c.JSON(400, gin.H{"error": gin.H{"message": "invalid body", "type": "invalid_request_error"}})
+		return
+	}
+	reqMap["stream"] = true
+	upstreamBody, _ := json.Marshal(reqMap)
+
+	// 调上游 /v1/responses (直通不变)
+	resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/responses", upstreamBody)
 	if err != nil {
 		log.Printf("[responses-stream] upstream error: %v", err)
 		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "api_error"}})
@@ -326,7 +353,6 @@ resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", 
 		return
 	}
 
-	// 设置 SSE headers
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -335,107 +361,53 @@ resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", 
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
-		log.Printf("[responses-stream] writer is not flusher")
 		return
 	}
 
-	// 初始化 response object
-	respID := "resp_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
-	respObj := &responseObject{
-		ID:                respID,
-		Object:            "response",
-		CreatedAt:         time.Now().Unix(),
-		Status:            "in_progress",
-		Model:             req.Model,
-		Output:            []outputItem{},
-		Tools:             req.Tools,
-		ParallelToolCalls: true,
-		Temperature:       req.Temperature,
-		TopP:              req.TopP,
-		Metadata:          map[string]string{},
-	}
-
-	state := &streamState{
-		respObj:     respObj,
-		outputIndex: 0,
-	}
-
-	// 发送初始 events: response.created + response.in_progress
-	writeSSEEvent(c.Writer, "response.created", map[string]interface{}{"response": respObj})
-	flusher.Flush()
-	writeSSEEvent(c.Writer, "response.in_progress", map[string]interface{}{"response": respObj})
-	flusher.Flush()
-
-	// 读 SSE stream
+	// 字节透传 + 先扫描繇第 usage
+	var totalPrompt, totalCompletion int
+	respID := ""
 	reader := bufio.NewReaderSize(resp.Body, 65536)
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
-			line = bytes.TrimRight(line, "\r\n")
-			if len(line) == 0 {
-				continue
-			}
-			if !bytes.HasPrefix(line, []byte("data:")) {
-				continue
-			}
-			data := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
-			if len(data) == 0 {
-				continue
-			}
-			if bytes.Equal(data, []byte("[DONE]")) {
-				break
-			}
+			c.Writer.Write(line)
+			flusher.Flush()
 
-			var chunk map[string]interface{}
-			if jerr := json.Unmarshal(data, &chunk); jerr != nil {
-				continue
+			// 尝试 parse usage (response.completed)
+			trimmed := bytes.TrimSpace(line)
+			if bytes.HasPrefix(trimmed, []byte("data:")) {
+				payload := bytes.TrimSpace(bytes.TrimPrefix(trimmed, []byte("data:")))
+				var event map[string]interface{}
+				if json.Unmarshal(payload, &event) == nil {
+					if respObj, ok := event["response"].(map[string]interface{}); ok {
+						if id, ok := respObj["id"].(string); ok {
+							respID = id
+						}
+						if usage, ok := respObj["usage"].(map[string]interface{}); ok {
+							if v, ok := usage["input_tokens"].(float64); ok {
+								totalPrompt = int(v)
+							}
+							if v, ok := usage["output_tokens"].(float64); ok {
+								totalCompletion = int(v)
+							}
+						}
+					}
+				}
 			}
-
-			processChunk(c.Writer, flusher, chunk, state)
-		}
-		if err == io.EOF {
-			break
 		}
 		if err != nil {
-			log.Printf("[responses-stream] read error: %v", err)
 			break
 		}
 	}
 
-	// 关闭当前 output item (如果有未结束的)
-	closeCurrentItem(c.Writer, flusher, state)
+	durationMs := time.Since(startTime).Milliseconds()
+	log.Printf("[responses-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms respID=%s", userIDStr[:8], req.Model, totalPrompt, totalCompletion, durationMs, respID)
 
-	// 计算 final usage 并设置 status
-	state.respObj.Status = "completed"
-	if state.totalPrompt > 0 || state.totalCompletion > 0 {
-		state.respObj.Usage = &responseUsage{
-			InputTokens:  state.totalPrompt,
-			OutputTokens: state.totalCompletion,
-			TotalTokens:  state.totalPrompt + state.totalCompletion,
-		}
+	if totalPrompt > 0 || totalCompletion > 0 {
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200)
 	}
-
-	// 发 final event: response.completed
-	writeSSEEvent(c.Writer, "response.completed", map[string]interface{}{"response": state.respObj})
-	flusher.Flush()
-
-	// 写 [DONE]
-	c.Writer.Write([]byte("data: [DONE]\n\n"))
-	flusher.Flush()
-
-	// 计费 + 存 Redis
-	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, startTime, 200)
-	if h.redis != nil {
-		go h.storeInRedis(state.respObj)
-	}
-
-	log.Printf("[responses-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms",
-		userIDStr[:8], req.Model, state.totalPrompt, state.totalCompletion, time.Since(startTime).Milliseconds())
 }
-
-// ============================================================
-// Chunk 处理 - 把 ChatCompletions delta 转 Responses events
-// ============================================================
 
 func processChunk(w io.Writer, flusher http.Flusher, chunk map[string]interface{}, state *streamState) {
 	// 处理 usage (通常在最后一个 chunk)
@@ -589,7 +561,7 @@ func handleTextDelta(w io.Writer, flusher http.Flusher, text string, state *stre
 	if state.currentItemType != "message" {
 		closeCurrentItem(w, flusher, state)
 
-		state.currentItemID = "msg_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:24]
+		state.currentItemID = "msg_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15]
 		state.currentItemType = "message"
 		state.currentTextBuf.Reset()
 		state.contentIndex = 0
@@ -620,6 +592,7 @@ func handleTextDelta(w io.Writer, flusher http.Flusher, text string, state *stre
 				Type:        "output_text",
 				Text:        "",
 				Annotations: []interface{}{},
+Logprobs:    []interface{}{},
 			},
 		})
 		flusher.Flush()
@@ -667,6 +640,7 @@ func closeCurrentItem(w io.Writer, flusher http.Flusher, state *streamState) {
 					Type:        "output_text",
 					Text:        fullText,
 					Annotations: []interface{}{},
+Logprobs:    []interface{}{},
 				},
 			})
 			flusher.Flush()
@@ -675,11 +649,12 @@ func closeCurrentItem(w io.Writer, flusher http.Flusher, state *streamState) {
 		// response.output_item.done
 		finalItem := outputItem{
 			Type:   "message",
+				Phase:  "final_answer",
 			ID:     state.currentItemID,
 			Role:   "assistant",
 			Status: "completed",
 			Content: []contentPart{
-				{Type: "output_text", Text: fullText, Annotations: []interface{}{}},
+				{Type: "output_text", Text: fullText, Annotations: []interface{}{}, Logprobs: []interface{}{}},
 			},
 		}
 		writeSSEEvent(w, "response.output_item.done", map[string]interface{}{
@@ -781,12 +756,48 @@ func writeSSEEvent(w io.Writer, eventType string, data interface{}) {
 	}
 	dataMap["type"] = eventType
 	dataMap["sequence_number"] = atomic.AddInt64(&sseSeqCounter, 1)
+
+	if eventType == "response.output_text.delta" {
+		if _, ok := dataMap["logprobs"]; !ok {
+			dataMap["logprobs"] = []interface{}{}
+		}
+		if _, ok := dataMap["obfuscation"]; !ok {
+			dataMap["obfuscation"] = randomBase62(14)
+		}
+	}
+	if eventType == "response.output_text.done" {
+		if _, ok := dataMap["logprobs"]; !ok {
+			dataMap["logprobs"] = []interface{}{}
+		}
+	}
+	if eventType == "response.content_part.added" || eventType == "response.content_part.done" {
+		if part, ok := dataMap["part"].(map[string]interface{}); ok {
+			if _, has := part["annotations"]; !has {
+				part["annotations"] = []interface{}{}
+			}
+			if _, has := part["logprobs"]; !has {
+				part["logprobs"] = []interface{}{}
+			}
+		}
+	}
+
 	final, err := json.Marshal(dataMap)
 	if err != nil {
 		return
 	}
 	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, final)
 }
+
+// randomBase62: generate random base62 string for obfuscation field
+func randomBase62(n int) string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(b)
+}
+
 // ============================================================
 // Endpoint 2: GET /v1/responses/:id
 // ============================================================
@@ -992,7 +1003,7 @@ func buildChatCompletionsBody(req *responseCreateRequest, model *models.Model, p
 // ============================================================
 
 func convertChatToResponseObject(ccResp map[string]interface{}, req *responseCreateRequest) *responseObject {
-	respID := "resp_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:32]
+	respID := "resp_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15]
 
 	output := []outputItem{}
 
@@ -1037,11 +1048,12 @@ func convertChatToResponseObject(ccResp map[string]interface{}, req *responseCre
 			if content, ok := message["content"].(string); ok && content != "" {
 				output = append(output, outputItem{
 					Type:   "message",
-					ID:     "msg_" + strings.ReplaceAll(uuid.New().String(), "-", "")[:24],
+				Phase:  "final_answer",
+					ID:     "msg_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15],
 					Role:   "assistant",
 					Status: "completed",
 					Content: []contentPart{
-						{Type: "output_text", Text: content, Annotations: []interface{}{}},
+						{Type: "output_text", Text: content, Annotations: []interface{}{}, Logprobs: []interface{}{}},
 					},
 				})
 			}
@@ -1070,10 +1082,10 @@ func convertChatToResponseObject(ccResp map[string]interface{}, req *responseCre
 		Model:             req.Model,
 		Output:            output,
 		Usage:             usage,
-		Tools:             req.Tools,
+		Tools:             []responseTool{},
 		ParallelToolCalls: true,
-		Temperature:       req.Temperature,
-		TopP:              req.TopP,
+		Temperature:       1.0,
+		TopP:              0.98,
 		Metadata:          map[string]string{},
 	}
 }
@@ -1199,7 +1211,7 @@ func (h *ResponsesHandler) loadPreviousMessages(responseID string) []map[string]
 
 		messages = append(combined, messages...)
 
-		currentID = resp.PreviousResponseID
+		if resp.PreviousResponseID != nil { currentID = *resp.PreviousResponseID } else { currentID = "" }
 	}
 
 	return messages
@@ -1262,4 +1274,168 @@ func (h *ResponsesHandler) List(c *gin.Context) {
 }
 
 var sseSeqCounter int64
+
+func (h *ResponsesHandler) handleStreamChatToResponses(c *gin.Context, userIDStr string, req *responseCreateRequest, model *models.Model, ch *upstream.Channel, ccBody []byte, startTime time.Time) {
+	atomic.StoreInt64(&sseSeqCounter, 0)
+
+	// 改 ccBody 强制 stream=true
+	var ccBodyMap map[string]interface{}
+	if err := json.Unmarshal(ccBody, &ccBodyMap); err == nil {
+		ccBodyMap["stream"] = true
+		ccBodyMap["stream_options"] = map[string]interface{}{"include_usage": true}
+		ccBody, _ = json.Marshal(ccBodyMap)
+	}
+
+resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", ccBody)
+	if err != nil {
+		log.Printf("[responses-stream] upstream error: %v", err)
+		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "api_error"}})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		errBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[responses-stream] upstream %d: %.300s", resp.StatusCode, string(errBody))
+		c.Data(resp.StatusCode, "application/json", errBody)
+		return
+	}
+
+	// 设置 SSE headers
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(200)
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		log.Printf("[responses-stream] writer is not flusher")
+		return
+	}
+
+	// 初始化 response object
+	respID := "resp_018" + strings.ReplaceAll(uuid.New().String(), "-", "") + strings.ReplaceAll(uuid.New().String(), "-", "")[:15]
+	respObj := &responseObject{
+		ID:                respID,
+		Object:            "response",
+		CreatedAt:         time.Now().Unix(),
+		Status:            "in_progress",
+		Model:             req.Model,
+		Output:            []outputItem{},
+		Tools:             []responseTool{},
+		ParallelToolCalls: true,
+		Temperature:       1.0,
+		TopP:              0.98,
+Metadata:          map[string]string{},
+Instructions:      req.Instructions,
+PromptCacheKey:     respID,
+PromptCacheRetention: "24h",
+SafetyIdentifier:   "user-" + userIDStr[:12],
+ServiceTier:       "default",
+Background:        false,
+FrequencyPenalty:  0.0,
+PresencePenalty:   0.0,
+MaxToolCalls:      nil,
+Moderation:        nil,
+MaxOutputTokens:   nil,
+Reasoning:         map[string]interface{}{"context": "current_turn", "effort": "low", "summary": "detailed"},
+Text: map[string]interface{}{
+	"format": map[string]interface{}{"type": "text"},
+	"verbosity": "medium",
+},
+ToolUsage: map[string]interface{}{
+	"image_gen": map[string]interface{}{
+		"input_tokens": 0,
+		"input_tokens_details": map[string]interface{}{"image_tokens": 0, "text_tokens": 0},
+		"output_tokens": 0,
+		"output_tokens_details": map[string]interface{}{"image_tokens": 0, "text_tokens": 0},
+		"total_tokens": 0,
+	},
+	"web_search": map[string]interface{}{"num_requests": 0},
+},
+Store: req.Store != nil && *req.Store,
+Truncation: "disabled",
+ToolChoice: "auto",
+	}
+
+	state := &streamState{
+		respObj:     respObj,
+		outputIndex: 0,
+	}
+
+	// 发送初始 events: response.created + response.in_progress
+	writeSSEEvent(c.Writer, "response.created", map[string]interface{}{"response": respObj})
+	flusher.Flush()
+	writeSSEEvent(c.Writer, "response.in_progress", map[string]interface{}{"response": respObj})
+	flusher.Flush()
+
+	// 读 SSE stream
+	reader := bufio.NewReaderSize(resp.Body, 65536)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			line = bytes.TrimRight(line, "\r\n")
+			if len(line) == 0 {
+				continue
+			}
+			if !bytes.HasPrefix(line, []byte("data:")) {
+				continue
+			}
+			data := bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+			if len(data) == 0 {
+				continue
+			}
+			if bytes.Equal(data, []byte("[DONE]")) {
+				break
+			}
+
+			var chunk map[string]interface{}
+			if jerr := json.Unmarshal(data, &chunk); jerr != nil {
+				continue
+			}
+
+			processChunk(c.Writer, flusher, chunk, state)
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Printf("[responses-stream] read error: %v", err)
+			break
+		}
+	}
+
+	// 关闭当前 output item (如果有未结束的)
+	closeCurrentItem(c.Writer, flusher, state)
+
+	// 计算 final usage 并设置 status
+	state.respObj.Status = "completed"
+	if state.totalPrompt > 0 || state.totalCompletion > 0 {
+		state.respObj.Usage = &responseUsage{
+			InputTokens:  state.totalPrompt,
+			OutputTokens: state.totalCompletion,
+			TotalTokens:  state.totalPrompt + state.totalCompletion,
+InputTokensDetails:  map[string]interface{}{"cached_tokens": 0},
+OutputTokensDetails: map[string]interface{}{"reasoning_tokens": 0},
+		}
+	}
+
+	// 发 final event: response.completed
+	state.respObj.CompletedAt = time.Now().Unix()
+	writeSSEEvent(c.Writer, "response.completed", map[string]interface{}{"response": state.respObj})
+	flusher.Flush()
+
+	flusher.Flush()
+
+	// 计费 + 存 Redis
+	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, startTime, 200)
+	if h.redis != nil {
+		go h.storeInRedis(state.respObj)
+	}
+
+	log.Printf("[responses-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms",
+		userIDStr[:8], req.Model, state.totalPrompt, state.totalCompletion, time.Since(startTime).Milliseconds())
+}
+
 
