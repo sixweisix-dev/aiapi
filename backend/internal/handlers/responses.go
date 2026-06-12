@@ -11,6 +11,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"bufio"
 	"bytes"
 	"context"
@@ -241,7 +243,8 @@ func (h *ResponsesHandler) Create(c *gin.Context) {
 
 func (h *ResponsesHandler) handleNonStream(c *gin.Context, userIDStr string, req *responseCreateRequest, model *models.Model, ch *upstream.Channel, ccBody []byte) {
 	startTime := time.Now()
-resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", ccBody)
+log.Printf("[chat-to-resp DEBUG] outgoing to %s (%d bytes): %.1500s", ch.Name, len(ccBody), string(ccBody))
+	resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", ccBody)
 	if err != nil {
 		log.Printf("[responses] upstream error: %v", err)
 		c.JSON(502, gin.H{"error": gin.H{"message": "upstream request failed", "type": "api_error"}})
@@ -874,6 +877,38 @@ func (h *ResponsesHandler) Delete(c *gin.Context) {
 // 转换: ResponsesAPI request -> ChatCompletions request body
 // ============================================================
 
+
+// shortenCallID 把过长的 call_id hash 成 ≤40 字符 (Vertex AI 兼容性)
+
+// sanitizeOpenAPISchema 递归删除 JSON Schema 特有字段, Vertex AI OpenAPI 规范不支持
+func sanitizeOpenAPISchema(v interface{}) {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		delete(m, "additionalProperties")
+		delete(m, "$schema")
+		delete(m, "$id")
+		delete(m, "$ref")
+		delete(m, "$defs")
+		delete(m, "definitions")
+		delete(m, "title")
+		for _, val := range m {
+			sanitizeOpenAPISchema(val)
+		}
+	case []interface{}:
+		for _, item := range m {
+			sanitizeOpenAPISchema(item)
+		}
+	}
+}
+
+func shortenCallID(id string) string {
+	if len(id) <= 40 {
+		return id
+	}
+	h := sha256.Sum256([]byte(id))
+	return "call_" + hex.EncodeToString(h[:16])
+}
+
 func buildChatCompletionsBody(req *responseCreateRequest, model *models.Model, prevMessages []map[string]interface{}) ([]byte, error) {
 	messages := []map[string]interface{}{}
 
@@ -901,9 +936,48 @@ func buildChatCompletionsBody(req *responseCreateRequest, model *models.Model, p
 				return nil, fmt.Errorf("invalid input format")
 			}
 			for _, item := range items {
+				itemType, _ := item["type"].(string)
+
+				// function_call: assistant 上次的工具调用回声 -> OpenAI chat completions 的 assistant + tool_calls
+				if itemType == "function_call" {
+					callID, _ := item["call_id"].(string)
+					callID = shortenCallID(callID)
+					fnName, _ := item["name"].(string)
+					fnArgs, _ := item["arguments"].(string)
+					messages = append(messages, map[string]interface{}{
+						"role":    "assistant",
+						"content": "",
+						"tool_calls": []map[string]interface{}{{
+							"id":   callID,
+							"type": "function",
+							"function": map[string]interface{}{
+								"name":      fnName,
+								"arguments": fnArgs,
+							},
+						}},
+					})
+					continue
+				}
+
+				// function_call_output: 客户端执行工具后的结果 -> OpenAI chat completions 的 tool role
+				if itemType == "function_call_output" {
+					callID, _ := item["call_id"].(string)
+					callID = shortenCallID(callID)
+					output, _ := item["output"].(string)
+					messages = append(messages, map[string]interface{}{
+						"role":         "tool",
+						"tool_call_id": callID,
+						"content":      []map[string]interface{}{{"type": "text", "text": output}},
+					})
+					continue
+				}
+
 				role, _ := item["role"].(string)
 				if role == "" {
 					role = "user"
+				}
+				if role == "developer" {
+					role = "system"
 				}
 				content := item["content"]
 
@@ -1290,7 +1364,26 @@ func (h *ResponsesHandler) handleStreamChatToResponses(c *gin.Context, userIDStr
 		ccBodyMap["stream_options"] = map[string]interface{}{"include_usage": true}
 		ccBody, _ = json.Marshal(ccBodyMap)
 	}
+// Vertex AI 兼容层不接受某些 OpenAI 新字段, 临时清理
+	if strings.EqualFold(ch.Provider, "vertex_ai") {
+		var bm map[string]interface{}
+		if err := json.Unmarshal(ccBody, &bm); err == nil {
+			delete(bm, "parallel_tool_calls")
+			delete(bm, "stream_options")
+			// 递归清理 tools.parameters 里的 JSON Schema 特有字段 (Vertex 要 OpenAPI 规范)
+			if tools, ok := bm["tools"].([]interface{}); ok {
+				for _, t := range tools {
+					tm, _ := t.(map[string]interface{})
+					if tm == nil { continue }
+					fn, _ := tm["function"].(map[string]interface{})
+					if fn == nil { continue }
+					sanitizeOpenAPISchema(fn["parameters"])
+				}
+			}
 
+			ccBody, _ = json.Marshal(bm)
+		}
+	}
 resp, err := h.pool.Do(c.Request.Context(), ch, "POST", "/v1/chat/completions", ccBody)
 	if err != nil {
 		log.Printf("[responses-stream] upstream error: %v", err)
