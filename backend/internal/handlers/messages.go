@@ -361,8 +361,8 @@ func (h *MessagesHandler) bill(userIDStr string, model models.Model, ch *upstrea
 		return
 	}
 	if _, err := h.billingEngine.DeductBalance(userIDStr, cost); err != nil {
-		log.Printf("[messages] deduct balance error: %v", err)
-		return
+		// 余额不足等错误: 不退出, 继续记账 (坏账记录, 后续可追溯/补扣)
+		log.Printf("[messages] WARN deduct balance failed (continuing to record billing): %v", err)
 	}
 	requestID := fmt.Sprintf("msg-%d", startTime.UnixNano())
 	note := fmt.Sprintf("anthropic-native model=%s ch=%s", model.Name, ch.ID)
@@ -463,8 +463,8 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 	totalTokens := totalInput + completionTokens
 
 	if _, err := h.billingEngine.DeductBalance(userIDStr, cost); err != nil {
-		log.Printf("[messages] deduct balance error: %v", err)
-		return
+		// 余额不足等错误: 不退出, 继续记账 (坏账记录, 后续可追溯/补扣)
+		log.Printf("[messages] WARN deduct balance failed (continuing to record billing): %v", err)
 	}
 	requestID := fmt.Sprintf("msg-%d", startTime.UnixNano())
 	note := fmt.Sprintf("anthropic-native model=%s ch=%s cache(create=%d,read=%d)", model.Name, ch.ID, cacheCreate, cacheRead)

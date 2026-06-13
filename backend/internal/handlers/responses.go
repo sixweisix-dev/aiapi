@@ -331,7 +331,8 @@ func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *r
 		h.handleStreamMessagesToResponses(c, userIDStr, req, model, ch, anthBody, startTime)
 		return
 	}
-	if ch.Provider != "openai" && ch.Provider != "multi_aggregator" {
+	if ch.Provider != "openai" {
+		// non-openai (multi_aggregator/vertex_ai/...) 都走 chat→responses 转换
 		h.handleStreamChatToResponses(c, userIDStr, req, model, ch, ccBody, startTime)
 		return
 	}
@@ -937,6 +938,11 @@ func buildChatCompletionsBody(req *responseCreateRequest, model *models.Model, p
 			}
 			for _, item := range items {
 				itemType, _ := item["type"].(string)
+
+				// reasoning items (OpenAI o-series only): non-OpenAI providers don't need these
+				if itemType == "reasoning" {
+					continue
+				}
 
 				// function_call: assistant 上次的工具调用回声 -> OpenAI chat completions 的 assistant + tool_calls
 				if itemType == "function_call" {
