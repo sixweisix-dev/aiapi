@@ -263,8 +263,9 @@ func (h *ResponsesHandler) Create(c *gin.Context) {
 					if joined == "" { joined = "[image content omitted]" }
 					msgMap["content"] = joined
 				}
-				ccBody, _ = json.Marshal(bm)
 			}
+			bm["thinking"] = map[string]interface{}{"type": "disabled"}
+			ccBody, _ = json.Marshal(bm)
 		}
 	}
 
