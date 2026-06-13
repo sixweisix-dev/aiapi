@@ -1,5 +1,6 @@
 package billing
 
+
 import (
 	"context"
 	"encoding/json"
@@ -13,6 +14,19 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
+
+// MinBalanceThreshold: balance below this triggers 402 in handlers (CNY)
+const MinBalanceThreshold = 1.0
+
+// EstimatePromptTokensFromBytes: 粗略估算 prompt token (4 字节/token, 最少 50)
+func EstimatePromptTokensFromBytes(body []byte) int {
+	t := len(body) / 4
+	if t < 50 {
+		t = 50
+	}
+	return t
+}
+
 
 // Engine handles token metering, cost calculation, and balance operations.
 type Engine struct {

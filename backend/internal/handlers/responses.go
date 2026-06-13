@@ -202,8 +202,20 @@ func (h *ResponsesHandler) Create(c *gin.Context) {
 		c.JSON(401, gin.H{"error": gin.H{"message": "user not found", "type": "auth_error"}})
 		return
 	}
-	if user.Balance <= 0 {
-		c.JSON(402, gin.H{"error": gin.H{"message": "insufficient balance", "type": "billing_error"}})
+	// 精确预检: 估算 prompt token + 用户设的 max_output_tokens, 算 estimated cost
+	priceRow, err := h.billingEngine.GetModelPrice(model.ID.String())
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{"message": "pricing lookup failed: " + err.Error(), "type": "internal_error"}})
+		return
+	}
+	estPromptTokens := billing.EstimatePromptTokensFromBytes(bodyBytes)
+	maxCompletionTokens := 4096
+	if req.MaxOutputTokens > 0 {
+		maxCompletionTokens = req.MaxOutputTokens
+	}
+	estimatedCost := billing.CalculateCost(estPromptTokens, maxCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
+	if err := h.billingEngine.PreCheckBalance(userIDStr, estimatedCost); err != nil {
+		c.JSON(402, gin.H{"error": gin.H{"message": err.Error(), "type": "insufficient_balance"}})
 		return
 	}
 
@@ -227,7 +239,36 @@ func (h *ResponsesHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if req.Stream {
+	// DeepSeek 等不支持 vision 的上游: strip 图片 content block, 只保留 text
+	if strings.Contains(ch.BaseURL, "deepseek.com") {
+		var bm map[string]interface{}
+		if err := json.Unmarshal(ccBody, &bm); err == nil {
+			if msgs, ok := bm["messages"].([]interface{}); ok {
+				for _, m := range msgs {
+					msgMap, _ := m.(map[string]interface{})
+					if msgMap == nil { continue }
+					arr, isArr := msgMap["content"].([]interface{})
+					if !isArr { continue }
+					var texts []string
+					for _, part := range arr {
+						pm, _ := part.(map[string]interface{})
+						if pm == nil { continue }
+						if pt, _ := pm["type"].(string); pt == "text" {
+							if tx, _ := pm["text"].(string); tx != "" {
+								texts = append(texts, tx)
+							}
+						}
+					}
+					joined := strings.Join(texts, "\n")
+					if joined == "" { joined = "[image content omitted]" }
+					msgMap["content"] = joined
+				}
+				ccBody, _ = json.Marshal(bm)
+			}
+		}
+	}
+
+		if req.Stream {
 		log.Printf("[responses-stream] route user=%s -> ch=%s name=%s model=%s", userIDStr, ch.ID, ch.Name, req.Model)
 		h.handleStream(c, userIDStr, &req, &model, ch, bodyBytes, ccBody)
 		return

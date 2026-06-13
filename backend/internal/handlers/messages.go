@@ -73,8 +73,20 @@ func (h *MessagesHandler) Handle(c *gin.Context) {
 		c.JSON(401, gin.H{"error": gin.H{"message": "user not found", "type": "auth_error"}})
 		return
 	}
-	if user.Balance <= 0 {
-		c.JSON(402, gin.H{"error": gin.H{"message": "insufficient balance", "type": "billing_error"}})
+	// 精确预检: 估算 prompt token + max_tokens, 算 estimated cost
+	priceRow, err := h.billingEngine.GetModelPrice(model.ID.String())
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{"message": "pricing lookup failed: " + err.Error(), "type": "internal_error"}})
+		return
+	}
+	estPromptTokens := billing.EstimatePromptTokensFromBytes(bodyBytes)
+	maxCompletionTokens := 4096
+	if peek.MaxTokens > 0 {
+		maxCompletionTokens = peek.MaxTokens
+	}
+	estimatedCost := billing.CalculateCost(estPromptTokens, maxCompletionTokens, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
+	if err := h.billingEngine.PreCheckBalance(userIDStr, estimatedCost); err != nil {
+		c.JSON(402, gin.H{"error": gin.H{"message": err.Error(), "type": "insufficient_balance"}})
 		return
 	}
 
