@@ -1269,14 +1269,18 @@ func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstre
 	}
 
 	if _, err := h.billingEngine.DeductBalance(userIDStr, cost); err != nil {
-		log.Printf("[responses] deduct balance error: %v", err)
-		return
+		log.Printf("[responses] WARN deduct balance failed (continuing to record billing): %v", err)
 	}
 
 	requestID := fmt.Sprintf("resp-%d", startTime.UnixNano())
 	note := fmt.Sprintf("openai-responses model=%s ch=%s", model.Name, ch.ID)
 	if _, err := h.billingEngine.RecordBilling(userIDStr, model.ID.String(), requestID, promptTokens, completionTokens, totalTokens, cost, note); err != nil {
 		log.Printf("[responses] record billing error: %v", err)
+	}
+
+	// 累计 channel 维度统计 (供 widget / quota 监控)
+	if h.tracker != nil {
+		h.tracker.RecordSuccess(ch.ID, cost, 0, promptTokens, time.Since(startTime).Milliseconds())
 	}
 
 	userUUID, _ := uuid.Parse(userIDStr)
