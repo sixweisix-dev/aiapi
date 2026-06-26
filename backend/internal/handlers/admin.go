@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"ai-api-gateway/internal/billing"
+	"ai-api-gateway/internal/channelmetrics"
 	"ai-api-gateway/internal/models"
 	"ai-api-gateway/internal/upstream"
 )
@@ -19,10 +20,11 @@ type AdminHandler struct {
 	db     *gorm.DB
 	engine *billing.Engine
 	pool *upstream.Pool
+	tracker *channelmetrics.Tracker
 }
 
-func NewAdminHandler(db *gorm.DB, engine *billing.Engine, pool *upstream.Pool) *AdminHandler {
-	return &AdminHandler{db: db, engine: engine, pool: pool}
+func NewAdminHandler(db *gorm.DB, engine *billing.Engine, pool *upstream.Pool, tracker *channelmetrics.Tracker) *AdminHandler {
+	return &AdminHandler{db: db, engine: engine, pool: pool, tracker: tracker}
 }
 
 // ---- Dashboard ----
@@ -551,6 +553,10 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 
 	if len(updates) > 0 {
 		h.db.Model(&channel).Updates(updates)
+		// 改完 quota 字段强制重算 quota_status (避免 critical 卡死)
+		if h.tracker != nil {
+			h.tracker.RecheckQuota(id)
+		}
 	}
 
 	h.createAuditLog(adminID, "update_channel", "upstream_channels", id, nil, updates)

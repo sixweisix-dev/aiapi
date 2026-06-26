@@ -434,3 +434,10 @@ func containsUserIDInList(list, userID string) bool {
 	}
 	return false
 }
+
+// RecheckQuota: admin 改完 quota 配额字段后强制重算 quota_status
+// 兼容降级 (critical -> normal) 场景: 直接覆盖 status 而不仅触发告警
+func (t *Tracker) RecheckQuota(channelID string) {
+	t.checkQuotaThreshold(channelID)
+}
+
