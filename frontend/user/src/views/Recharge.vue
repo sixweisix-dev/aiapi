@@ -12,12 +12,12 @@
     <div v-if="me" class="current-card">
       <div class="current-label">{{ t('recharge.currentTier') }}</div>
       <div class="current-tier">
-        <span class="tier-badge" :class="me.membership_tier || 'free'">
-          {{ tierLabel(me.membership_tier) }}
+        <span class="tier-badge" :class="(me.membership?.effective || me.membership?.tier) || 'free'">
+          {{ tierLabel(me.membership?.effective || me.membership?.tier) }}
         </span>
       </div>
-      <div v-if="me.membership_expires_at && me.membership_tier !== 'free'" class="current-expire">
-        {{ t('recharge.expiresAt') }}：{{ dayjs(me.membership_expires_at).format('YYYY-MM-DD HH:mm') }}
+      <div v-if="me.membership?.expires_at && (me.membership?.effective || me.membership?.tier) !== 'free'" class="current-expire">
+        {{ t('recharge.expiresAt') }}：{{ dayjs(me.membership.expires_at).format('YYYY-MM-DD HH:mm') }}
       </div>
     </div>
 
