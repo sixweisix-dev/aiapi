@@ -46,7 +46,13 @@
       <div v-else class="bill-list">
         <div v-for="(b, i) in items" :key="i" class="bill-item">
           <div class="bill-row">
-            <span class="bill-tag" :class="tagCls(b.type)">{{ typeLabel(b.type) }}</span>
+            <div class="bill-row-left">
+              <span class="bill-tag" :class="tagCls(b.type)">{{ typeLabel(b.type) }}</span>
+              <span v-if="extractModel(b.description)" class="bill-model-tag">{{ extractModel(b.description) }}</span>
+              <span v-if="extractTokens(b.description)" class="bill-tokens-tag">
+                ↑{{ extractTokens(b.description).prompt }} ↓{{ extractTokens(b.description).completion }}
+              </span>
+            </div>
             <span class="bill-amount" :class="b.amount > 0 ? 'income' : 'outcome'">
               {{ b.amount > 0 ? '+' : '' }}${{ Number(b.amount || 0).toFixed(6) }}
             </span>
@@ -78,6 +84,28 @@
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import { ref, reactive, onMounted } from 'vue'
+
+// 从 description 提取模型名: 
+//   "Chat completion: ... (openai-responses model=claude-sonnet-4-6-hybrid ch=xxx)"
+//   "Chat completion: ... (openai/gpt-5.5)"
+//   "Chat completion: ... (anthropic-native model=claude-sonnet-4-6 ch=xxx)"
+function extractTokens(desc) {
+  if (!desc) return null
+  const m = desc.match(/(\d+)\s*prompt\s*\+\s*(\d+)\s*completion/i)
+  if (m) return { prompt: m[1], completion: m[2] }
+  return null
+}
+
+function extractModel(desc) {
+  if (!desc) return ''
+  // 优先匹配 model=xxx
+  let m = desc.match(/model=([\w.\-]+)/i)
+  if (m) return m[1]
+  // 退回到 (provider/modelname) 末尾括号
+  m = desc.match(/\(([\w_-]+)\/([\w.\-]+)\)/)
+  if (m) return m[2]
+  return ''
+}
 import { ElMessage } from 'element-plus'
 import { billingAPI } from '@/utils/api'
 import dayjs from 'dayjs'
@@ -228,6 +256,41 @@ function tagCls(tp) {
 }
 .bill-amount.income { color: #10b981; }
 .bill-amount.outcome { color: #ef4444; }
+.bill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bill-row-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.bill-model-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4338ca;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+}
+.bill-tokens-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
 .bill-desc {
   font-size: 13px;
   color: #4b5563;
