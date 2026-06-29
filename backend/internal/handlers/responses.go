@@ -1272,17 +1272,7 @@ func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstre
 		log.Printf("[responses] WARN deduct balance failed (continuing to record billing): %v", err)
 	}
 
-	requestID := fmt.Sprintf("resp-%d", startTime.UnixNano())
-	note := fmt.Sprintf("openai-responses model=%s ch=%s", model.Name, ch.ID)
-	if _, err := h.billingEngine.RecordBilling(userIDStr, model.ID.String(), requestID, promptTokens, completionTokens, totalTokens, cost, note); err != nil {
-		log.Printf("[responses] record billing error: %v", err)
-	}
-
-	// 累计 channel 维度统计 (供 widget / quota 监控)
-	if h.tracker != nil {
-		h.tracker.RecordSuccess(ch.ID, cost, 0, promptTokens, time.Since(startTime).Milliseconds())
-	}
-
+	// 1. 先写 requests 表拿真 UUID
 	userUUID, _ := uuid.Parse(userIDStr)
 	chUUID, _ := uuid.Parse(ch.ID)
 	durationMs := time.Since(startTime).Milliseconds()
@@ -1301,6 +1291,17 @@ func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstre
 	}
 	if err := h.db.Create(req).Error; err != nil {
 		log.Printf("[responses] record request error: %v", err)
+	}
+
+	// 2. 再用真 UUID 写 billing_records (CSV LEFT JOIN 才能匹配)
+	note := fmt.Sprintf("openai-responses model=%s ch=%s", model.Name, ch.ID)
+	if _, err := h.billingEngine.RecordBilling(userIDStr, model.ID.String(), req.ID.String(), promptTokens, completionTokens, totalTokens, cost, note); err != nil {
+		log.Printf("[responses] record billing error: %v", err)
+	}
+
+	// 3. 累计 channel 维度统计 (供 widget / quota 监控)
+	if h.tracker != nil {
+		h.tracker.RecordSuccess(ch.ID, cost, 0, promptTokens, time.Since(startTime).Milliseconds())
 	}
 
 	log.Printf("[responses] Usage: user=%s model=%s prompt=%d completion=%d cost=%.8f duration=%dms",
