@@ -448,7 +448,16 @@
       "tier": "档",
       "balance": "余额",
       "firstRechargeBonus": "🎁 首充满 ¥300 送 $50 余额",
-      "firstRechargeBonusSub": "首次充值满 ¥300 自动到账,叠加梯度赠送"
+      "firstRechargeBonusSub": "首次充值满 ¥300 自动到账,叠加梯度赠送",
+      "customTitle": "✏️ 自定义金额",
+      "customPlaceholder": "输入金额 (≥10)",
+      "customMin": "最低 ¥10",
+      "customMax": "最高 ¥10000",
+      "customBonusPreview": "→ 到账 ${balance} ({pct}% 赠送)",
+      "customNoBonus": "→ 到账 ${balance} (无赠送, ≥¥100 起赠)",
+      "customInvalid": "金额需在 ¥10-10000 之间",
+      "customPayBtn": "💳 支付 ¥{amount}",
+      "bonusTag": "送 {pct}%"
     }
   },
   "billing": {

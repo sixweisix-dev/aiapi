@@ -42,13 +42,42 @@
       <div class="stripe-tiers">
         <button v-for="item in stripeTiers" :key="item.id"
                 class="stripe-tier-btn"
-                :class="{ disabled: !stripeEnabled }"
+                :class="{ disabled: !stripeEnabled, recommended: item.recommended }"
                 :disabled="!stripeEnabled || stripeLoading"
                 @click="payStripe(item.id)">
+          <span v-if="item.recommended" class="hot-tag">🔥 HOT</span>
+          <span class="bonus-tag">{{ t('recharge.stripe.bonusTag', { pct: item.bonusPct }) }}</span>
           <div class="tier-cny">¥{{ item.cny }} {{ t('recharge.stripe.tier') }}</div>
           <div class="tier-usd">${{ item.usd }}</div>
           <div class="tier-balance">→ ${{ item.balance }} {{ t('recharge.stripe.balance') }}</div>
         </button>
+
+        <div class="stripe-custom-card" :class="{ disabled: !stripeEnabled }">
+          <div class="custom-header">{{ t('recharge.stripe.customTitle') }}</div>
+          <div class="custom-input-wrap">
+            <span class="custom-prefix">¥</span>
+            <input
+              v-model.number="customAmount"
+              type="number"
+              :min="10" :max="10000" :step="10"
+              :placeholder="t('recharge.stripe.customPlaceholder')"
+              class="custom-input"
+              :disabled="!stripeEnabled || stripeLoading"
+            />
+          </div>
+          <div class="custom-preview" v-if="customBonus">
+            <span v-if="customBonus.eligible">{{ t('recharge.stripe.customBonusPreview', { balance: customBonus.balance, pct: customBonus.pct }) }}</span>
+            <span v-else class="custom-no-bonus">{{ t('recharge.stripe.customNoBonus', { balance: customBonus.balance }) }}</span>
+          </div>
+          <div class="custom-preview placeholder" v-else>{{ t('recharge.stripe.customMin') }} · {{ t('recharge.stripe.customMax') }}</div>
+          <button
+            class="custom-pay-btn"
+            :disabled="!stripeEnabled || stripeLoading || !customBonus"
+            @click="payCustom"
+          >
+            {{ customBonus ? t('recharge.stripe.customPayBtn', { amount: customBonus.amt }) : t('recharge.stripe.customMin') }}
+          </button>
+        </div>
       </div>
       <div class="stripe-section-title membership-title">{{ t('recharge.stripe.membershipTitle') }}</div>
       <div class="stripe-membership-tiers">
@@ -326,11 +355,11 @@ const activeTab = ref('pay')
 const stripeEnabled = ref(false)
 const stripeLoading = ref(false)
 const stripeTiers = [
-  { id: '100',  cny: 100,  usd: '14.29', balance: 108 },
-  { id: '300',  cny: 300,  usd: '42.86', balance: 330 },
-  { id: '500',  cny: 500,  usd: '71.43', balance: 575 },
-  { id: '1000', cny: 1000, usd: '142.86', balance: 1200 },
-  { id: '3000', cny: 3000, usd: '428.57', balance: 3750 },
+  { id: '100',  cny: 100,  usd: '14.29',  balance: 108,  bonusPct: 8 },
+  { id: '300',  cny: 300,  usd: '42.86',  balance: 330,  bonusPct: 10 },
+  { id: '500',  cny: 500,  usd: '71.43',  balance: 575,  bonusPct: 15 },
+  { id: '1000', cny: 1000, usd: '142.86', balance: 1200, bonusPct: 20 },
+  { id: '3000', cny: 3000, usd: '428.57', balance: 3750, bonusPct: 25, recommended: true },
 ]
 const stripeMembershipTiers = [
   { id: 'pro',        cny: 99,  usd: '14.14', balance: 120, tier: 'pro' },
@@ -342,16 +371,39 @@ async function fetchStripeStatus() {
     stripeEnabled.value = !!r?.enabled
   } catch (e) { stripeEnabled.value = false }
 }
-async function payStripe(tierId) {
+async function payStripe(tierId, customAmount) {
   if (!stripeEnabled.value) { ElMessage.warning('Stripe 暂未开通'); return }
   stripeLoading.value = true
   try {
-    const r = await api.post('/recharge/stripe/checkout', { tier_id: tierId })
+    const payload = { tier_id: tierId }
+    if (tierId === 'custom') payload.amount_cny = customAmount
+    const r = await api.post('/recharge/stripe/checkout', payload)
     if (r?.url) window.location.href = r.url
     else ElMessage.error('未获取到支付链接')
   } catch (e) {
     ElMessage.error('Stripe 支付失败: ' + (e?.response?.data?.error || e.message))
   } finally { stripeLoading.value = false }
+}
+
+// 自定义金额 (线性插值, 与后端 computeCustomTier 保持一致)
+const customAmount = ref(null)
+const customBonus = computed(() => {
+  const amt = parseFloat(customAmount.value) || 0
+  if (amt < 10 || amt > 10000) return null
+  let pct = 0
+  if (amt < 100) pct = 0
+  else if (amt < 300) pct = 8 + (amt-100)/200*(10-8)
+  else if (amt < 500) pct = 10 + (amt-300)/200*(15-10)
+  else if (amt < 1000) pct = 15 + (amt-500)/500*(20-15)
+  else if (amt < 3000) pct = 20 + (amt-1000)/2000*(25-20)
+  else pct = 25
+  const balance = amt + amt * pct / 100
+  return { amt, pct: pct.toFixed(1), balance: balance.toFixed(2), eligible: amt >= 100 }
+})
+function payCustom() {
+  const cb = customBonus.value
+  if (!cb) { ElMessage.warning(t('recharge.stripe.customInvalid')); return }
+  payStripe('custom', cb.amt)
 }
 
 onMounted(() => {
@@ -448,18 +500,191 @@ onMounted(() => {
 }
 .stripe-header { font-size: 18px; font-weight: 700; margin-bottom: 6px; text-align: center; }
 .stripe-sub { font-size: 13px; color: #666; text-align: center; margin-bottom: 16px; }
-.stripe-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-.stripe-tier-btn {
-  background: linear-gradient(135deg, #635bff, #4b41e0);
-  border: none; color: #fff; border-radius: 12px;
-  padding: 12px 8px; cursor: pointer; transition: transform 0.15s;
-  display: flex; flex-direction: column; gap: 4px;
+.stripe-tiers {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
 }
-.stripe-tier-btn:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99,91,255,0.3); }
-.stripe-tier-btn.disabled, .stripe-tier-btn:disabled { background: #d1d5db; cursor: not-allowed; opacity: 0.6; }
-.tier-cny { font-size: 13px; font-weight: 600; }
-.tier-usd { font-size: 18px; font-weight: 700; }
-.tier-balance { font-size: 11px; opacity: 0.9; }
+@media (min-width: 720px) {
+  .stripe-tiers { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 充值档位卡片 */
+.stripe-tier-btn {
+  position: relative;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+  border: none;
+  color: #fff;
+  border-radius: 14px;
+  padding: 16px 12px 14px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 110px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+.stripe-tier-btn::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+  pointer-events: none;
+}
+.stripe-tier-btn:not(:disabled):hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.4);
+}
+.stripe-tier-btn:not(:disabled):active { transform: translateY(-1px); }
+.stripe-tier-btn.disabled,
+.stripe-tier-btn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+.stripe-tier-btn.recommended {
+  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #c2410c 100%);
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.4);
+}
+.stripe-tier-btn.recommended:not(:disabled):hover {
+  box-shadow: 0 8px 24px rgba(234, 88, 12, 0.5);
+}
+
+/* 卡片角标 */
+.hot-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+.bonus-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.tier-cny {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 14px;
+  opacity: 0.95;
+}
+.tier-usd {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.tier-balance {
+  font-size: 11px;
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+/* 自定义金额卡片 */
+.stripe-custom-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 2px dashed #c7d2fe;
+  border-radius: 14px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: 110px;
+}
+.stripe-custom-card:hover:not(.disabled) {
+  border-color: #6366f1;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
+}
+.stripe-custom-card.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.custom-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4338ca;
+}
+.custom-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.custom-prefix {
+  position: absolute;
+  left: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #6366f1;
+  pointer-events: none;
+}
+.custom-input {
+  width: 100%;
+  padding: 8px 10px 8px 24px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.custom-input:focus { border-color: #6366f1; }
+.custom-input::-webkit-outer-spin-button,
+.custom-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.custom-input[type=number] { -moz-appearance: textfield; }
+
+.custom-preview {
+  font-size: 11px;
+  font-weight: 600;
+  color: #16a34a;
+  min-height: 16px;
+  line-height: 16px;
+}
+.custom-preview.placeholder { color: #94a3b8; font-weight: 500; }
+.custom-no-bonus { color: #94a3b8; }
+
+.custom-pay-btn {
+  margin-top: auto;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.custom-pay-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+.custom-pay-btn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
 
 /* 套餐卡片 */
 .plan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }

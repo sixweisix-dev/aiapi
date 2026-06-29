@@ -45,7 +45,8 @@ type stripeTier struct {
 }
 
 // USD → HKD 换算汇率 (HK Stripe 账户必须用 HKD 才能显示 wechat_pay)
-const usdToHKDx10 = 78 // 1 USD = 7.8 HKD; 用整数 x10 避免浮点
+// 实时汇率参考 https://www.xe.com/currencyconverter/convert/?From=USD&To=HKD
+const usdToHKDx100 = 784 // 1 USD = 7.84 HKD; 用整数 x100 避免浮点
 
 var stripeTiers = map[string]stripeTier{
 	"100":        {100, 1429, 100, 8, "", 0, "TransitAI Recharge 100", "$100 Balance"},
@@ -56,6 +57,40 @@ var stripeTiers = map[string]stripeTier{
 	"pro":        {99, 1414, 120, 0, "pro", 30, "TransitAI Pro Membership (30 days)", "Pro Membership"},
 	"enterprise": {499, 7129, 600, 0, "enterprise", 30, "TransitAI Enterprise Membership (30 days)", "Enterprise Membership"},
 }
+
+
+// computeCustomTier: 根据自定义 CNY 金额计算 stripeTier (线性插值赠送比例)
+// 规则: <100 无赠送; 100-300=8%~10%; 300-500=10%~15%; 500-1000=15%~20%;
+// 1000-3000=20%~25%; >=3000 固定 25% (与 3000 档对齐, 最高赠送)
+func computeCustomTier(amountCNY int) stripeTier {
+	var pct float64
+	switch {
+	case amountCNY < 100:
+		pct = 0
+	case amountCNY < 300:
+		pct = 8 + float64(amountCNY-100)/200.0*(10-8)
+	case amountCNY < 500:
+		pct = 10 + float64(amountCNY-300)/200.0*(15-10)
+	case amountCNY < 1000:
+		pct = 15 + float64(amountCNY-500)/500.0*(20-15)
+	case amountCNY < 3000:
+		pct = 20 + float64(amountCNY-1000)/2000.0*(25-20)
+	default:
+		pct = 25
+	}
+	balanceUSD := float64(amountCNY)
+	bonusUSD := balanceUSD * pct / 100.0
+	priceCents := int64(float64(amountCNY)*100.0/7.0 + 0.5)
+	return stripeTier{
+		AmountCNY:   amountCNY,
+		PriceCents:  priceCents,
+		BalanceUSD:  balanceUSD,
+		BonusUSD:    bonusUSD,
+		Name:        fmt.Sprintf("TransitAI Recharge %d (Custom)", amountCNY),
+		DisplayName: fmt.Sprintf("$%.0f Balance", balanceUSD+bonusUSD),
+	}
+}
+
 
 func (h *StripeHandler) readSetting(key string) string {
 	var v string
@@ -73,6 +108,7 @@ func (h *StripeHandler) GetStatus(c *gin.Context) {
 
 type checkoutRequest struct {
 	TierID string `json:"tier_id"`
+	AmountCNY int    `json:"amount_cny"`
 }
 
 type stripeSession struct {
@@ -99,7 +135,22 @@ func (h *StripeHandler) CreateCheckoutSession(c *gin.Context) {
 		return
 	}
 
-	tier, ok := stripeTiers[req.TierID]
+	var tier stripeTier
+	var ok bool
+	if req.TierID == "custom" {
+		if req.AmountCNY < 10 {
+			c.JSON(400, gin.H{"error": "custom amount must be >= 10 CNY"})
+			return
+		}
+		if req.AmountCNY > 10000 {
+			c.JSON(400, gin.H{"error": "custom amount must be <= 10000 CNY"})
+			return
+		}
+		tier = computeCustomTier(req.AmountCNY)
+		ok = true
+	} else {
+		tier, ok = stripeTiers[req.TierID]
+	}
 	if !ok {
 		c.JSON(400, gin.H{"error": "invalid tier_id"})
 		return
@@ -130,7 +181,7 @@ func (h *StripeHandler) CreateCheckoutSession(c *gin.Context) {
 	form.Set("payment_method_options[wechat_pay][client]", "web")
 	form.Set("line_items[0][quantity]", "1")
 	form.Set("line_items[0][price_data][currency]", "hkd")
-	hkdCents := tier.PriceCents * usdToHKDx10 / 10
+	hkdCents := tier.PriceCents * usdToHKDx100 / 100
 	form.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(hkdCents, 10))
 	form.Set("line_items[0][price_data][product_data][name]", tier.Name)
 	form.Set("line_items[0][price_data][product_data][description]", productDesc)
@@ -138,6 +189,9 @@ func (h *StripeHandler) CreateCheckoutSession(c *gin.Context) {
 	form.Set("cancel_url", cancelURL)
 	form.Set("metadata[user_id]", userIDStr)
 	form.Set("metadata[tier_id]", req.TierID)
+	if req.TierID == "custom" {
+		form.Set("metadata[amount_cny]", strconv.Itoa(req.AmountCNY))
+	}
 
 	httpReq, _ := http.NewRequest("POST", stripeAPIBase+"/checkout/sessions", strings.NewReader(form.Encode()))
 	httpReq.SetBasicAuth(secretKey, "")
@@ -243,7 +297,17 @@ func (h *StripeHandler) HandleWebhook(c *gin.Context) {
 	sess := wrap.Object
 	userID := sess.Metadata["user_id"]
 	tierID := sess.Metadata["tier_id"]
-	tier, ok := stripeTiers[tierID]
+	var tier stripeTier
+	var ok bool
+	if tierID == "custom" {
+		amt, _ := strconv.Atoi(sess.Metadata["amount_cny"])
+		if amt >= 10 {
+			tier = computeCustomTier(amt)
+			ok = true
+		}
+	} else {
+		tier, ok = stripeTiers[tierID]
+	}
 	if !ok || userID == "" {
 		log.Printf("[stripe-webhook] invalid metadata user=%s tier=%s", userID, tierID)
 		c.JSON(200, gin.H{"received": true, "warning": "invalid metadata"})

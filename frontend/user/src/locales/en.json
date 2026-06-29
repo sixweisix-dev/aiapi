@@ -448,7 +448,16 @@
       "tier": "tier",
       "balance": "balance",
       "firstRechargeBonus": "🎁 First Top-up of $300+ → $50 Bonus",
-      "firstRechargeBonusSub": "Auto-credited on first top-up of $300+, stackable with tier bonus"
+      "firstRechargeBonusSub": "Auto-credited on first top-up of $300+, stackable with tier bonus",
+      "customTitle": "✏️ Custom Amount",
+      "customPlaceholder": "Enter amount (≥10)",
+      "customMin": "Min ¥10",
+      "customMax": "Max ¥10000",
+      "customBonusPreview": "→ ${balance} balance ({pct}% bonus)",
+      "customNoBonus": "→ ${balance} balance (no bonus, ≥¥100 to qualify)",
+      "customInvalid": "Amount must be ¥10-10000",
+      "customPayBtn": "💳 Pay ¥{amount}",
+      "bonusTag": "+{pct}%"
     }
   },
   "billing": {
