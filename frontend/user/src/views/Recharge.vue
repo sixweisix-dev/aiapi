@@ -412,7 +412,8 @@ const customAmount = ref(null)
 const customBonus = computed(() => {
   const raw = parseFloat(customAmount.value) || 0
   if (raw <= 0) return null
-  const amtCNY = isEn.value ? Math.round(raw * 7.06) : raw
+  // 强制整数 CNY (后端 amount_cny 字段是 int, 小数会 400)
+  const amtCNY = isEn.value ? Math.round(raw * 7.06) : Math.round(raw)
   if (amtCNY < 10 || amtCNY > 10000) return null
   let pct = 0
   if (amtCNY < 100) pct = 0
