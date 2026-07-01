@@ -1,6 +1,15 @@
 transitai.cloud {
     tls sixweisix@gmail.com
 
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+        format json
+        level INFO
+    }
+
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"

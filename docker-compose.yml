@@ -60,6 +60,7 @@ services:
       VERTEX_CREDENTIALS_PATH: /secrets/vertex.json
     volumes:
       - /home/ubuntu/secrets:/secrets:ro
+      - ./logs/caddy:/var/log/caddy:ro
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -82,6 +83,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - ./logs/caddy:/var/log/caddy
     networks:
       - ai_gateway_network
     depends_on:

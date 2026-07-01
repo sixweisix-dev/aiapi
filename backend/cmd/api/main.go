@@ -252,6 +252,7 @@ r.POST("/v1/recharge/stripe/webhook", stripeHandler.HandleWebhook)
 		admin.GET("/users", adminHandler.ListUsers)
 		admin.GET("/users/:id", adminHandler.GetUser)
 		admin.GET("/users/:id/error-logs", adminHandler.ListUserErrorLogs)
+		admin.GET("/access-logs", handlers.ListAccessLogs)
 		admin.PATCH("/users/:id", adminHandler.UpdateUser)
 
 		// Channels

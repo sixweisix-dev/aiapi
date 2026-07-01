@@ -24,6 +24,7 @@ const routes = [
       { path: 'audit-logs', name: 'AuditLogs', component: () => import('@/views/AuditLogs.vue') },
       { path: 'profit', name: 'Profit', component: () => import('@/views/Profit.vue') },
       { path: 'settings', name: 'Settings', component: () => import('@/views/Settings.vue') },
+      { path: 'access-logs', name: 'AccessLogs', component: () => import('@/views/AccessLogs.vue') },
       { path: 'redeem-codes', name: 'RedeemCodes', component: () => import('@/views/RedeemCodes.vue') },
     ],
   },
