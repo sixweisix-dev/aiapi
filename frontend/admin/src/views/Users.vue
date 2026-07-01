@@ -72,6 +72,7 @@
             >
               {{ row.is_active ? '封禁' : '解封' }}
             </el-button>
+            <el-button size="small" @click="openErrorLogs(row)">错误日志</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -119,13 +120,135 @@
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- Error Logs Drawer -->
+    <el-drawer v-model="errorDrawerVisible" title="错误日志" size="70%" direction="rtl">
+      <div v-if="errorLogsLoading" style="text-align:center;padding:40px 0;color:#9ca3af">加载中...</div>
+      <div v-else-if="errorLogs.length === 0" style="text-align:center;padding:60px 0;color:#9ca3af">
+        <div style="font-size:44px;margin-bottom:12px">✨</div>
+        <div>该用户暂无错误请求</div>
+      </div>
+      <div v-else>
+        <div style="margin-bottom:12px;color:#6b7280;font-size:13px">
+          共 {{ errorLogs.length }} 条最近的 4xx/5xx 或带错误信息的请求（{{ errorUserEmail }}）
+        </div>
+        <el-table :data="errorLogs" size="small" stripe style="width:100%">
+          <el-table-column label="时间" width="150">
+            <template #default="{ row }">
+              <span style="font-size:12px">{{ formatTime(row.created_at) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="70" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.status_code >= 500 ? 'danger' : 'warning'" size="small">
+                {{ row.status_code }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="model_name" label="模型" width="150" show-overflow-tooltip />
+          <el-table-column prop="path" label="路径" width="140" show-overflow-tooltip>
+            <template #default="{ row }">
+              <code style="font-size:11px">{{ row.path }}</code>
+            </template>
+          </el-table-column>
+          <el-table-column prop="error_message" label="错误信息" min-width="240">
+            <template #default="{ row }">
+              <div style="font-size:12px;color:#dc2626;word-break:break-all;max-height:60px;overflow:auto">
+                {{ row.error_message || '—' }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="耗时" width="80" align="right">
+            <template #default="{ row }">
+              <span style="font-size:12px">{{ row.duration_ms }}ms</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="客户端" width="180" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div style="font-size:11px;color:#6b7280">
+                <div>{{ row.user_agent || '—' }}</div>
+                <div style="color:#9ca3af">{{ row.ip_address || '' }}</div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="80" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" type="primary" link @click="openLogDetail(row)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-drawer>
+
+    <!-- Log Detail Dialog -->
+    <el-dialog v-model="detailVisible" title="请求详情" width="90%" top="5vh" append-to-body>
+      <div v-if="detailLog" class="log-detail">
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="k">时间</span>
+            <span class="v">{{ formatTime(detailLog.created_at) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="k">状态码</span>
+            <el-tag :type="detailLog.status_code >= 500 ? 'danger' : 'warning'" size="small">
+              {{ detailLog.status_code }}
+            </el-tag>
+          </div>
+          <div class="detail-item">
+            <span class="k">模型</span>
+            <span class="v">{{ detailLog.model_name || '—' }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="k">路径</span>
+            <code class="v">{{ detailLog.path }}</code>
+          </div>
+          <div class="detail-item">
+            <span class="k">耗时</span>
+            <span class="v">{{ detailLog.duration_ms }} ms</span>
+          </div>
+          <div class="detail-item">
+            <span class="k">上游渠道</span>
+            <code class="v">{{ detailLog.upstream_channel_id || '—' }}</code>
+          </div>
+          <div class="detail-item">
+            <span class="k">客户端 UA</span>
+            <span class="v">{{ detailLog.user_agent || '—' }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="k">IP</span>
+            <span class="v">{{ detailLog.ip_address || '—' }}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">错误信息</div>
+          <pre class="code-block err">{{ detailLog.error_message || '(空)' }}</pre>
+        </div>
+
+        <div class="section">
+          <div class="section-title">
+            请求体
+            <el-button size="small" link @click="copyText(prettyJSON(detailLog.request_body))">复制</el-button>
+          </div>
+          <pre class="code-block">{{ prettyJSON(detailLog.request_body) }}</pre>
+        </div>
+
+        <div class="section">
+          <div class="section-title">
+            上游响应
+            <el-button size="small" link @click="copyText(prettyJSON(detailLog.response_body))">复制</el-button>
+          </div>
+          <pre class="code-block">{{ prettyJSON(detailLog.response_body) }}</pre>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { usersAPI } from '@/utils/api'
+import api, { usersAPI } from '@/utils/api'
 import dayjs from 'dayjs'
 
 const users = ref([])
@@ -139,6 +262,14 @@ const dialogVisible = ref(false)
 const query = ref({ search: '', role: '' })
 const editForm = ref({ role: 'user', balance_adjust: 0, email_verified: false, membership_tier: 'free', membership_days: 30 })
 const editingUser = ref(null)
+
+// Error logs drawer
+const errorDrawerVisible = ref(false)
+const errorLogsLoading = ref(false)
+const errorLogs = ref([])
+const errorUserEmail = ref("")
+const detailVisible = ref(false)
+const detailLog = ref(null)
 
 function formatTime(t) {
   return t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-'
@@ -212,5 +343,86 @@ async function toggleActive(row) {
   } catch { /* cancelled */ }
 }
 
+async function openErrorLogs(row) {
+  errorUserEmail.value = row.email
+  errorLogs.value = []
+  errorDrawerVisible.value = true
+  errorLogsLoading.value = true
+  try {
+    const res = await api.get(`/admin/users/${row.id}/error-logs`, { params: { limit: 100 } })
+    errorLogs.value = res.logs || []
+  } finally {
+    errorLogsLoading.value = false
+  }
+}
+
+function openLogDetail(row) {
+  detailLog.value = row
+  detailVisible.value = true
+}
+
+function prettyJSON(v) {
+  if (v === null || v === undefined || v === '') return '(空)'
+  try {
+    if (typeof v === 'string') return JSON.stringify(JSON.parse(v), null, 2)
+    return JSON.stringify(v, null, 2)
+  } catch {
+    return String(v)
+  }
+}
+
+async function copyText(t) {
+  try {
+    await navigator.clipboard.writeText(t)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.log-detail { padding: 0 4px; }
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 20px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.detail-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.detail-item .k { color: #6b7280; min-width: 68px; font-weight: 500; }
+.detail-item .v { color: #1f2937; word-break: break-all; }
+.detail-item code.v { font-family: monospace; font-size: 12px; color: #059669; }
+.section { margin-bottom: 20px; }
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.code-block {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+.code-block.err { background: #7f1d1d; color: #fecaca; }
+@media (max-width: 640px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+</style>

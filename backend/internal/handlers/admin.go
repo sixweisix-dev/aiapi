@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -158,6 +159,82 @@ func (h *AdminHandler) GetUser(c *gin.Context) {
 		LastLoginAt:   user.LastLoginAt,
 		CreatedAt:     user.CreatedAt,
 	})
+}
+
+// UserErrorLog 只暴露必要字段, 避免把 request_body / response_body 全推给前端
+type UserErrorLog struct {
+	ID                string          `json:"id"`
+	CreatedAt         time.Time       `json:"created_at"`
+	Path              string          `json:"path"`
+	StatusCode        int             `json:"status_code"`
+	ModelName         string          `json:"model_name"`
+	ErrorMessage      string          `json:"error_message"`
+	DurationMs        int             `json:"duration_ms"`
+	UserAgent         string          `json:"user_agent"`
+	IPAddress         string          `json:"ip_address"`
+	UpstreamChannelID string          `json:"upstream_channel_id"`
+	RequestBody       json.RawMessage `json:"request_body"`
+	ResponseBody      json.RawMessage `json:"response_body"`
+}
+
+// ListUserErrorLogs returns recent 4xx/5xx or error_message-bearing requests for a user
+func (h *AdminHandler) ListUserErrorLogs(c *gin.Context) {
+	userID := c.Param("id")
+	limit := parseInt(c.DefaultQuery("limit", "50"), 50)
+	if limit > 200 {
+		limit = 200
+	}
+
+	type row struct {
+		ID                string
+		CreatedAt         time.Time
+		Path              string
+		StatusCode        int
+		ModelName         *string
+		ErrorMessage      *string
+		DurationMs        int
+		UserAgent         *string
+		IPAddress         *string
+		UpstreamChannelID *string
+		RequestBody       []byte
+		ResponseBody      []byte
+	}
+	var rows []row
+	err := h.db.Table("requests r").
+		Select("r.id, r.created_at, r.path, r.status_code, m.name as model_name, r.error_message, r.duration_ms, r.user_agent, r.ip_address::text as ip_address, r.upstream_channel_id::text as upstream_channel_id, r.request_body, r.response_body").
+		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Where("r.user_id = ? AND (r.status_code >= 400 OR r.error_message IS NOT NULL AND r.error_message <> '')", userID).
+		Order("r.created_at DESC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	result := make([]UserErrorLog, 0, len(rows))
+	for _, r := range rows {
+		deref := func(p *string) string {
+			if p == nil {
+				return ""
+			}
+			return *p
+		}
+		result = append(result, UserErrorLog{
+			ID:                r.ID,
+			CreatedAt:         r.CreatedAt,
+			Path:              r.Path,
+			StatusCode:        r.StatusCode,
+			ModelName:         deref(r.ModelName),
+			ErrorMessage:      deref(r.ErrorMessage),
+			DurationMs:        r.DurationMs,
+			UserAgent:         deref(r.UserAgent),
+			IPAddress:         deref(r.IPAddress),
+			UpstreamChannelID: deref(r.UpstreamChannelID),
+			RequestBody:       r.RequestBody,
+			ResponseBody:      r.ResponseBody,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"logs": result, "total": len(result)})
 }
 
 // UpdateUser updates user fields. Supports balance adjustment.

@@ -399,13 +399,17 @@
     "planPro": "专业版",
     "planEnterprise": "企业版",
     "perMonth": "/ 月",
+    "proPrice": "¥99",
+    "entPrice": "¥499",
+    "proPriceNote": "实际通过 Stripe 按当前 USD/HKD 汇率结算",
+    "entPriceNote": "实际通过 Stripe 按当前 USD/HKD 汇率结算",
     "proBonus": "充 $99 → 到账 $120（送 $21）",
     "entBonus": "充 $499 → 到账 $600（送 $101）",
-    "proLi1": "充值到账 <b>$120</b>",
+    "proLi1": "API 余额到账 <b>$120</b>（一次性）",
     "proLi2": "RPM <b>60</b>（10 倍提速）",
     "proLi3": "TPM <b>10 万</b>",
     "proLi4": "API Key 数量 <b>5 个</b>",
-    "entLi1": "充值到账 <b>$600</b>",
+    "entLi1": "API 余额到账 <b>$600</b>（一次性）",
     "entLi2": "RPM <b>600</b>（100 倍提速）",
     "entLi3": "TPM <b>100 万</b>",
     "entLi4": "API Key <b>不限数量</b>",
@@ -443,7 +447,7 @@
       "header": "在线支付",
       "sub": "信用卡 · 支付宝 · 微信 · Apple Pay,即时到账",
       "comingSoon": "⚠️ 暂未开通,敬请期待",
-      "balanceTitle": "💰 纯余额充值",
+      "balanceTitle": "💳 充值档位（含会员套餐）",
       "membershipTitle": "👑 会员套餐(月费)",
       "tier": "档",
       "balance": "余额",
@@ -457,7 +461,8 @@
       "customNoBonus": "→ 到账 ${balance} (无赠送, ≥¥100 起赠)",
       "customInvalid": "金额需在 ¥10-10000 之间",
       "customPayBtn": "💳 支付 ¥{amount}",
-      "bonusTag": "送 {pct}%"
+      "bonusTag": "送 {pct}%",
+      "selectTier": "请先选择档位"
     }
   },
   "billing": {

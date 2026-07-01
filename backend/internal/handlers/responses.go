@@ -315,7 +315,7 @@ log.Printf("[chat-to-resp DEBUG] outgoing to %s (%d bytes): %.1500s", ch.Name, l
 		promptTokens = respObj.Usage.InputTokens
 		completionTokens = respObj.Usage.OutputTokens
 	}
-	h.bill(userIDStr, *model, ch, promptTokens, completionTokens, startTime, resp.StatusCode)
+	h.bill(userIDStr, *model, ch, promptTokens, completionTokens, startTime, resp.StatusCode, c.ClientIP(), c.Request.UserAgent())
 
 	if h.redis != nil {
 		go h.storeInRedis(respObj)
@@ -456,7 +456,7 @@ func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *r
 	log.Printf("[responses-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms respID=%s", userIDStr[:8], req.Model, totalPrompt, totalCompletion, durationMs, respID)
 
 	if totalPrompt > 0 || totalCompletion > 0 {
-		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200)
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	}
 }
 
@@ -1252,7 +1252,7 @@ func (h *ResponsesHandler) storeInRedis(resp *responseObject) {
 // 计费
 // ============================================================
 
-func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstream.Channel, promptTokens, completionTokens int, startTime time.Time, statusCode int) {
+func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstream.Channel, promptTokens, completionTokens int, startTime time.Time, statusCode int, clientIP, clientUA string) {
 	if statusCode != 200 || (promptTokens == 0 && completionTokens == 0) {
 		return
 	}
@@ -1288,6 +1288,8 @@ func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstre
 		TotalTokens:       totalTokens,
 		Cost:              cost,
 		DurationMs:        int(durationMs),
+		IPAddress:         &clientIP,
+		UserAgent:         &clientUA,
 	}
 	if err := h.db.Create(req).Error; err != nil {
 		log.Printf("[responses] record request error: %v", err)
@@ -1580,7 +1582,7 @@ OutputTokensDetails: map[string]interface{}{"reasoning_tokens": 0},
 	flusher.Flush()
 
 	// 计费 + 存 Redis
-	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, startTime, 200)
+	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	if h.redis != nil {
 		go h.storeInRedis(state.respObj)
 	}
@@ -1900,6 +1902,6 @@ func (h *ResponsesHandler) handleStreamMessagesToResponses(c *gin.Context, userI
 	log.Printf("[responses-msgs-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms", userIDStr[:8], req.Model, totalPrompt, totalCompletion, time.Since(startTime).Milliseconds())
 
 	if totalPrompt > 0 || totalCompletion > 0 {
-		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200)
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	}
 }
