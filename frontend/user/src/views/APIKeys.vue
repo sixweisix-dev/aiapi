@@ -177,7 +177,7 @@ const newKeyValue = ref('')
 
 const auth = useAuthStore()
 const tierLimitsMap = {
-  free: { rpm: 6, tpm: 10000, label: 'apiKeys.planFree' },
+  free: { rpm: 15, tpm: 10000, label: 'apiKeys.planFree' },
   pro: { rpm: 60, tpm: 100000, label: 'apiKeys.planPro' },
   enterprise: { rpm: 600, tpm: 1000000, label: 'apiKeys.planEnterprise' },
 }

@@ -29,7 +29,7 @@ type Limits struct {
 // TierLimits 各等级的限制配置
 var TierLimits = map[Tier]Limits{
 	TierFree: {
-		RPM:            6,
+		RPM:            15,
 		TPM:            10000,
 		MaxAPIKeys:     1,
 		BudgetAlerts:   false,
