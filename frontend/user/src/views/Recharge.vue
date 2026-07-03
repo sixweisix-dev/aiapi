@@ -28,7 +28,7 @@
     </div>
 
     <!-- 信用卡充值 Tab -->
-    <div v-if="activeTab === 'pay'" class="data-card stripe-pay-card">
+    <div v-if="activeTab === 'pay'" class="data-card stripe-pay-c1">
       <div class="first-recharge-banner">
         <div class="frb-title">{{ t('recharge.stripe.firstRechargeBonus') }}</div>
         <div class="frb-sub">{{ t('recharge.stripe.firstRechargeBonusSub') }}</div>
@@ -477,6 +477,9 @@ onMounted(() => {
   touch-action: pan-y;
 }
 .page * { max-width: 100%; }
+@media (min-width: 769px) {
+  .page > * { max-width: none; }
+}
 
 /* Hero */
 .recharge-hero {
@@ -555,7 +558,7 @@ onMounted(() => {
 .tier-balance { font-size: 11px; opacity: 0.9; color: #fff; }
 
 /* Stripe 支付卡片 */
-.stripe-pay-card {
+.stripe-pay-c1 {
   background: #fff; border-radius: 16px;
   padding: 20px; margin-bottom: 16px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
@@ -981,16 +984,25 @@ onMounted(() => {
 @media (min-width: 769px) {
   .page {
     max-width: 1100px;
+    width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    justify-self: center;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px 20px;
     align-items: start;
   }
-  .recharge-hero { grid-column: 1 / -1; margin: 0; }
-  .current-card { grid-column: 1 / -1; margin: 0 !important; }
-  .tab-bar { grid-column: 1 / -1; margin: 0; }
-  .stripe-pay-card { grid-column: 1 / -1; margin: 0; }
-  .plan-grid { grid-column: 1 / -1; margin: 0; }
+  .recharge-hero,
+  .current-card,
+  .tab-switch,
+  .stripe-pay-c1,
+  .plan-grid {
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+  }
+  /* 兜底: 通过位置选择器强制前几个卡片满宽 (压缩器 bug workaround) */
+  .page > .data-card { grid-column: 1 / -1 !important; }
   .redeem-top-card,
   .data-card,
   .note-card {

@@ -1015,7 +1015,7 @@ func buildChatCompletionsBody(req *responseCreateRequest, model *models.Model, p
 					messages = append(messages, map[string]interface{}{
 						"role":         "tool",
 						"tool_call_id": callID,
-						"content":      []map[string]interface{}{{"type": "text", "text": output}},
+						"content":      output,
 					})
 					continue
 				}

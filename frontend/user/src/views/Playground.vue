@@ -29,6 +29,10 @@
               <div v-else class="file-tag">📎 {{ att.name }}</div>
             </div>
           </div>
+          <details v-if="msg.reasoning" class="reasoning-block">
+            <summary>💭 思考过程 ({{ msg.reasoning.length }} 字符)</summary>
+            <div class="reasoning-text">{{ msg.reasoning }}</div>
+          </details>
           <div v-if="msg.text" class="msg-text">{{ msg.text }}</div>
           <div v-if="msg.imageUrl" class="msg-gen-image">
             <img :src="msg.imageUrl" />
@@ -37,9 +41,14 @@
           <div v-if="msg.meta" class="msg-meta">{{ msg.meta }}</div>
         </div>
       </div>
-      <div v-if="sending && pendingResponse" class="msg-row msg-assistant">
+      <div v-if="sending && (pendingResponse || pendingReasoning)" class="msg-row msg-assistant">
         <div class="msg-bubble">
-          <div class="msg-text">{{ pendingResponse }}<span class="cursor">▋</span></div>
+          <details v-if="pendingReasoning" class="reasoning-block" open>
+            <summary>💭 思考中... ({{ pendingReasoning.length }} 字符)</summary>
+            <div ref="reasoningScrollRef" class="reasoning-text">{{ pendingReasoning }}</div>
+          </details>
+          <div v-if="pendingResponse" class="msg-text">{{ pendingResponse }}<span class="cursor">▋</span></div>
+          <div v-else-if="pendingReasoning" class="msg-text" style="color:#9ca3af;font-style:italic">正在思考...</div>
         </div>
       </div>
     </div>
@@ -124,6 +133,8 @@ const streamMode = ref(true)
 const sending = ref(false)
 const userMessage = ref('')
 const messages = ref([])
+const pendingReasoning = ref("")
+const reasoningScrollRef = ref(null)
 const pendingResponse = ref('')
 const pendingAttachments = ref([])
 const imageSize = ref('1024x1024')
@@ -154,6 +165,20 @@ const supportsVision = computed(() => {
   return !TEXT_ONLY_MODELS.includes(selectedModel.value)
 })
 const canSend = computed(() => selectedModel.value && selectedKey.value && (userMessage.value.trim() || pendingAttachments.value.length > 0))
+
+watch(pendingReasoning, () => {
+  nextTick(() => {
+    const el = reasoningScrollRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+})
+
+function computeMaxTokens() {
+  const ctx = modelMeta.value?.context_length || 4096
+  // 预留 30% 给 prompt, 剩下给 output, 上限 32K
+  const budget = Math.floor(ctx * 0.7)
+  return Math.min(Math.max(budget, 2048), 32768)
+}
 
 function formatModelLabel(m) {
   if (m.cost_per_call > 0) {
@@ -392,7 +417,7 @@ async function handleSend() {
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ model: selectedModel.value, messages: apiMessages, stream: true, max_tokens: 2048 })
+        body: JSON.stringify({ model: selectedModel.value, messages: apiMessages, stream: true, max_tokens: computeMaxTokens() })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -402,6 +427,7 @@ async function handleSend() {
       const decoder = new TextDecoder()
       let buffer = ''
       let totalTokens = 0
+      let thinkingTokens = 0
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -414,33 +440,43 @@ async function handleSend() {
             if (data === '[DONE]') continue
             try {
               const parsed = JSON.parse(data)
-              const content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
+              const delta = parsed.choices?.[0]?.delta || {}
+              const content = delta.content || parsed.choices?.[0]?.text || ''
+              const reasoning = delta.reasoning_content || delta.reasoning || ''
               pendingResponse.value += content
-              if (parsed.usage) totalTokens = parsed.usage.total_tokens || 0
+              if (reasoning) pendingReasoning.value += reasoning
+              if (parsed.usage) {
+                totalTokens = parsed.usage.total_tokens || 0
+                thinkingTokens = Math.max(0, totalTokens - (parsed.usage.prompt_tokens || 0) - (parsed.usage.completion_tokens || 0))
+              }
               scrollToBottom()
             } catch {}
           }
         }
       }
       const latency = Math.round(performance.now() - start)
-      messages.value.push({ role: 'assistant', text: pendingResponse.value, meta: `${totalTokens} tokens · ${latency}ms`, timestamp: Date.now() })
+      messages.value.push({ role: 'assistant', text: pendingResponse.value, reasoning: pendingReasoning.value, meta: `${totalTokens} tokens${thinkingTokens > 0 ? ` (🤔${thinkingTokens})` : ''} · ${latency}ms`, timestamp: Date.now() })
       pendingResponse.value = ''
+      pendingReasoning.value = ''
       window.dispatchEvent(new Event('balance-changed'))
     } else {
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ model: selectedModel.value, messages: apiMessages, max_tokens: 2048 })
+        body: JSON.stringify({ model: selectedModel.value, messages: apiMessages, max_tokens: computeMaxTokens() })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }))
         throw new Error(err.error?.message || 'Request failed')
       }
       const data = await res.json()
-      const reply = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2)
+      const msgObj = data.choices?.[0]?.message || {}
+      const reply = msgObj.content || JSON.stringify(data, null, 2)
+      const reasoning = msgObj.reasoning_content || msgObj.reasoning || ''
       const totalTokens = data.usage?.total_tokens || 0
+      const thinkingTokens = Math.max(0, totalTokens - (data.usage?.prompt_tokens || 0) - (data.usage?.completion_tokens || 0))
       const latency = Math.round(performance.now() - start)
-      messages.value.push({ role: 'assistant', text: reply, meta: `${totalTokens} tokens · ${latency}ms`, timestamp: Date.now() })
+      messages.value.push({ role: 'assistant', text: reply, reasoning, meta: `${totalTokens} tokens${thinkingTokens > 0 ? ` (🤔${thinkingTokens})` : ''} · ${latency}ms`, timestamp: Date.now() })
       window.dispatchEvent(new Event('balance-changed'))
     }
   } catch (err) {
@@ -589,4 +625,49 @@ onMounted(async () => {
 <style>
 /* 提升 topbar z-index, 防止 Playground fixed positioning 在 iOS 键盘事件后覆盖 */
 /* mobile viewport: 浏览器默认处理 */
+
+.reasoning-block {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.reasoning-block summary {
+  cursor: pointer;
+  color: #9ca3af;
+  user-select: none;
+  padding: 4px 0 4px 18px;
+  position: relative;
+  list-style: none;
+  transition: color 0.15s;
+}
+.reasoning-block summary::-webkit-details-marker { display: none; }
+.reasoning-block summary::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+  border-left: 4px solid #9ca3af;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  transition: transform 0.15s;
+  transform-origin: 2px center;
+}
+.reasoning-block[open] summary::before {
+  transform: translateY(-50%) rotate(90deg);
+}
+.reasoning-block summary:hover { color: #6b7280; }
+.reasoning-text {
+  margin: 4px 0 4px 18px;
+  padding-left: 12px;
+  border-left: 2px solid #e5e7eb;
+  color: #6b7280;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  line-height: 1.65;
+  font-size: 12.5px;
+}
 </style>

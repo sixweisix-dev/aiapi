@@ -118,7 +118,12 @@ export const billingAPI = {
     return api.get('/user/billing', { params })
   },
   exportCSV(params = {}) {
-    return api.get('/user/billing/export', { params, responseType: 'blob' })
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const lang = localStorage.getItem('user_lang') || 'zh'
+    return api.get('/user/billing/export', {
+      params: { ...params, tz, lang },
+      responseType: 'blob',
+    })
   },
 }
 

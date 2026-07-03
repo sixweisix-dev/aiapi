@@ -343,11 +343,6 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		log.Printf("[image] deduct balance failed: %v", err)
 	}
 
-	// 7. 记录账单
-	if _, err := h.billingEngine.RecordImageBilling(userIDStr, modelName, costPerCall, 1); err != nil {
-		log.Printf("[image] record billing failed: %v", err)
-	}
-
 	// 扣上游 channel quota
 	if h.tracker != nil {
 		h.tracker.RecordSuccess(ch.ID, costPerCall, 0, 0, latencyMs)
@@ -366,6 +361,8 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 	if chID, e := uuid.Parse(ch.ID); e == nil {
 		chIDPtr = &chID
 	}
+	clientIP := c.ClientIP()
+	clientUA := c.Request.UserAgent()
 	reqLog := &models.Request{
 		UserID:            parsedUserID,
 		APIKeyID:          apiKeyUUIDPtr,
@@ -379,9 +376,16 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		TotalTokens:       0,
 		Cost:              costPerCall,
 		DurationMs:        int(latencyMs),
+		IPAddress:         &clientIP,
+		UserAgent:         &clientUA,
 	}
 	if err := h.db.Create(reqLog).Error; err != nil {
 		log.Printf("[image] log request failed: %v", err)
+	}
+
+	// 用真 UUID 记账单 (CSV LEFT JOIN 才能匹配)
+	if _, err := h.billingEngine.RecordImageBilling(userIDStr, modelName, reqLog.ID.String(), costPerCall, 1); err != nil {
+		log.Printf("[image] record billing failed: %v", err)
 	}
 
 	log.Printf("[image] success user=%s ch=%s endpoint=%s cost=%.4f latency=%dms",

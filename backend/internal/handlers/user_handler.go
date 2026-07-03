@@ -216,6 +216,15 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 	startStr := c.Query("start_date")
 	endStr := c.Query("end_date")
 	apiKeyID := c.Query("api_key_id")
+	tzStr := c.DefaultQuery("tz", "UTC")
+	lang := c.DefaultQuery("lang", "zh")
+	loc, err := time.LoadLocation(tzStr)
+	if err != nil {
+		loc = time.UTC
+	}
+	if lang != "en" {
+		lang = "zh"
+	}
 
 	now := time.Now()
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
@@ -268,7 +277,11 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(c.Writer)
-	writer.Write([]string{"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (USD)", "扣费后余额 (USD)", "状态码", "耗时(ms)", "IP"})
+	headers := map[string][]string{
+		"zh": {"时间", "项目", "API Key 名称", "模型", "提供商", "输入 Token", "输出 Token", "总 Token", "费用 (USD)", "扣费后余额 (USD)", "状态码", "耗时(ms)", "IP"},
+		"en": {"Time", "Project", "API Key", "Model", "Provider", "Input Tokens", "Output Tokens", "Total Tokens", "Cost (USD)", "Balance After (USD)", "Status", "Duration (ms)", "IP"},
+	}
+	writer.Write(headers[lang])
 
 	var totalCost float64
 	var totalTokens int
@@ -286,7 +299,7 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 			balanceStr = fmt.Sprintf("%.4f", *r.BalanceAfter)
 		}
 		writer.Write([]string{
-			r.CreatedAt.Format("2006-01-02 15:04:05"),
+			r.CreatedAt.In(loc).Format("2006-01-02 15:04:05"),
 			proj, r.APIKeyName, r.ModelName, r.Provider,
 			fmt.Sprintf("%d", r.PromptTokens),
 			fmt.Sprintf("%d", r.CompletionTokens),
@@ -302,7 +315,12 @@ func (h *UserHandler) ExportBilling(c *gin.Context) {
 	}
 
 	writer.Write([]string{})
-	writer.Write([]string{"汇总", fmt.Sprintf("共 %d 条记录", len(rows)), "", "", "", "", "", fmt.Sprintf("%d", totalTokens), fmt.Sprintf("%.4f", totalCost), "", "", "", ""})
+	summaryLabels := map[string][2]string{
+		"zh": {"汇总", "共 %d 条记录"},
+		"en": {"Summary", "%d records"},
+	}
+	sl := summaryLabels[lang]
+	writer.Write([]string{sl[0], fmt.Sprintf(sl[1], len(rows)), "", "", "", "", "", fmt.Sprintf("%d", totalTokens), fmt.Sprintf("%.4f", totalCost), "", "", "", ""})
 	writer.Flush()
 }
 

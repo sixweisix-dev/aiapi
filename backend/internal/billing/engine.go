@@ -230,10 +230,17 @@ func (e *Engine) RecordBilling(userID, modelID, requestID string, promptTokens, 
 }
 
 // RecordImageBilling: 专为按次计费(图像生成等)的扣费记录, description 友好显示
-func (e *Engine) RecordImageBilling(userID, modelName string, cost float64, count int) (*models.BillingRecord, error) {
+func (e *Engine) RecordImageBilling(userID, modelName, requestID string, cost float64, count int) (*models.BillingRecord, error) {
 	parsedUserID, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	var parsedRequestID *uuid.UUID
+	if requestID != "" {
+		if rid, err := uuid.Parse(requestID); err == nil {
+			parsedRequestID = &rid
+		}
 	}
 
 	balanceBefore, _ := e.getBalance(userID)
@@ -241,6 +248,7 @@ func (e *Engine) RecordImageBilling(userID, modelName string, cost float64, coun
 
 	record := &models.BillingRecord{
 		UserID:        parsedUserID,
+		RequestID:     parsedRequestID,
 		Type:          "chat_completion",
 		Amount:        -cost,
 		BalanceBefore: balanceBefore,
