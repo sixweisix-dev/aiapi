@@ -102,8 +102,11 @@ function extractModel(desc) {
   let m = desc.match(/model=([\w.\-]+)/i)
   if (m) return m[1]
   // 退回到 (provider/modelname) 末尾括号
-  m = desc.match(/\(([\w_-]+)\/([\w.\-]+)\)/)
-  if (m) return m[2]
+  m = desc.match(/\(([\w.\/-]+)\)/)
+  if (m) {
+    const parts = m[1].split('/')
+    return parts[parts.length - 1]
+  }
   return ''
 }
 import { ElMessage } from 'element-plus'

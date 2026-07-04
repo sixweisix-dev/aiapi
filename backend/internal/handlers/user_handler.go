@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"strconv"
 	"encoding/csv"
 	"fmt"
 	"net/http"
@@ -200,6 +202,84 @@ func (h *UserHandler) ListBilling(c *gin.Context) {
 		"size":       q.PageSize,
 		"page_spent": pageSpent,
 	})
+}
+
+
+type UserErrorLogItem struct {
+	ID                string          `json:"id"`
+	CreatedAt         time.Time       `json:"created_at"`
+	Path              string          `json:"path"`
+	StatusCode        int             `json:"status_code"`
+	ModelName         string          `json:"model_name"`
+	ErrorMessage      string          `json:"error_message"`
+	DurationMs        int             `json:"duration_ms"`
+	UpstreamChannelID string          `json:"upstream_channel_id"`
+	RequestBody       json.RawMessage `json:"request_body"`
+	ResponseBody      json.RawMessage `json:"response_body"`
+}
+
+// ListErrorLogs returns 4xx/5xx or error_message-bearing requests for the current JWT user
+func (h *UserHandler) ListErrorLogs(c *gin.Context) {
+	userIDRaw, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID := userIDRaw.(string)
+
+	limit := 50
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 200 {
+			limit = v
+		}
+	}
+
+	type row struct {
+		ID                string
+		CreatedAt         time.Time
+		Path              string
+		StatusCode        int
+		ModelName         *string
+		ErrorMessage      *string
+		DurationMs        int
+		UpstreamChannelID *string
+		RequestBody       []byte
+		ResponseBody      []byte
+	}
+	var rows []row
+	err := h.db.Table("requests r").
+		Select("r.id, r.created_at, r.path, r.status_code, m.name as model_name, r.error_message, r.duration_ms, r.upstream_channel_id::text as upstream_channel_id, r.request_body, r.response_body").
+		Joins("LEFT JOIN models m ON m.id = r.model_id").
+		Where("r.user_id = ? AND (r.status_code >= 400 OR (r.error_message IS NOT NULL AND r.error_message <> ''))", userID).
+		Order("r.created_at DESC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	deref := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	out := make([]UserErrorLogItem, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, UserErrorLogItem{
+			ID:                r.ID,
+			CreatedAt:         r.CreatedAt,
+			Path:              r.Path,
+			StatusCode:        r.StatusCode,
+			ModelName:         deref(r.ModelName),
+			ErrorMessage:      deref(r.ErrorMessage),
+			DurationMs:        r.DurationMs,
+			UpstreamChannelID: deref(r.UpstreamChannelID),
+			RequestBody:       r.RequestBody,
+			ResponseBody:      r.ResponseBody,
+		})
+	}
+	c.JSON(200, gin.H{"logs": out, "total": len(out)})
 }
 
 // ExportBilling returns request-level billing details as CSV.

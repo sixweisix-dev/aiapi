@@ -147,6 +147,7 @@ const menuItemsRaw = [
   { path: '/models',          emoji: '🤖', key: 'menu.models' },
   { path: '/playground',      emoji: '🎮', key: 'menu.playground' },
   { path: '/api-docs',        emoji: '📖', key: 'menu.apiDocs' },
+  { path: '/error-logs', emoji: '🚨', key: 'menu.errorLogs' },
   { path: '/change-password', emoji: '🔒', key: 'menu.changePassword' },
 ]
 const menuItems = computed(() => menuItemsRaw.map(m => ({ ...m, label: t(m.key) })))

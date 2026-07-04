@@ -299,6 +299,7 @@ r.POST("/v1/recharge/stripe/webhook", stripeHandler.HandleWebhook)
 		user.GET("/billing/export", userHandler.ExportBilling)
 		user.GET("/models", userHandler.ListPublicModels)
 		user.GET("/usage", userHandler.UsageStats)
+		user.GET("/error-logs", userHandler.ListErrorLogs)
 		user.GET("/usage/by-model", usageByModelHandler.UserUsageByModel)
 		user.POST("/playground/chat", playgroundHandler.PlaygroundChat)
 	}

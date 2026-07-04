@@ -60,6 +60,7 @@ const routes = [
       { path: 'recharge', name: 'Recharge', component: () => import('@/views/Recharge.vue') },
       { path: 'membership', redirect: '/recharge' },
       { path: 'billing', name: 'Billing', component: () => import('@/views/Billing.vue') },
+      { path: 'error-logs', name: 'ErrorLogs', component: () => import('@/views/ErrorLogs.vue') },
       { path: 'models', name: 'Models', component: () => import('@/views/Models.vue') },
       { path: 'api-docs', name: 'ApiDocs', component: () => import('@/views/ApiDocs.vue') },
       { path: 'playground', name: 'Playground', component: () => import('@/views/Playground.vue') },
