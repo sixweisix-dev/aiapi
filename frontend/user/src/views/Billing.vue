@@ -107,6 +107,9 @@ function extractModel(desc) {
     const parts = m[1].split('/')
     return parts[parts.length - 1]
   }
+  // 图像生成: description = "图像生成 (gpt-image-2 x 1 张)" — guessed from image billing
+  m = desc.match(/\(([\w.\-]+)\s*[xX×]\s*\d+/)
+  if (m) return m[1]
   return ''
 }
 import { ElMessage } from 'element-plus'
