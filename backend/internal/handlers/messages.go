@@ -461,8 +461,17 @@ func (h *MessagesHandler) billWithCache(userIDStr string, model models.Model, ch
 	if totalInput == 0 && completionTokens == 0 {
 		return
 	}
-	// 输入成本: prompt + cache_create*1.25 + cache_read*0.1, 全部除以 1e6 (因为 InputPrice 是 per 1M token)
-	inputCost := (float64(promptTokens) + float64(cacheCreate)*1.25 + float64(cacheRead)*0.1) * model.InputPrice / 1000.0
+	// 输入成本: prompt 按 InputPrice, cache_create 按 CacheWritePrice, cache_read 按 CacheReadPrice
+	// 若模型 cache 价格为 0 (老数据未填充), 回退到公式估算 (inputPrice*1.25 / inputPrice*0.1)
+	cacheReadPx := model.CacheReadPrice
+	if cacheReadPx <= 0 {
+		cacheReadPx = model.InputPrice * 0.1
+	}
+	cacheWritePx := model.CacheWritePrice
+	if cacheWritePx <= 0 {
+		cacheWritePx = model.InputPrice * 1.25
+	}
+	inputCost := (float64(promptTokens)*model.InputPrice + float64(cacheCreate)*cacheWritePx + float64(cacheRead)*cacheReadPx) / 1000.0
 	outputCost := float64(completionTokens) * model.OutputPrice / 1000.0
 	effectiveMult := model.Multiplier
 	if ch != nil && ch.GroupMultiplier > 0 {

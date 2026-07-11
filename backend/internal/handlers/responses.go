@@ -310,12 +310,17 @@ log.Printf("[chat-to-resp DEBUG] outgoing to %s (%d bytes): %.1500s", ch.Name, l
 
 	respObj := convertChatToResponseObject(ccResp, req)
 
-	var promptTokens, completionTokens int
+	var promptTokens, completionTokens, cachedTokens int
 	if respObj.Usage != nil {
 		promptTokens = respObj.Usage.InputTokens
 		completionTokens = respObj.Usage.OutputTokens
+		if respObj.Usage.InputTokensDetails != nil {
+			if v, ok := respObj.Usage.InputTokensDetails["cached_tokens"].(float64); ok {
+				cachedTokens = int(v)
+			}
+		}
 	}
-	h.bill(userIDStr, *model, ch, promptTokens, completionTokens, startTime, resp.StatusCode, c.ClientIP(), c.Request.UserAgent())
+	h.bill(userIDStr, *model, ch, promptTokens, completionTokens, cachedTokens, startTime, resp.StatusCode, c.ClientIP(), c.Request.UserAgent())
 
 	if h.redis != nil {
 		go h.storeInRedis(respObj)
@@ -456,7 +461,7 @@ func (h *ResponsesHandler) handleStream(c *gin.Context, userIDStr string, req *r
 	log.Printf("[responses-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms respID=%s", userIDStr[:8], req.Model, totalPrompt, totalCompletion, durationMs, respID)
 
 	if totalPrompt > 0 || totalCompletion > 0 {
-		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, 0, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	}
 }
 
@@ -1252,7 +1257,7 @@ func (h *ResponsesHandler) storeInRedis(resp *responseObject) {
 // 计费
 // ============================================================
 
-func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstream.Channel, promptTokens, completionTokens int, startTime time.Time, statusCode int, clientIP, clientUA string) {
+func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstream.Channel, promptTokens, completionTokens, cachedTokens int, startTime time.Time, statusCode int, clientIP, clientUA string) {
 	if statusCode != 200 || (promptTokens == 0 && completionTokens == 0) {
 		return
 	}
@@ -1263,7 +1268,7 @@ func (h *ResponsesHandler) bill(userIDStr string, model models.Model, ch *upstre
 		effectiveMult *= ch.GroupMultiplier
 	}
 
-	cost := billing.CalculateCost(promptTokens, completionTokens, model.InputPrice, model.OutputPrice, effectiveMult)
+	cost := billing.CalculateCostWithCache(promptTokens, completionTokens, cachedTokens, 0, model.InputPrice, model.OutputPrice, model.CacheReadPrice, model.CacheWritePrice, effectiveMult)
 	if cost <= 0 {
 		return
 	}
@@ -1582,7 +1587,7 @@ OutputTokensDetails: map[string]interface{}{"reasoning_tokens": 0},
 	flusher.Flush()
 
 	// 计费 + 存 Redis
-	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
+	h.bill(userIDStr, *model, ch, state.totalPrompt, state.totalCompletion, 0, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	if h.redis != nil {
 		go h.storeInRedis(state.respObj)
 	}
@@ -1902,6 +1907,6 @@ func (h *ResponsesHandler) handleStreamMessagesToResponses(c *gin.Context, userI
 	log.Printf("[responses-msgs-stream] done user=%s model=%s prompt=%d completion=%d duration=%dms", userIDStr[:8], req.Model, totalPrompt, totalCompletion, time.Since(startTime).Milliseconds())
 
 	if totalPrompt > 0 || totalCompletion > 0 {
-		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, startTime, 200, c.ClientIP(), c.Request.UserAgent())
+		h.bill(userIDStr, *model, ch, totalPrompt, totalCompletion, 0, startTime, 200, c.ClientIP(), c.Request.UserAgent())
 	}
 }

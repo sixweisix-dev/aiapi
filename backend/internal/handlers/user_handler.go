@@ -416,6 +416,8 @@ type publicModelItem struct {
 	ContextLength      int     `json:"context_length"`
 	InputPrice         float64 `json:"input_price"`
 	OutputPrice        float64 `json:"output_price"`
+	CacheReadPrice     float64 `json:"cache_read_price"`
+	CacheWritePrice    float64 `json:"cache_write_price"`
 	Multiplier         float64 `json:"multiplier"`
 	Description        *string `json:"description,omitempty"`
 	CostPerCall        float64 `json:"cost_per_call,omitempty"`
@@ -462,6 +464,8 @@ func (h *UserHandler) ListPublicModels(c *gin.Context) {
 			ContextLength:      r.ContextLength,
 			InputPrice:         r.InputPrice,
 			OutputPrice:        r.OutputPrice,
+			CacheReadPrice: r.CacheReadPrice,
+			CacheWritePrice: r.CacheWritePrice,
 			Multiplier:         r.Multiplier,
 			Description:        r.Description,
 CostPerCall:        r.CostPerCall,

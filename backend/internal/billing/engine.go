@@ -39,6 +39,8 @@ type PriceRow struct {
 	ID              uuid.UUID
 	InputPrice      float64 // per 1K tokens (USD)
 	OutputPrice     float64 // per 1K tokens (USD)
+	CacheReadPrice  float64 `gorm:"column:cache_read_price"`
+	CacheWritePrice float64 `gorm:"column:cache_write_price"`
 	Multiplier      float64 // model 自带 markup (models.multiplier)
 	GroupMultiplier float64 // model 所属 channel_group 的倍率 (经济版0.6/官方版2.0)
 }
@@ -57,7 +59,7 @@ func (e *Engine) GetModelPrice(modelID string) (*PriceRow, error) {
 	}
 	// JOIN channel_groups 把 model 所属分组的 multiplier 一并取出,调用方决定怎么用
 	if err := e.db.Table("models AS m").
-		Select("m.id, m.input_price, m.output_price, m.multiplier, COALESCE(g.multiplier, 1.0) AS group_multiplier").
+		Select("m.id, m.input_price, m.output_price, m.cache_read_price, m.cache_write_price, m.multiplier, COALESCE(g.multiplier, 1.0) AS group_multiplier").
 		Joins("LEFT JOIN channel_groups g ON g.id = m.group_id AND g.deleted_at IS NULL").
 		Where("m.id = ? AND m.deleted_at IS NULL", parsedID).
 		First(&row).Error; err != nil {
@@ -68,11 +70,26 @@ func (e *Engine) GetModelPrice(modelID string) (*PriceRow, error) {
 
 // CalculateCost computes the cost in platform units (USD).
 // Formula: (promptTokens/1000 * inputPrice + completionTokens/1000 * outputPrice) * multiplier
+// Legacy signature, kept for compatibility. New code should use CalculateCostWithCache.
 func CalculateCost(promptTokens, completionTokens int, inputPrice, outputPrice, multiplier float64) float64 {
-	promptCost := (float64(promptTokens) / 1000.0) * inputPrice
+	return CalculateCostWithCache(promptTokens, completionTokens, 0, 0, inputPrice, outputPrice, 0, 0, multiplier)
+}
+
+// CalculateCostWithCache computes cost, taking cached / cache-creation tokens into account.
+// cachedTokens is subset of promptTokens (cache read, cheaper).
+// cacheCreationTokens is subset of promptTokens (cache write, more expensive).
+// Uncached prompt = promptTokens - cachedTokens - cacheCreationTokens.
+func CalculateCostWithCache(promptTokens, completionTokens, cachedTokens, cacheCreationTokens int,
+	inputPrice, outputPrice, cacheReadPrice, cacheWritePrice, multiplier float64) float64 {
+	uncachedPrompt := promptTokens - cachedTokens - cacheCreationTokens
+	if uncachedPrompt < 0 {
+		uncachedPrompt = 0
+	}
+	promptCost := (float64(uncachedPrompt) / 1000.0) * inputPrice
+	cachedCost := (float64(cachedTokens) / 1000.0) * cacheReadPrice
+	cacheWriteCost := (float64(cacheCreationTokens) / 1000.0) * cacheWritePrice
 	completionCost := (float64(completionTokens) / 1000.0) * outputPrice
-	cost := (promptCost + completionCost) * multiplier
-	// Round to 8 decimal places
+	cost := (promptCost + cachedCost + cacheWriteCost + completionCost) * multiplier
 	return math.Round(cost*1e8) / 1e8
 }
 

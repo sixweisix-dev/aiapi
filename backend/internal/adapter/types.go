@@ -50,11 +50,20 @@ type Usage struct {
 	PromptTokens             int                      `json:"prompt_tokens"`
 	CompletionTokens         int                      `json:"completion_tokens"`
 	TotalTokens              int                      `json:"total_tokens"`
+	PromptTokensDetails      *PromptTokensDetails     `json:"prompt_tokens_details,omitempty"`
 	CompletionTokensDetails  *CompletionTokensDetails `json:"completion_tokens_details,omitempty"`
 }
 
 type CompletionTokensDetails struct {
 	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
+}
+
+// PromptTokensDetails 对齐 OpenAI 官方 usage.prompt_tokens_details.
+// Anthropic adapter 会把 cache_read_input_tokens / cache_creation_input_tokens
+// 分别映射到 CachedTokens / CacheCreationTokens.
+type PromptTokensDetails struct {
+	CachedTokens         int `json:"cached_tokens,omitempty"`
+	CacheCreationTokens  int `json:"cache_creation_tokens,omitempty"`
 }
 
 type OpenAIStreamChunk struct {

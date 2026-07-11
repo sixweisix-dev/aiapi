@@ -186,6 +186,8 @@ type Model struct {
 	ContextLength int      `gorm:"not null;default:4096"`
 	InputPrice   float64   `gorm:"type:decimal(20,8);not null"`
 	OutputPrice  float64   `gorm:"type:decimal(20,8);not null"`
+	CacheReadPrice  float64   `gorm:"column:cache_read_price;type:decimal(20,8);not null;default:0"`
+	CacheWritePrice float64   `gorm:"column:cache_write_price;type:decimal(20,8);not null;default:0"`
 	Multiplier   float64   `gorm:"type:decimal(5,2);not null;default:1.0"`
 	IsEnabled    bool      `gorm:"not null;default:true"`
 	IsPublic     bool      `gorm:"not null;default:true"`

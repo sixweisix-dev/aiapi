@@ -55,12 +55,12 @@
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheRead') }}</div>
-              <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 0.1).toFixed(4) }}</div>
+              <div class="price-value">${{ Number((m.cache_read_price || 0) * (m.group_multiplier || 1) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
             <div class="price-block">
               <div class="price-label">{{ t('models.cacheWrite') }}</div>
-              <div class="price-value">${{ Number(finalPrice(m.input_price, m.multiplier, m.group_multiplier) * 1000 * 1.25).toFixed(4) }}</div>
+              <div class="price-value">${{ Number((m.cache_write_price || 0) * (m.group_multiplier || 1) * 1000).toFixed(4) }}</div>
               <div class="price-unit">{{ t('models.perMillion') }}</div>
             </div>
           </div>

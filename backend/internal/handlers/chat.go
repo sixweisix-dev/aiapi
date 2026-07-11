@@ -269,7 +269,14 @@ func (h *ChatHandler) handleNonStream(c *gin.Context, userID string, req *adapte
 			billableCompletion = totalTokens - promptTokens
 			log.Printf("[billing] thinking tokens: model=%s prompt=%d completion=%d total=%d billable=%d", req.Model, promptTokens, completionTokens, totalTokens, billableCompletion)
 		}
-		cost := billing.CalculateCost(promptTokens, billableCompletion, priceRow.InputPrice, priceRow.OutputPrice, priceRow.Multiplier*priceRow.GroupMultiplier)
+		var cachedT, cacheCreationT int
+		if d := openAIResp.Usage.PromptTokensDetails; d != nil {
+			cachedT = d.CachedTokens
+			cacheCreationT = d.CacheCreationTokens
+		}
+		cost := billing.CalculateCostWithCache(promptTokens, billableCompletion, cachedT, cacheCreationT,
+			priceRow.InputPrice, priceRow.OutputPrice, priceRow.CacheReadPrice, priceRow.CacheWritePrice,
+			priceRow.Multiplier*priceRow.GroupMultiplier)
 
 		apiKeyIDForLog := ""
 		if v, ok := c.Get("api_key_id"); ok {
