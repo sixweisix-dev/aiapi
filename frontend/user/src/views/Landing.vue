@@ -19,6 +19,7 @@
 
     <!-- Hero -->
     <section class="hero">
+      <SoftBackdrop />
       <div class="hero-inner">
         <div class="badge">{{ t('landing.heroBadge') }}</div>
         <h1 class="hero-title">
@@ -136,7 +137,7 @@
             <li>{{ t('landing.entF5') }}</li>
             <li>{{ t('landing.entF6') }}</li>
           </ul>
-          <a href="mailto:sixweisix@gmail.com" class="price-cta">{{ t('landing.entCta') }}</a>
+          <a href="mailto:contact@transitai.cloud" class="price-cta">{{ t('landing.entCta') }}</a>
         </div>
       </div>
 
@@ -310,8 +311,11 @@
         </div>
         <div class="footer-col">
           <h4>{{ t('landing.footerContact') }}</h4>
-          <a href="mailto:sixweisix@gmail.com">sixweisix@gmail.com</a>
+          <a href="mailto:contact@transitai.cloud">contact@transitai.cloud</a>
         </div>
+      </div>
+      <div class="footer-disclaimer">
+        {{ t('landing.footerDisclaimer') }}
       </div>
       <div class="footer-bottom">
         {{ t('landing.footerCopyright') }}
@@ -321,6 +325,7 @@
 </template>
 
 <script setup>
+import SoftBackdrop from '@/components/SoftBackdrop.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { i18n, setLocale, currentLocale } from '@/i18n'
 import { useI18n } from 'vue-i18n'
@@ -774,4 +779,22 @@ onMounted(async () => {
 
 .price-per-call { font-weight: 700; text-align: center; }
 .price-unit-inline { color: #888; font-weight: 500; font-size: 0.85em; margin-left: 4px; }
+
+/* SoftBackdrop 定位保障 */
+.hero { position: relative; overflow: hidden; }
+.hero-inner { position: relative; z-index: 1; }
+
+.footer-disclaimer {
+  color: #9ca3af;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 16px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-top: 20px;
+  text-align: center;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
 </style>

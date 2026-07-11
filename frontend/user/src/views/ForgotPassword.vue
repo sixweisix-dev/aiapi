@@ -1,5 +1,6 @@
 <template>
   <div class="auth-page">
+    <FloatingBubbles />
     <button class="auth-lang-toggle" type="button" @click="toggleAuthLang">{{ authPageLang === 'zh' ? 'EN' : '中' }}</button>
     <div class="auth-card">
       <div class="auth-logo">📮</div>
@@ -32,6 +33,7 @@
 </template>
 
 <script setup>
+import FloatingBubbles from '@/components/FloatingBubbles.vue'
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { setLocale, currentLocale } from '@/i18n'
@@ -86,7 +88,7 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f8f7ff 0%, #eef2ff 50%, #faf5ff 100%);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -124,4 +126,42 @@ async function handleSubmit() {
   transition: background 0.2s;
 }
 .auth-lang-toggle:hover { background: rgba(255,255,255,0.35); }
+
+/* ==== 磨砂玻璃卡片 (覆盖上面 background: #fff) ==== */
+.auth-card {
+  background: rgba(255, 255, 255, 0.20) !important;
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 20px 60px rgba(31, 38, 135, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+}
+
+/* ==== 磨砂玻璃上文字清晰度增强 ==== */
+.auth-tagline { color: #1f2937 !important; font-weight: 500; text-shadow: 0 1px 2px rgba(255,255,255,0.6); }
+.auth-links { color: #1f2937 !important; font-weight: 500; }
+.auth-link { color: #312e81 !important; font-weight: 700; }
+.agree-text { color: #111827 !important; font-weight: 500; }
+.agree-link { color: #312e81 !important; font-weight: 700; }
+.auth-card :deep(.el-input__wrapper) {
+  background: rgba(255, 255, 255, 0.7) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) inset !important;
+}
+.auth-card :deep(.el-input__inner) {
+  color: #1f2937;
+}
+
+/* auth-brand 加深适配磨砂玻璃 */
+.auth-brand {
+  background: linear-gradient(135deg, #312e81, #5b21b6) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  filter: drop-shadow(0 1px 2px rgba(49, 46, 129, 0.35));
+}
+.auth-logo {
+  filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.4));
+}
 </style>

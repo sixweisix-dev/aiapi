@@ -251,6 +251,133 @@ function fileToBase64(file) {
   })
 }
 
+// Normalize image for OpenAI image edits API:
+// - PNG format (OpenAI requires PNG)
+// - Square canvas with white padding (edit API prefers square)
+// - Max 1024x1024 to stay under 4MB
+// Returns { dataUrl, size } (size in bytes of the PNG)
+async function normalizeImageForOpenAI(file) {
+  const bitmap = await createImageBitmap(file)
+  const origW = bitmap.width
+  const origH = bitmap.height
+  const ratio = origW / origH
+
+  // OpenAI gpt-image-2 edit supports 1024x1024 / 1024x1792 / 1792x1024
+  // Pick the target closest to the source aspect ratio, minimize white padding
+  let targetW = 1024
+  let targetH = 1024
+  if (ratio > 1.4) {
+    targetW = 1792
+    targetH = 1024
+  } else if (ratio < 1 / 1.4) {
+    targetW = 1024
+    targetH = 1792
+  }
+
+  const canvas = document.createElement("canvas")
+  canvas.width = targetW
+  canvas.height = targetH
+  const ctx = canvas.getContext("2d")
+  ctx.fillStyle = "#ffffff"
+  ctx.fillRect(0, 0, targetW, targetH)
+  const scale = Math.min(targetW / origW, targetH / origH)
+  const w = origW * scale
+  const h = origH * scale
+  const dx = (targetW - w) / 2
+  const dy = (targetH - h) / 2
+  ctx.drawImage(bitmap, dx, dy, w, h)
+  bitmap.close?.()
+  const dataUrl = canvas.toDataURL("image/png")
+  const b64 = dataUrl.split(",")[1] || ""
+  const size = Math.floor(b64.length * 3 / 4)
+  return { dataUrl, size, width: targetW, height: targetH }
+}
+
+// Friendly error message translator for upstream errors
+// Removes stack traces, request IDs, and translates common upstream errors
+// to concise, user-facing messages (bilingual: Chinese + English).
+function friendlyError(raw) {
+  if (!raw) return ""
+  const msg = String(raw)
+  const lower = msg.toLowerCase()
+
+  // OpenAI content moderation (image or text)
+  if (lower.includes("safety_violations") || lower.includes("safety system") ||
+      lower.includes("abuse]") || lower.includes("[sexual") || lower.includes("[violence") ||
+      lower.includes("[self_harm") || lower.includes("[hate")) {
+    return "该图片或描述可能包含敏感内容，已被上游安全系统拒绝。请更换图片或修改描述后重试。"
+  }
+  if (lower.includes("moderation") || lower.includes("content_policy_violation")) {
+    return "内容不符合上游服务的使用政策，请修改后重试。"
+  }
+  if (lower.includes("invalid image file") || lower.includes("invalid image")) {
+    return "图片格式无效，请使用 PNG/JPG 图片，尺寸不超过 4MB。"
+  }
+  if (lower.includes("image_too_large") || lower.includes("image too large")) {
+    return "图片过大，请压缩后重试（推荐 <4MB）。"
+  }
+
+  // Rate limit
+  if (lower.includes("rate_limit") || lower.includes("rate limit") ||
+      lower.includes("429") || lower.includes("too many requests")) {
+    return "请求过于频繁，请稍后再试。"
+  }
+
+  // Quota / billing
+  if (lower.includes("insufficient_quota") || lower.includes("quota exceeded") ||
+      lower.includes("balance") || lower.includes("payment required") || lower.includes("402")) {
+    return "余额不足，请前往充值页面。"
+  }
+
+  // Context length
+  if (lower.includes("context_length_exceeded") || lower.includes("context length") ||
+      lower.includes("maximum context") || lower.includes("token limit")) {
+    return "输入内容过长，请精简后重试。"
+  }
+
+  // Timeout
+  if (lower.includes("timeout") || lower.includes("deadline exceeded") || lower.includes("context canceled")) {
+    return "上游响应超时，请稍后重试。"
+  }
+
+  // Upstream 500 series
+  if (lower.includes("upstream 5") || lower.includes("internal server error") ||
+      lower.includes("bad gateway") || lower.includes("service unavailable") ||
+      lower.includes("gateway timeout")) {
+    return "上游服务暂时不可用，请稍后重试。"
+  }
+
+  // Auth issues
+  if (lower.includes("invalid api key") || lower.includes("unauthorized") || lower.includes("401")) {
+    return "认证失败，请检查 API Key 或重新登录。"
+  }
+
+  // Model not found / permission denied
+  if (lower.includes("model_not_found") || lower.includes("does not exist") || lower.includes("not available")) {
+    return "该模型当前不可用，请更换模型。"
+  }
+
+  // Strip request IDs and long tails to make raw upstream errors readable
+  // Cut at "request ID", "req_", "correlation" etc.
+  let cleaned = msg
+  const cutMarkers = ["request id", "req_", "correlation", "trace_id", "stack:", "at line"]
+  const lowerCleaned = cleaned.toLowerCase()
+  for (const marker of cutMarkers) {
+    const idx = lowerCleaned.indexOf(marker)
+    if (idx > 20 && idx < cleaned.length) {
+      cleaned = cleaned.substring(0, idx).trim()
+      break
+    }
+  }
+  // Remove trailing sentence starters like "If you believe..." "Contact us..."
+  cleaned = cleaned.replace(/If you believe.*/i, "").replace(/Contact us.*/i, "").replace(/Please contact.*/i, "").trim()
+  // Trim trailing punctuation garbage
+  cleaned = cleaned.replace(/[.,;\s]+$/, "")
+  // Cap length to avoid huge dumps
+  if (cleaned.length > 200) cleaned = cleaned.substring(0, 200) + "..."
+  return cleaned || "请求失败，请重试。"
+}
+
 async function handleFileSelect(event) {
   const files = Array.from(event.target.files || [])
   for (const file of files) {
@@ -264,24 +391,39 @@ async function handleFileSelect(event) {
     const idx = pendingAttachments.value.length - 1
 
     try {
-      await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onprogress = (e) => {
-          if (e.lengthComputable && pendingAttachments.value[idx]) {
-            pendingAttachments.value[idx].progress = Math.max(5, Math.round((e.loaded / e.total) * 100))
-          }
+      if (file.type && file.type.startsWith("image/")) {
+        pendingAttachments.value[idx].progress = 20
+        const { dataUrl, size } = await normalizeImageForOpenAI(file)
+        if (pendingAttachments.value[idx]) {
+          pendingAttachments.value[idx].url = dataUrl
+          pendingAttachments.value[idx].base64 = dataUrl
+          pendingAttachments.value[idx].type = "image/png"
+          pendingAttachments.value[idx].name = pendingAttachments.value[idx].name.replace(/\.(jpg|jpeg|webp|gif|bmp)$/i, ".png")
+          pendingAttachments.value[idx].progress = 100
         }
-        reader.onload = () => {
-          if (pendingAttachments.value[idx]) {
-            pendingAttachments.value[idx].url = reader.result
-            pendingAttachments.value[idx].base64 = reader.result
-            pendingAttachments.value[idx].progress = 100
-          }
-          resolve()
+        if (size > 4 * 1024 * 1024) {
+          ElMessage.warning(`${file.name}: PNG too large after normalize (${(size/1024/1024).toFixed(1)}MB)`)
         }
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      } else {
+        await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onprogress = (e) => {
+            if (e.lengthComputable && pendingAttachments.value[idx]) {
+              pendingAttachments.value[idx].progress = Math.max(5, Math.round((e.loaded / e.total) * 100))
+            }
+          }
+          reader.onload = () => {
+            if (pendingAttachments.value[idx]) {
+              pendingAttachments.value[idx].url = reader.result
+              pendingAttachments.value[idx].base64 = reader.result
+              pendingAttachments.value[idx].progress = 100
+            }
+            resolve()
+          }
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      }
     } catch {
       ElMessage.error(`${file.name}: ${t('playground.readFailed')}`)
       const failIdx = pendingAttachments.value.indexOf(placeholder)
@@ -480,7 +622,8 @@ async function handleSend() {
       window.dispatchEvent(new Event('balance-changed'))
     }
   } catch (err) {
-    messages.value.push({ role: 'assistant', text: `❌ ${err.message}`, meta: 'Failed', timestamp: Date.now() })
+    const friendly = friendlyError(err && err.message)
+    messages.value.push({ role: 'assistant', text: `❌ ${friendly}`, meta: 'Failed', timestamp: Date.now() })
     pendingResponse.value = ''
   } finally {
     sending.value = false

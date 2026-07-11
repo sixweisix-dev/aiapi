@@ -348,3 +348,20 @@ func (h *CronHandler) PromoDateCheck(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "活动状态已更新", "promo_enabled": shouldEnable})
 }
+
+// ZhifuxCleanup 关闭超过 30 分钟未支付的 zhifux 订单, 释放免签金额尾数池
+func (h *CronHandler) ZhifuxCleanup(c *gin.Context) {
+	if !h.checkToken(c) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	res := h.db.Exec("UPDATE zhifux_orders SET status = 'cancelled' WHERE status = 'pending' AND created_at < NOW() - INTERVAL '30 minutes'")
+	if res.Error != nil {
+		log.Printf("[ZhifuxCleanup] err: %v", res.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": res.Error.Error()})
+		return
+	}
+	log.Printf("[ZhifuxCleanup] cancelled %d pending orders", res.RowsAffected)
+	c.JSON(http.StatusOK, gin.H{"cancelled": res.RowsAffected})
+}
+

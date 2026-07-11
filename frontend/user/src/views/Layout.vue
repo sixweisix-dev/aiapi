@@ -113,12 +113,14 @@
 
     <!-- 主内容 -->
     <main class="main-area">
-      <router-view />
+      <AmbientBackdrop />
+      <div class="page-wrap"><router-view /></div>
     </main>
   </div>
 </template>
 
 <script setup>
+import AmbientBackdrop from '@/components/AmbientBackdrop.vue'
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -467,6 +469,7 @@ if (auth.isLoggedIn) auth.fetchMe()
   overflow-y: auto;
   padding: 14px;
   box-sizing: border-box;
+  position: relative;
 }
 .pc-sidebar { display: none; }
 
@@ -589,4 +592,50 @@ if (auth.isLoggedIn) auth.fetchMe()
   margin-bottom: 8px;
 }
 .pc-lang-toggle:hover { border-color: #667eea; color: #667eea; }
+
+/* AmbientBackdrop 定位保障 */
+.main-area { position: relative; }
+.page-wrap { position: relative; z-index: 1; }
+
+/* ==== 侧边栏磨砂玻璃美化 ==== */
+@media (min-width: 769px) {
+  .user-layout > .pc-sidebar {
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-right: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 4px 0 20px rgba(31, 38, 135, 0.06);
+  }
+  .pc-sidebar .drawer-item {
+    border-radius: 10px;
+    margin-bottom: 4px;
+    padding: 12px 14px;
+    transition: background 0.18s, transform 0.15s;
+    position: relative;
+  }
+  .pc-sidebar .drawer-item:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08)) !important;
+    transform: translateX(2px);
+  }
+  .pc-sidebar .drawer-item.active {
+    background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.14)) !important;
+  }
+  .pc-sidebar .drawer-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, #6366f1, #a855f7);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+  }
+  .pc-sidebar-header {
+    border-bottom-color: rgba(99, 102, 241, 0.12) !important;
+  }
+  .pc-sidebar .drawer-footer {
+    border-top-color: rgba(99, 102, 241, 0.12) !important;
+  }
+}
 </style>

@@ -81,7 +81,7 @@
         <li>会员有效期 30 天，到期后自动恢复免费版速率（已充值余额不受影响）</li>
         <li>会员套餐与<router-link to="/recharge" class="link">充值优惠活动</router-link>独立，套餐金额按官方专属福利计算，不享受阶梯赠送</li>
         <li>未到期续费会自动叠加时长，多月连续续费不打折但额度叠加</li>
-        <li>如需企业开票或定制 SLA，请联系：<a href="mailto:sixweisix@gmail.com" class="link">sixweisix@gmail.com</a></li>
+        <li>如需企业开票或定制 SLA，请联系：<a href="mailto:contact@transitai.cloud" class="link">contact@transitai.cloud</a></li>
       </ul>
     </div>
   </div>

@@ -392,16 +392,29 @@ async function fetchStripeStatus() {
   } catch (e) { stripeEnabled.value = false }
 }
 async function payStripe(tierId, customAmount) {
-  if (!stripeEnabled.value) { ElMessage.warning('Stripe 暂未开通'); return }
   stripeLoading.value = true
   try {
-    const payload = { tier_id: tierId }
-    if (tierId === 'custom') payload.amount_cny = customAmount
-    const r = await api.post('/recharge/stripe/checkout', payload)
-    if (r?.url) window.location.href = r.url
+    // 计算 CNY 金额
+    let amountCNY = 0
+    if (tierId === 'custom') {
+      amountCNY = Number(customAmount)
+    } else {
+      const tier = stripeTiers.find(t => t.id === tierId)
+      if (tier) amountCNY = tier.cny
+      else {
+        const mem = stripeMembershipTiers.find(t => t.id === tierId)
+        if (mem) amountCNY = mem.cny
+      }
+    }
+    if (!amountCNY || amountCNY < 1) {
+      ElMessage.error('金额无效')
+      return
+    }
+    const r = await api.post('/user/zhifux/checkout', { amount: amountCNY, pay_type: 'aloop', tier_id: tierId })
+    if (r?.pay_url) window.location.href = r.pay_url
     else ElMessage.error('未获取到支付链接')
   } catch (e) {
-    ElMessage.error('Stripe 支付失败: ' + (e?.response?.data?.error || e.message))
+    ElMessage.error('支付失败: ' + (e?.response?.data?.error || e.message))
   } finally { stripeLoading.value = false }
 }
 

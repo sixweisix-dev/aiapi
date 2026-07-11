@@ -17,6 +17,7 @@
     "highlight.js": "^11.11.0",
     "marked": "^15.0.0",
     "pinia": "^2.2.0",
+    "simple-icons": "^16.25.0",
     "vue": "^3.5.0",
     "vue-echarts": "^7.0.3",
     "vue-i18n": "^9.14.5",

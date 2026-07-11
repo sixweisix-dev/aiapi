@@ -317,3 +317,16 @@ type Setting struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// ZhifuxOrder 支付FM 订单
+type ZhifuxOrder struct {
+ID              uuid.UUID  `gorm:"type:uuid;primaryKey"`
+UserID          uuid.UUID  `gorm:"type:uuid;not null;index"`
+OrderNo         string     `gorm:"uniqueIndex;size:64;not null"`
+PlatformOrderID string     `gorm:"size:64"`
+Amount          float64    `gorm:"type:numeric(10,2)"`
+PayType         string     `gorm:"size:32"`
+	TierID          string     `gorm:"size:32"`
+Status          string     `gorm:"size:20;default:'pending'"`
+CreatedAt       time.Time
+PaidAt          *time.Time
+}

@@ -334,7 +334,23 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 	// 5. 检查响应
 	if upstreamResp.StatusCode != 200 {
 		log.Printf("[image] upstream %d body=%s", upstreamResp.StatusCode, string(respBody)[:min(300, len(respBody))])
-		c.Data(upstreamResp.StatusCode, "application/json", respBody)
+		// 重新包装上游错误为标准 {"error":{"message":"..."}} 格式, 避免嵌套 JSON 破损时前端 parse 失败
+		var upErr struct {
+			Error struct {
+				Message string `json:"message"`
+				Type    string `json:"type"`
+			} `json:"error"`
+		}
+		message := ""
+		if err := json.Unmarshal(respBody, &upErr); err == nil && upErr.Error.Message != "" {
+			message = upErr.Error.Message
+		} else {
+			message = string(respBody)
+			if len(message) > 500 {
+				message = message[:500]
+			}
+		}
+		c.JSON(upstreamResp.StatusCode, gin.H{"error": gin.H{"message": message, "type": "upstream_error"}})
 		return
 	}
 
