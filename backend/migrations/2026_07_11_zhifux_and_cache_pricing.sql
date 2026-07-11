@@ -46,6 +46,10 @@ WHERE name IN (
   'claude-haiku-4-5-20251001-pro'
 );
 
+-- ============ 3b. 恢复被早期软删的 claude-opus-4-6 / claude-sonnet-4-6 ============
+UPDATE models SET deleted_at = NULL, updated_at = NOW()
+WHERE name IN ('claude-opus-4-6', 'claude-sonnet-4-6');
+
 -- ============ 4. UPDATE 现有 claude-opus-4-6 / claude-sonnet-4-6 改到 aitechflux ============
 UPDATE models SET
   group_id = 9,
