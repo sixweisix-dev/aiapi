@@ -448,11 +448,11 @@ requires_openai_auth = false</pre>
 
           <div class="tut-step">推荐模型</div>
           <ul class="config-list">
-            <li><code>gpt-5.4</code> — 高质量代码生成，OpenAI 系</li>
-            <li><code>deepseek-v4-flash</code> — 速度快价格低，国产推理模型</li>
-            <li><code>gemini-2.5-flash</code> — 性价比高，Google 系</li>
-            <li><code>claude-sonnet-4-6-pro</code> — Anthropic 强力代码模型</li>
-            <li><code>minimax-m3.6</code> / <code>qwen-3-6-35b</code> — 国产备选</li>
+            <li><code>gpt-5.6-sol</code> — GPT 旗舰, 强代码/推理</li>
+            <li><code>claude-fable-5</code> — Anthropic 顶级模型, 200K 上下文</li>
+            <li><code>claude-sonnet-5</code> — 平衡型旗舰, 中等价格</li>
+            <li><code>gpt-5.6-luna</code> — 最经济, 400K 上下文</li>
+            <li><code>deepseek-v4-flash</code> / <code>qwen-3-6-35b</code> — 国产备选</li>
           </ul>
 
           <p class="tip-text">💡 完整支持流式 / 函数调用 / Reasoning 模型 / previous_response_id 多轮会话延续。</p>
@@ -693,6 +693,10 @@ const modelGuideRows = computed(() => [
   { scene: t('apiDocs.guideSceneVision'),      model: t('apiDocs.guideModelVision'),      note: t('apiDocs.guideNoteVision') },
   { scene: t('apiDocs.guideSceneEcon'),        model: t('apiDocs.guideModelEcon'),        note: t('apiDocs.guideNoteEcon') },
   { scene: t('apiDocs.guideSceneChinese'),     model: t('apiDocs.guideModelChinese'),     note: t('apiDocs.guideNoteChinese') },
+  { scene: t('apiDocs.guideSceneEconAgg'),     model: t('apiDocs.guideModelEconAgg'),     note: t('apiDocs.guideNoteEconAgg') },
+  { scene: t('apiDocs.guideSceneMid'),         model: t('apiDocs.guideModelMid'),         note: t('apiDocs.guideNoteMid') },
+  { scene: t('apiDocs.guideSceneCodingAdv'),   model: t('apiDocs.guideModelCodingAdv'),   note: t('apiDocs.guideNoteCodingAdv') },
+  { scene: t('apiDocs.guideSceneFable'),       model: t('apiDocs.guideModelFable'),       note: t('apiDocs.guideNoteFable') },
 ])
 
 const compareRows = computed(() => {
