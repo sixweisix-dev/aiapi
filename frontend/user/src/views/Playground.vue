@@ -674,11 +674,12 @@ onMounted(async () => {
   box-sizing: border-box;
   overflow: hidden;
 }
-/* PC 端: 跟随父容器 main-area, 用 100% 不用 vh */
+/* PC 端: 用 fixed 定位撑满 main-area 可视区 */
 @media (min-width: 769px) {
   .playground-page {
-    height: 100%;
+    height: 100vh;
     margin: -32px -48px;
+    background: #f9fafb;
   }
 }
 .top-bar { background: #fff; padding: 10px 14px; border-bottom: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }

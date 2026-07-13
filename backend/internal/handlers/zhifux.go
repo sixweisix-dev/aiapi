@@ -382,8 +382,49 @@ func (h *ZhifuxHandler) processRecharge(order *models.ZhifuxOrder) error {
 		_ = h.engine.InitBalance(userID)
 	}
 
+	// 扣减 zhifux 额度 (每收款 CNY 1 元扣 1 额度) + 低于阈值时 Bark 告警
+	h.deductQuotaAndAlert(order.Amount)
+
 	log.Printf("[zhifux-webhook] processed: user=%s paid=$%.2f received=$%.2f tier=%s upgrade=%v", userID, paidUSD, actualAmount, tierID, isUpgrade)
 	return nil
+}
+
+
+// deductQuotaAndAlert: 扣减 zhifux 剩余额度, 低于阈值时通过 Bark 通知
+func (h *ZhifuxHandler) deductQuotaAndAlert(amount float64) {
+	var remainingStr string
+	h.db.Raw("SELECT value FROM settings WHERE key = 'zhifux_quota_remaining'").Row().Scan(&remainingStr)
+	remaining, _ := strconv.ParseFloat(remainingStr, 64)
+	newRemaining := remaining - amount
+	if newRemaining < 0 {
+		newRemaining = 0
+	}
+	h.db.Exec("UPDATE settings SET value = ?, updated_at = NOW() WHERE key = 'zhifux_quota_remaining'", fmt.Sprintf("%.2f", newRemaining))
+	log.Printf("[zhifux-quota] deducted %.2f, remaining %.2f", amount, newRemaining)
+
+	var thresholdStr string
+	h.db.Raw("SELECT value FROM settings WHERE key = 'zhifux_quota_threshold'").Row().Scan(&thresholdStr)
+	threshold, _ := strconv.ParseFloat(thresholdStr, 64)
+	if threshold <= 0 || newRemaining > threshold {
+		return
+	}
+	var barkURL string
+	h.db.Raw("SELECT value FROM settings WHERE key = 'zhifux_bark_url'").Row().Scan(&barkURL)
+	if barkURL == "" {
+		return
+	}
+	title := url.QueryEscape("支付FM 额度告警")
+	body := url.QueryEscape(fmt.Sprintf("剩余额度 %.2f 已低于阈值 %.2f, 请尽快充值", newRemaining, threshold))
+	fullURL := strings.TrimRight(barkURL, "/") + "/" + title + "/" + body + "?group=TransitAI&level=timeSensitive"
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, _ := http.NewRequest("GET", fullURL, nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[zhifux-quota] bark failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("[zhifux-quota] bark sent, status=%d", resp.StatusCode)
 }
 
 func (h *ZhifuxHandler) QueryOrder(c *gin.Context) {

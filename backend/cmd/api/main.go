@@ -114,6 +114,7 @@ responsesHandler := handlers.NewResponsesHandler(db, pool, billingEngine, channe
 	redeemHandler := handlers.NewRedeemHandler(db, redisClient)
 stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	zhifuxHandler := handlers.NewZhifuxHandler(db, billingEngine)
+	paddleHandler := handlers.NewPaddleHandler(db, billingEngine)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db, billingEngine, pool, channelTracker)
 	goofishHandler := handlers.NewGoofishHandler(db)
@@ -242,6 +243,11 @@ r.GET("/v1/zhifux/webhook", zhifuxHandler.Webhook)
 r.POST("/v1/zhifux/webhook", zhifuxHandler.Webhook)
 r.POST("/v1/user/zhifux/checkout", middleware.JWTAuth(cfg.JWTSecret), zhifuxHandler.CreateCheckout)
 r.GET("/v1/user/zhifux/order/:order_no", middleware.JWTAuth(cfg.JWTSecret), zhifuxHandler.QueryOrder)
+
+	// Paddle 支付
+	r.POST("/v1/paddle/webhook", paddleHandler.Webhook)
+	r.GET("/v1/paddle/config", paddleHandler.Config)
+	r.POST("/v1/user/paddle/order", middleware.JWTAuth(cfg.JWTSecret), paddleHandler.CreateOrder)
 
 	// iOS Scriptable widget (admin sk- via ?key=)
 	r.GET("/v1/widget/dashboard", widgetHandler.Dashboard)

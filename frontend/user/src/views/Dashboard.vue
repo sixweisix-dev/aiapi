@@ -154,6 +154,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 错误日志 -->
+    <div class="data-card">
+      <div class="card-header">
+        <span class="card-title">{{ t('dashboard.recentErrorsTitle') || '最近错误' }}</span>
+        <span class="card-link" @click="$router.push('/error-logs')">{{ t('dashboard.viewAll') }}</span>
+      </div>
+      <div v-if="loadingErrors" class="empty-tip">{{ t('dashboard.loadingTip') }}</div>
+      <div v-else-if="!errorLogs.length" class="empty-tip">
+        {{ t('dashboard.noErrorsTip') || '暂无错误' }}
+      </div>
+      <div v-else class="record-list">
+        <div v-for="(e, i) in errorLogs" :key="i" class="record-item">
+          <div class="record-left">
+            <div class="record-model">{{ e.model_name || '-' }}</div>
+            <div class="record-meta" style="color:#ef4444;">
+              {{ e.status_code || '?' }} · {{ (e.error_message || '').slice(0, 60) }}
+            </div>
+          </div>
+          <div class="record-right">
+            <div class="record-meta">{{ formatTime(e.created_at) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -162,6 +187,29 @@ import { useI18n } from 'vue-i18n'
 import UsageByModelChart from '@/components/UsageByModelChart.vue'
 import { ref, onMounted } from 'vue'
 import { dashboardAPI } from '@/utils/api'
+
+const errorLogs = ref([])
+const loadingErrors = ref(false)
+async function loadErrors() {
+  loadingErrors.value = true
+  try {
+    const r = await dashboardAPI.errorLogs(5)
+    errorLogs.value = r?.logs || r?.items || (Array.isArray(r) ? r : [])
+  } catch { errorLogs.value = [] }
+  finally { loadingErrors.value = false }
+}
+function formatTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now - d
+  const min = Math.floor(diffMs / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min}分钟前`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}小时前`
+  return d.toLocaleDateString()
+}
 
 const { t } = useI18n()
 function tierDisplay() {
@@ -173,8 +221,12 @@ const loading = ref(true)
 const stats = ref({})
 
 onMounted(async () => {
-  try { stats.value = await dashboardAPI.stats() } catch {}
-  finally { loading.value = false }
+  try {
+    stats.value = await dashboardAPI.stats()
+  } catch {} finally {
+    loading.value = false
+  }
+  loadErrors()
 })
 
 function formatExpiry(iso) {

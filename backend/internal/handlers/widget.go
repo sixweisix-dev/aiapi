@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,9 @@ type widgetDashboardResp struct {
 	TotalRemainingUSD float64      `json:"total_remaining_usd"` // 所有渠道剩余配额 USD 总和
 	AlertsCount    int             `json:"alerts_count"`     // 非 normal 状态的渠道数量
 	TotalErrors1h  int64           `json:"total_errors_1h"`  // 所有渠道 1h 错误总数
+	ZhifuxQuotaRemaining float64  `json:"zhifux_quota_remaining"`
+	ZhifuxQuotaThreshold float64  `json:"zhifux_quota_threshold"`
+	ZhifuxQuotaLow       bool     `json:"zhifux_quota_low"`
 	UpdatedAt      string          `json:"updated_at"`
 }
 
@@ -136,6 +140,14 @@ func (h *WidgetHandler) Dashboard(c *gin.Context) {
 	resp.TotalRemainingUSD = round4(resp.TotalRemainingUSD)
 
 	c.Header("Cache-Control", "public, max-age=60")
+	// 读取 zhifux 额度设置
+	var remainingStr, thresholdStr string
+	h.db.Raw("SELECT value FROM settings WHERE key = 'zhifux_quota_remaining'").Row().Scan(&remainingStr)
+	h.db.Raw("SELECT value FROM settings WHERE key = 'zhifux_quota_threshold'").Row().Scan(&thresholdStr)
+	resp.ZhifuxQuotaRemaining, _ = strconv.ParseFloat(remainingStr, 64)
+	resp.ZhifuxQuotaThreshold, _ = strconv.ParseFloat(thresholdStr, 64)
+	resp.ZhifuxQuotaLow = resp.ZhifuxQuotaThreshold > 0 && resp.ZhifuxQuotaRemaining <= resp.ZhifuxQuotaThreshold
+
 	c.JSON(http.StatusOK, resp)
 }
 

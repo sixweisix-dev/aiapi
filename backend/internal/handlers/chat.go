@@ -196,6 +196,42 @@ func (h *ChatHandler) Handle(c *gin.Context) {
 
 	// Convert request to provider format
 	upstreamReq, err := chatAdapter.ConvertReq(&req)
+	if err == nil && strings.Contains(strings.ToLower(req.Model), "deepseek") {
+		// DeepSeek strip: 不支持 vision, 剥离 image_url content block, 只保留 text
+		var bm map[string]interface{}
+		if json.Unmarshal(upstreamReq, &bm) == nil {
+			if msgs, ok := bm["messages"].([]interface{}); ok {
+				for _, m := range msgs {
+					msgMap, _ := m.(map[string]interface{})
+					if msgMap == nil {
+						continue
+					}
+					arr, isArr := msgMap["content"].([]interface{})
+					if !isArr {
+						continue
+					}
+					var texts []string
+					for _, part := range arr {
+						pm, _ := part.(map[string]interface{})
+						if pm == nil {
+							continue
+						}
+						if pt, _ := pm["type"].(string); pt == "text" {
+							if tx, _ := pm["text"].(string); tx != "" {
+								texts = append(texts, tx)
+							}
+						}
+					}
+					joined := strings.Join(texts, "\n")
+					if joined == "" {
+						joined = "[image content omitted]"
+					}
+					msgMap["content"] = joined
+				}
+			}
+			upstreamReq, _ = json.Marshal(bm)
+		}
+	}
 	if err != nil {
 		c.JSON(500, gin.H{"error": gin.H{"message": "request conversion failed", "type": "internal_error"}})
 		return

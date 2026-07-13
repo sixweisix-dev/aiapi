@@ -136,6 +136,34 @@
         </el-form>
       </div>
 
+      <!-- 支付FM 额度监控 -->
+      <div class="settings-card">
+        <h2 class="card-title">💳 支付 FM 额度监控</h2>
+        <el-form label-position="top">
+          <el-form-item>
+            <template #label>
+              <div class="lbl">当前剩余额度</div>
+              <div class="lbl-desc">每笔成功收款按 CNY 金额扣减 (¥1 = 1 额度). 充值后请手动更新此值.</div>
+            </template>
+            <el-input-number v-model="zhifuxQuotaRemaining" :min="0" :max="10000000" :precision="2" :step="100" size="large" style="width: 240px" />
+          </el-form-item>
+          <el-form-item>
+            <template #label>
+              <div class="lbl">⚠️ 告警阈值</div>
+              <div class="lbl-desc">剩余额度低于此值时 Bark 立刻推送. 保存时也会即时检查.</div>
+            </template>
+            <el-input-number v-model="zhifuxQuotaThreshold" :min="0" :max="100000" :precision="0" :step="100" size="large" style="width: 240px" />
+          </el-form-item>
+          <el-form-item>
+            <template #label>
+              <div class="lbl">Bark 推送 URL</div>
+              <div class="lbl-desc">如 https://api.day.app/YOUR_KEY. 空则不推送.</div>
+            </template>
+            <el-input v-model="zhifuxBarkUrl" placeholder="https://api.day.app/xxxxx" size="large" style="max-width: 480px" />
+          </el-form-item>
+        </el-form>
+      </div>
+
       <!-- 其他 -->
       <div class="settings-card">
         <h2 class="card-title">🛠 其他</h2>
@@ -178,6 +206,9 @@ const tiers = ref([])
 const alertEmail = ref('')
 const alertWarn = ref(100)
 const alertCritical = ref(500)
+const zhifuxQuotaRemaining = ref(0)
+const zhifuxQuotaThreshold = ref(500)
+const zhifuxBarkUrl = ref('')
 
 function ratio(t) {
   if (!t.min || t.min <= 0) return '-'
@@ -251,6 +282,9 @@ async function load() {
     alertEmail.value = res.alert_email || ''
     alertWarn.value = parseFloat(res.alert_warn_threshold || '100')
     alertCritical.value = parseFloat(res.alert_critical_threshold || '500')
+    zhifuxQuotaRemaining.value = parseFloat(res.zhifux_quota_remaining || '0')
+    zhifuxQuotaThreshold.value = parseFloat(res.zhifux_quota_threshold || '500')
+    zhifuxBarkUrl.value = res.zhifux_bark_url || ''
     loaded.value = true
   } catch (e) {}
 }
@@ -281,6 +315,9 @@ async function save() {
       alert_email: alertEmail.value,
       alert_warn_threshold: String(alertWarn.value),
       alert_critical_threshold: String(alertCritical.value),
+      zhifux_quota_remaining: String(zhifuxQuotaRemaining.value),
+      zhifux_quota_threshold: String(zhifuxQuotaThreshold.value),
+      zhifux_bark_url: zhifuxBarkUrl.value,
     })
     ElMessage.success('已保存')
   } finally {

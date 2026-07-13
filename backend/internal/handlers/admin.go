@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -1070,6 +1073,10 @@ var settingsDefaults = map[string]string{
 	"goofish_enabled":                "false",
 	"goofish_mch_id":                 "",
 	"goofish_mch_secret":             "",
+	// 支付FM (zhifux) 额度监控
+	"zhifux_quota_remaining":  "0",   // 当前剩余通用额度 (每收款 CNY 1 元扣 1 额度), 手动填入充值后的余额
+	"zhifux_quota_threshold":  "500", // 剩余低于此值触发 Bark 告警
+	"zhifux_bark_url":          "",   // Bark 推送 URL, 空则不告警
 }
 
 func (h *AdminHandler) loadAllSettings() map[string]string {
@@ -1106,7 +1113,40 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 			return
 		}
 	}
+	// 保存后如果 zhifux 额度设置变了, 立刻检查是否要 Bark 告警
+	if _, quotaChanged := req["zhifux_quota_remaining"]; quotaChanged {
+		go h.checkZhifuxQuotaAndAlert()
+	} else if _, thChanged := req["zhifux_quota_threshold"]; thChanged {
+		go h.checkZhifuxQuotaAndAlert()
+	} else if _, urlChanged := req["zhifux_bark_url"]; urlChanged {
+		go h.checkZhifuxQuotaAndAlert()
+	}
+
 	c.JSON(http.StatusOK, h.loadAllSettings())
+}
+
+// checkZhifuxQuotaAndAlert 保存 settings 时的即时检查: 剩余 <= 阈值就 Bark 一次
+func (h *AdminHandler) checkZhifuxQuotaAndAlert() {
+	remaining, _ := strconv.ParseFloat(GetSettingValue(h.db, "zhifux_quota_remaining", "0"), 64)
+	threshold, _ := strconv.ParseFloat(GetSettingValue(h.db, "zhifux_quota_threshold", "0"), 64)
+	if threshold <= 0 || remaining > threshold {
+		return
+	}
+	barkURL := GetSettingValue(h.db, "zhifux_bark_url", "")
+	if barkURL == "" {
+		return
+	}
+	title := url.QueryEscape("支付FM 额度告警")
+	body := url.QueryEscape(fmt.Sprintf("剩余额度 %.2f 已低于阈值 %.2f, 请尽快充值", remaining, threshold))
+	fullURL := strings.TrimRight(barkURL, "/") + "/" + title + "/" + body + "?group=TransitAI&level=timeSensitive"
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(fullURL)
+	if err != nil {
+		log.Printf("[admin-quota] bark failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("[admin-quota] bark sent, remaining=%.2f threshold=%.2f status=%d", remaining, threshold, resp.StatusCode)
 }
 
 // GetSettingValue 全局读取(注册赠送等地方用), 不存在返回 default

@@ -147,7 +147,9 @@
     "expireDate": "Expires on {date}",
     "tierFree": "Free Plan",
     "tierPro": "Pro Plan",
-    "tierEnterprise": "Enterprise"
+    "tierEnterprise": "Enterprise",
+    "recentErrorsTitle": "Recent Errors",
+    "noErrorsTip": "No errors yet"
   },
   "apiKeys": {
     "createTitle": "Create API Key",
@@ -462,7 +464,7 @@
       "customBonusPreview": "→ ${balance} balance ({pct}% bonus)",
       "customNoBonus": "→ ${balance} balance (no bonus, ≥¥100 to qualify)",
       "customInvalid": "Amount must be ¥10-10000",
-      "customPayBtn": "💳 Pay ${amount}",
+      "customPayBtn": "💳 Pay {amount}",
       "bonusTag": "+{pct}%",
       "selectTier": "Select a tier above"
     }

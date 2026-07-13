@@ -39,6 +39,20 @@
         <span v-else style="color:#f56c6c;">{{ t('recharge.stripe.comingSoon') }}</span>
       </div>
       <div class="stripe-section-title">{{ t('recharge.stripe.balanceTitle') }}</div>
+      <div class="pay-method-tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+        <button 
+          class="pay-method-btn" 
+          :class="{active: payMethod === 'zhifux'}"
+          @click="switchPayMethod('zhifux')">
+          💚 支付宝 (国内)
+        </button>
+        <button 
+          class="pay-method-btn"
+          :class="{active: payMethod === 'paddle'}"
+          @click="switchPayMethod('paddle')">
+          💳 境外卡/PayPal (Paddle)
+        </button>
+      </div>
       <div class="stripe-tiers">
         <button v-for="item in stripeTiers" :key="item.id"
                 class="stripe-tier-btn"
@@ -47,8 +61,9 @@
                 @click="selectedTier = item.id">
           <span v-if="item.recommended" class="hot-tag">🔥</span>
           <span class="bonus-tag">+{{ item.bonusPct }}%</span>
-          <div class="tier-cny" :class="{ primary: !isEn }">¥{{ item.cny }}</div>
-          <div class="tier-usd" :class="{ primary: isEn }">${{ item.usd }}</div>
+          <div v-if="payMethod === 'paddle' && previewedPrices[item.id]" class="tier-price-main">{{ previewedPrices[item.id].formatted }}</div>
+          <div v-else-if="payMethod === 'zhifux'" class="tier-price-main">¥{{ item.cny }}</div>
+          <div v-else class="tier-price-main">${{ item.usd }}</div>
           <div class="tier-balance">→ ${{ item.balance }}</div>
         </button>
 
@@ -56,10 +71,9 @@
                 :class="{ disabled: !stripeEnabled, selected: selectedTier === 'pro' }"
                 :disabled="!stripeEnabled || stripeLoading"
                 @click="selectedTier = 'pro'">
-          <span class="m-icon">⭐</span>
-          <div class="tier-cny m-label">{{ t('recharge.planPro') }}</div>
-          <div class="tier-usd" :class="{ primary: !isEn }" v-if="!isEn">¥99<span class="m-period">/月</span></div>
-          <div class="tier-usd primary" v-else>$14.14<span class="m-period">/mo</span></div>
+          <div class="m-title-row"><span class="m-icon">⭐</span><span class="m-label">{{ t('recharge.planPro') }}</span></div>
+          <div v-if="paddleActive && previewedPrices['pro']" class="tier-price-main">{{ previewedPrices['pro'].formatted }}<span class="m-period">{{ t('recharge.perMonth') }}</span></div>
+          <div v-else class="tier-price-main">¥99<span class="m-period">{{ t('recharge.perMonth') }}</span></div>
           <div class="tier-balance">+ $120 {{ isEn ? 'balance' : '余额' }}</div>
         </button>
 
@@ -67,10 +81,9 @@
                 :class="{ disabled: !stripeEnabled, selected: selectedTier === 'enterprise' }"
                 :disabled="!stripeEnabled || stripeLoading"
                 @click="selectedTier = 'enterprise'">
-          <span class="m-icon">👑</span>
-          <div class="tier-cny m-label">{{ t('recharge.planEnterprise') }}</div>
-          <div class="tier-usd" :class="{ primary: !isEn }" v-if="!isEn">¥499<span class="m-period">/月</span></div>
-          <div class="tier-usd primary" v-else>$71.29<span class="m-period">/mo</span></div>
+          <div class="m-title-row"><span class="m-icon">👑</span><span class="m-label">{{ t('recharge.planEnterprise') }}</span></div>
+          <div v-if="paddleActive && previewedPrices['enterprise']" class="tier-price-main">{{ previewedPrices['enterprise'].formatted }}<span class="m-period">{{ t('recharge.perMonth') }}</span></div>
+          <div v-else class="tier-price-main">¥499<span class="m-period">{{ t('recharge.perMonth') }}</span></div>
           <div class="tier-balance">+ $600 {{ isEn ? 'balance' : '余额' }}</div>
         </button>
 
@@ -79,26 +92,28 @@
              @click="selectedTier = 'custom'">
           <div class="custom-header">{{ t('recharge.stripe.customTitle') }}</div>
           <div class="custom-subtitle">{{ isEn ? 'Any amount, auto bonus tier' : '任意金额,自动匹配赠送档位' }}</div>
-          <div class="custom-input-wrap">
-            <span class="custom-prefix">{{ isEn ? '$' : '¥' }}</span>
-            <input
-              v-model.number="customAmount"
-              type="number"
-              :min="isEn ? 1.43 : 10"
-              :max="isEn ? 1428 : 10000"
-              :step="isEn ? 1 : 10"
-              :placeholder="t('recharge.stripe.customPlaceholder')"
-              class="custom-input"
-              :disabled="!stripeEnabled || stripeLoading"
-              @focus="selectedTier = 'custom'"
-              @click.stop
-            />
+          <div class="custom-input-row">
+            <span class="custom-currency-pill">{{ paddleActive && topUpUnitPrice ? currencyLabel(topUpUnitPrice.currency) : 'CN¥' }}</span>
+            <div class="custom-input-wrap">
+              <input
+                v-model.number="customAmount"
+                type="number"
+                :min="paddleActive && topUpUnitPrice ? getCurrencyLimits(topUpUnitPrice.currency).min : 10"
+                :max="paddleActive && topUpUnitPrice ? getCurrencyLimits(topUpUnitPrice.currency).max : 10000"
+                :step="paddleActive && topUpUnitPrice ? getCurrencyLimits(topUpUnitPrice.currency).step : 10"
+                :placeholder="paddleActive && topUpUnitPrice ? (isEn ? `Enter amount (≥${getCurrencyLimits(topUpUnitPrice.currency).min})` : `输入金额 (≥${getCurrencyLimits(topUpUnitPrice.currency).min})`) : t('recharge.stripe.customPlaceholder')"
+                class="custom-input"
+                :disabled="!stripeEnabled || stripeLoading"
+                @focus="selectedTier = 'custom'"
+                @click.stop
+              />
+            </div>
           </div>
           <div class="custom-preview" v-if="customBonus">
-            <span v-if="customBonus.eligible">→ ${{ customBonus.balance }} (+{{ customBonus.pct }}%)</span>
-            <span v-else class="custom-no-bonus">→ ${{ customBonus.balance }} (≥¥100)</span>
+            <span v-if="customBonus.eligible">→ ${{ customBonus.balance }} {{ isEn ? 'balance' : '余额' }} (+{{ customBonus.pct }}%)</span>
+            <span v-else class="custom-no-bonus">→ ${{ customBonus.balance }} {{ isEn ? 'balance (min ¥100 for bonus)' : '余额 (≥¥100 起赠)' }}</span>
           </div>
-          <div class="custom-preview placeholder" v-else>{{ isEn ? '$1.43 - $1428' : '¥10 - ¥10000' }}</div>
+          <div class="custom-preview placeholder" v-else>{{ paddleActive && topUpUnitPrice ? `${currencyLabel(topUpUnitPrice.currency)}${getCurrencyLimits(topUpUnitPrice.currency).min} - ${currencyLabel(topUpUnitPrice.currency)}${getCurrencyLimits(topUpUnitPrice.currency).max}` : 'CN¥10 - CN¥10000' }}</div>
         </div>
 
         
@@ -149,10 +164,9 @@
         <div class="plan-icon">💼</div>
         <div class="plan-name">{{ t('recharge.planPro') }}</div>
         <div class="plan-price">
-          <span class="price-num">{{ t('recharge.proPrice') }}</span>
+          <span class="price-num">{{ paddleActive && previewedPrices['pro'] ? previewedPrices['pro'].formatted : '¥99' }}</span>
           <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
-        <div class="price-note">{{ t('recharge.proPriceNote') }}</div>
         <div class="plan-bonus">{{ t('recharge.proBonus') }}</div>
         <ul class="plan-features">
           <li><span class="ok">✓</span> <span v-html="t('recharge.proLi1')"></span></li>
@@ -172,10 +186,9 @@
         <div class="plan-icon">👑</div>
         <div class="plan-name">{{ t('recharge.planEnterprise') }}</div>
         <div class="plan-price">
-          <span class="price-num">{{ t('recharge.entPrice') }}</span>
+          <span class="price-num">{{ paddleActive && previewedPrices['enterprise'] ? previewedPrices['enterprise'].formatted : '¥499' }}</span>
           <span class="price-unit">{{ t('recharge.perMonth') }}</span>
         </div>
-        <div class="price-note">{{ t('recharge.entPriceNote') }}</div>
         <div class="plan-bonus">{{ t('recharge.entBonus') }}</div>
         <ul class="plan-features">
           <li><span class="ok">✓</span> <span v-html="t('recharge.entLi1')"></span></li>
@@ -247,6 +260,13 @@ async function fetchUserInfo() {
   try {
     const data = await dashboardAPI.stats()
     me.value = data
+    // 补 email (stats 可能不返回)
+    if (!me.value?.email) {
+      try {
+        const meData = await api.get('/auth/me')
+        if (meData?.email) me.value = { ...me.value, email: meData.email }
+      } catch {}
+    }
   } catch {}
 }
 
@@ -391,6 +411,207 @@ async function fetchStripeStatus() {
     stripeEnabled.value = !!r?.enabled
   } catch (e) { stripeEnabled.value = false }
 }
+// ==================== Paddle 支付 (境外卡/PayPal/Alipay) ====================
+import { initializePaddle } from '@paddle/paddle-js'
+const paddleInstance = ref(null)
+const paddleReady = ref(false)
+const paddleLoading = ref(false)
+const paddleConfig = ref(null)
+const userCountry = ref('')  // Cloudflare CF-IPCountry
+const previewedPrices = ref({})
+const previewLoading = ref(false)
+const topUpUnitPrice = ref(null)
+
+
+const paddleActive = computed(() => payMethod.value === 'paddle')
+
+// 各货币的自定义充值范围 (min/max/step)
+const currencyLimits = {
+  USD:  { min: 2,    max: 1500,    step: 5 },
+  CNY:  { min: 10,   max: 10000,   step: 10 },
+  GBP:  { min: 1,    max: 1200,    step: 5 },
+  EUR:  { min: 2,    max: 1400,    step: 5 },
+  AUD:  { min: 2,    max: 2200,    step: 5 },
+  HKD:  { min: 10,   max: 12000,   step: 10 },
+  JPY:  { min: 200,  max: 200000,  step: 100 },
+  KRW:  { min: 2000, max: 2000000, step: 1000 },
+}
+function getCurrencyLimits(code) {
+  return currencyLimits[code] || currencyLimits.CNY
+}
+
+function currencySymbol(code) {
+  const map = { USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CNY: '¥', HKD: 'HK$', JPY: '¥' }
+  return map[code] || code || '$'
+}
+
+// currencyLabel: ISO 代码 + 符号, 避免 ¥/JP¥ 和 $/HK$ 混淆
+function currencyLabel(code) {
+  const symbolOnly = { USD: '$', GBP: '£', EUR: '€', AUD: '$', CNY: '¥', HKD: '$', JPY: '¥' }
+  const iso = { USD: 'US', GBP: 'GB', EUR: 'EU', AUD: 'AU', CNY: 'CN', HKD: 'HK', JPY: 'JP' }
+  const s = symbolOnly[code] || '$'
+  const i = iso[code] || code || ''
+  return `${i}${s}`
+}
+
+// formatPrice: 格式化为 "US$14.29" 这种形式
+function formatPrice(amount, code) {
+  return `${currencyLabel(code)}${Number(amount).toFixed(0)}`
+}
+
+
+async function initPaddle() {
+  if (paddleReady.value || paddleInstance.value) return
+  try {
+    const cfgRes = await api.get('/paddle/config')
+    paddleConfig.value = cfgRes
+    const paddle = await initializePaddle({
+      environment: (cfgRes.environment === 'live' ? 'production' : cfgRes.environment) || 'production',
+      token: cfgRes.client_token,
+      eventCallback: (event) => {
+        console.log('[Paddle event]', event.name)
+        if (event.name === 'checkout.completed') {
+          ElMessage.success('支付成功！余额将在 1-2 分钟到账')
+          setTimeout(() => window.location.href = '/dashboard', 2000)
+        }
+      }
+    })
+    paddleInstance.value = paddle
+    paddleReady.value = true
+    // 拿本地化价格
+    await previewLocalizedPrices()
+  } catch (e) {
+    console.error('[Paddle init failed]', e)
+    ElMessage.error('Paddle 初始化失败: ' + (e.message || String(e)))
+  }
+}
+
+async function previewLocalizedPrices() {
+  if (!paddleInstance.value || !paddleConfig.value?.tier_map) return
+  previewLoading.value = true
+  try {
+    // 拿 CF-IPCountry
+    if (!userCountry.value) {
+      try {
+        const locRes = await api.get('/locale-detect')
+        userCountry.value = locRes?.country || ''
+      } catch {}
+    }
+    // 组装 items: 所有 tier price_id + Top-Up 单价
+    const items = Object.values(paddleConfig.value.tier_map).map(t => ({
+      priceId: t.price_id,
+      quantity: 1,
+    }))
+    if (paddleConfig.value.top_up_price_id) {
+      items.push({ priceId: paddleConfig.value.top_up_price_id, quantity: 1 })
+    }
+    const req = { items }
+    if (userCountry.value && userCountry.value !== 'UNKNOWN' && userCountry.value.length === 2) {
+      req.address = { countryCode: userCountry.value }
+    }
+    const res = await paddleInstance.value.PricePreview(req)
+    // 映射 price_id -> tier_id -> formattedTotal
+    const priceIdToTier = {}
+    for (const [tierId, t] of Object.entries(paddleConfig.value.tier_map)) {
+      priceIdToTier[t.price_id] = tierId
+    }
+    const localized = {}
+    let topUp = null
+    const code = res?.data?.currencyCode || 'USD'
+    const noDecimalCurrencies = ['JPY', 'KRW', 'VND', 'IDR', 'ISK', 'CLP']
+    const divisor = noDecimalCurrencies.includes(code) ? 1 : 100
+    for (const detail of res?.data?.details?.lineItems || []) {
+      const priceId = detail.price?.id
+      const tierId = priceIdToTier[priceId]
+      const amount = Number(detail.totals?.total || 0) / divisor
+      // Paddle 已格式化的 formattedTotal 前加 ISO. 但 HKD/AUD 的 formattedTotal 已含 "HK$"/"A$" 前缀, 不重复加
+      const paddleFormatted = detail.formattedTotals?.total || ''
+      const isoLabel = { USD:'US', GBP:'GB', EUR:'EU', AUD:'AU', CNY:'CN', HKD:'HK', JPY:'JP', KRW:'KR' }[code] || code
+      // 检测 formatted 是否已含 iso 前缀 (HK$, A$ 等), 避免重复
+      const alreadyHasIso = paddleFormatted.startsWith(isoLabel) || paddleFormatted.startsWith('HK$') || paddleFormatted.startsWith('A$')
+      const finalFormatted = paddleFormatted ? (alreadyHasIso ? paddleFormatted : `${isoLabel}${paddleFormatted}`) : formatPrice(amount, code)
+      if (tierId) {
+        localized[tierId] = { amount, currency: code, formatted: finalFormatted }
+      } else if (priceId === paddleConfig.value.top_up_price_id) {
+        topUp = { amount, currency: code, formatted: finalFormatted }
+      }
+    }
+    previewedPrices.value = localized
+    topUpUnitPrice.value = topUp
+    console.log('[Paddle prices]', localized, 'country=', userCountry.value)
+  } catch (e) {
+    console.error('[Paddle PricePreview failed]', e)
+  } finally { previewLoading.value = false }
+}
+
+async function payPaddle(tierId, customAmount) {
+  if (!paddleInstance.value) await initPaddle()
+  if (!paddleInstance.value) return
+  paddleLoading.value = true
+  try {
+    let amountCNY = 0
+    if (tierId === 'custom') {
+      amountCNY = Number(customAmount)
+    } else {
+      const tier = stripeTiers.find(t => t.id === tierId)
+      if (tier) amountCNY = tier.cny
+      else {
+        const mem = stripeMembershipTiers.find(t => t.id === tierId)
+        if (mem) amountCNY = mem.cny
+      }
+    }
+    if (!amountCNY || amountCNY < 1) {
+      ElMessage.error('金额无效')
+      return
+    }
+    // 1. 后端建 pending order, 拿 order_no
+    const priceId = tierId === 'custom' ? paddleConfig.value.top_up_price_id : paddleConfig.value.tier_map[tierId]?.price_id
+    if (!priceId) {
+      ElMessage.error('未找到 price_id')
+      return
+    }
+    const orderRes = await api.post('/user/paddle/order', {
+      tier_id: tierId,
+      price_id: priceId,
+      amount_cny: amountCNY,
+    })
+    // 2. 打开 Paddle Checkout
+    let qty = 1
+    if (tierId === 'custom') {
+      // Paddle Checkout quantity 用**用户输入的当地货币数字** (1 unit local per quantity)
+      // 直接读 ref (避免函数参数 customAmount 覆盖 ref 名字)
+      const rawInput = parseFloat(document.querySelector('.custom-input')?.value) || 0
+      qty = Math.max(1, Math.round(rawInput))
+    }
+    const items = [{ priceId, quantity: qty }]
+    paddleInstance.value.Checkout.open({
+      items,
+      settings: {
+        displayMode: 'overlay',
+        variant: 'one-page',
+        successUrl: window.location.origin + '/dashboard?paid=1',
+      },
+      customer: me.value?.email ? { email: me.value.email } : undefined,
+      customData: { order_no: orderRes.order_no },
+    })
+  } catch (e) {
+    ElMessage.error('Paddle 支付失败: ' + (e?.response?.data?.error || e.message))
+  } finally { paddleLoading.value = false }
+}
+
+// 支付方式 tab: zhifux (国内支付宝) / paddle (境外卡)
+const payMethod = ref('zhifux')
+function switchPayMethod(m) {
+  payMethod.value = m
+  if (m === 'paddle') initPaddle()
+}
+
+// 统一入口: 根据 payMethod 分发
+function pay(tierId, customAmount) {
+  if (payMethod.value === 'paddle') payPaddle(tierId, customAmount)
+  else payStripe(tierId, customAmount)
+}
+
 async function payStripe(tierId, customAmount) {
   stripeLoading.value = true
   try {
@@ -425,9 +646,26 @@ const customAmount = ref(null)
 const customBonus = computed(() => {
   const raw = parseFloat(customAmount.value) || 0
   if (raw <= 0) return null
-  // 强制整数 CNY (后端 amount_cny 字段是 int, 小数会 400)
-  const amtCNY = isEn.value ? Math.round(raw * 7.06) : Math.round(raw)
-  if (amtCNY < 10 || amtCNY > 10000) return null
+  // Paddle tab: 用 Starter Pack (基准 CNY 100) 反推 Paddle 实时汇率; 用 currencyLimits 校验 raw 值
+  // Zhifux tab: 走原 isEn CNY 换算, 校验 amtCNY 10-10000
+  let amtCNY
+  if (paddleActive.value && previewedPrices.value['100']) {
+    const starterLocal = previewedPrices.value['100'].amount
+    if (starterLocal > 0) {
+      const localPerCNY = starterLocal / 100
+      amtCNY = Math.max(1, Math.round(raw / localPerCNY))  // 至少 1 CNY 用于 tier 匹配
+    } else {
+      amtCNY = Math.round(raw)
+    }
+    // 用当地货币 currencyLimits 校验用户输入 raw
+    if (topUpUnitPrice.value) {
+      const lim = getCurrencyLimits(topUpUnitPrice.value.currency)
+      if (raw < lim.min || raw > lim.max) return null
+    }
+  } else {
+    amtCNY = isEn.value ? Math.round(raw * 7.06) : Math.round(raw)
+    if (amtCNY < 10 || amtCNY > 10000) return null
+  }
   let pct = 0
   if (amtCNY < 100) pct = 0
   else if (amtCNY < 300) pct = 8 + (amtCNY-100)/200*(10-8)
@@ -447,7 +685,8 @@ const customBonus = computed(() => {
 function payCustom() {
   const cb = customBonus.value
   if (!cb) { ElMessage.warning(t('recharge.stripe.customInvalid')); return }
-  payStripe('custom', cb.amt)
+  // 传等价 CNY 给后端 (backend 按 CNY 算 balance/tier); Paddle Checkout 用当地货币收款 (quantity = 用户输入的当地货币数)
+  pay('custom', cb.amt)
 }
 
 const selectedTier = ref(null)
@@ -459,25 +698,39 @@ const canPay = computed(() => {
   return stripeMembershipTiers.some(m => m.id === selectedTier.value)
 })
 const payAmount = computed(() => {
+  // Paddle tab: 用 Paddle 返回的本地化 formatted (含 ISO 前缀和币种符号)
+  if (paddleActive.value) {
+    if (selectedTier.value === 'custom' && topUpUnitPrice.value && customAmount.value) {
+      // 自定义: 用户输的就是当地货币数字 (JP 输 1000 = JP¥1000)
+      const iso = { USD:'US', GBP:'GB', EUR:'EU', AUD:'AU', CNY:'CN', HKD:'HK', JPY:'JP', KRW:'KR' }[topUpUnitPrice.value.currency] || topUpUnitPrice.value.currency
+      const sym = { USD:'$', GBP:'£', EUR:'€', AUD:'$', CNY:'¥', HKD:'$', JPY:'¥', KRW:'₩' }[topUpUnitPrice.value.currency] || '$'
+      return `${iso}${sym}${customAmount.value}`
+    }
+    const pv = previewedPrices.value[selectedTier.value]
+    if (pv) return pv.formatted
+  }
+  // Zhifux tab: 始终 CNY (英文时也强制 ¥, 因为 Zhifux 只收 CNY)
   if (selectedTier.value === 'custom') {
-    return customBonus.value?.amtDisplay || 0
+    // Zhifux 自定义: 用户输入 raw = CNY 数字 (isEn=true 时英文 UI 输 raw 也当 CNY, 因为 customBonus 里 amtCNY 就是 CNY)
+    return customBonus.value?.amt ? `¥${customBonus.value.amt}` : 0
   }
   const tier = stripeTiers.find(x => x.id === selectedTier.value)
-  if (tier) return isEn.value ? tier.usd : tier.cny
+  if (tier) return `¥${tier.cny}`
   const m = stripeMembershipTiers.find(x => x.id === selectedTier.value)
-  if (m) return isEn.value ? m.usd : m.cny
+  if (m) return `¥${m.cny}`
   return 0
 })
 function handlePay() {
   if (!canPay.value) return
   if (selectedTier.value === 'custom') payCustom()
-  else payStripe(selectedTier.value)
+  else pay(selectedTier.value)
 }
 
 onMounted(() => {
   fetchUserInfo()
   fetchOrders()
   fetchStripeStatus()
+  initPaddle()
 })
 </script>
 
@@ -731,6 +984,60 @@ onMounted(() => {
 .bonus-tag {
   color: #4338ca;
   background: #eef2ff;
+}
+.tier-price-main {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  margin: 6px 0;
+}
+.custom-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 10px 0 6px;
+}
+.custom-currency-pill {
+  color: #4f46e5;
+  font-weight: 700;
+  font-size: 18px;
+  white-space: nowrap;
+  line-height: 1;
+}
+.stripe-custom-card.selected .custom-currency-pill {
+  color: #6366f1;
+}
+.custom-input-row .custom-input-wrap {
+  flex: 0 1 auto;
+  max-width: 180px;
+  min-width: 0;
+}
+.custom-input-row .custom-input {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pay-method-btn {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.pay-method-btn:hover {
+  border-color: #a3a3a3;
+}
+.pay-method-btn.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border-color: #6366f1;
 }
 .stripe-tier-btn.recommended .bonus-tag {
   color: #c2410c;
@@ -1045,6 +1352,328 @@ onMounted(() => {
 }
 .first-recharge-banner .frb-sub {
   font-size: 12px; color: #b45309; margin-top: 2px;
+}
+
+
+
+
+
+
+/* ========== UI 优化 v3: 字号原样, 只减留白 ========== */
+.stripe-tiers {
+  grid-auto-rows: 1fr;
+}
+.stripe-tiers > .stripe-tier-btn {
+  padding: 10px 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 3px;
+}
+
+/* 普通档位: 字号保留, 缩间距 */
+.stripe-tier-btn .tier-price-main {
+  line-height: 1.15;
+  text-align: center;
+  margin: 0 !important;
+}
+.stripe-tier-btn .tier-balance {
+  text-align: center;
+  margin: 2px 0 0 !important;
+  line-height: 1.2;
+}
+.stripe-tier-btn .bonus-tag {
+  top: 6px !important;
+  right: 6px !important;
+}
+.stripe-tier-btn .hot-tag {
+  top: 6px !important;
+  left: 6px !important;
+}
+
+/* 会员卡片: 3 行紧凑 */
+.stripe-tier-btn.membership-card {
+  gap: 2px !important;
+}
+.stripe-tier-btn.membership-card .m-icon {
+  line-height: 1;
+  margin: 0 !important;
+}
+.stripe-tier-btn.membership-card .m-label {
+  line-height: 1.1;
+  margin: 0 !important;
+}
+.stripe-tier-btn.membership-card .tier-price-main {
+  line-height: 1.1;
+  margin: 2px 0 !important;
+}
+.stripe-tier-btn.membership-card .tier-balance {
+  margin: 0 !important;
+}
+
+/* 自定义卡片 跨 2 格 */
+.stripe-tiers > .stripe-tier-btn.stripe-custom-card {
+  grid-column: span 2;
+  padding: 10px 12px !important;
+  gap: 4px;
+}
+.stripe-custom-card .custom-header {
+  text-align: center;
+  line-height: 1.1;
+  margin: 0 !important;
+}
+.stripe-custom-card .custom-subtitle {
+  text-align: center;
+  margin: 2px 0 !important;
+  line-height: 1.3;
+}
+.stripe-custom-card .custom-preview {
+  text-align: center;
+  margin-top: 3px !important;
+}
+
+/* 输入框行: 加宽输入框 */
+.custom-input-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin: 4px 0 !important;
+  width: 100%;
+}
+.custom-currency-pill {
+  color: #4f46e5;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.custom-input-row .custom-input-wrap {
+  flex: 1 1 auto;
+  max-width: 220px;
+  min-width: 120px;
+}
+.custom-input-row .custom-input {
+  text-align: center;
+  font-weight: 600;
+  padding: 6px 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 套餐介绍 (下方 plan-card): 减留白 */
+.plan-card {
+  padding: 16px 14px !important;
+}
+.plan-card .plan-icon {
+  margin: 4px 0 !important;
+}
+.plan-card .plan-name {
+  margin: 3px 0 !important;
+}
+.plan-card .plan-price {
+  margin: 4px 0 !important;
+}
+.plan-card .plan-bonus {
+  margin: 4px 0 8px !important;
+}
+.plan-card .plan-features {
+  margin: 6px 0 !important;
+}
+.plan-card .plan-features li {
+  padding: 2px 0 !important;
+  line-height: 1.5 !important;
+}
+
+/* 支付方式 tab */
+.pay-method-btn {
+  padding: 6px 12px !important;
+}
+
+
+/* ========== v4-tighter: 卡片进一步缩高 ========== */
+.stripe-tiers > .stripe-tier-btn {
+  padding: 4px 6px !important;
+  gap: 0 !important;
+}
+.stripe-tier-btn .tier-price-main {
+  margin: 1px 0 !important;
+  line-height: 1;
+}
+.stripe-tier-btn .tier-balance {
+  margin: 1px 0 0 !important;
+  line-height: 1;
+}
+.stripe-tier-btn.membership-card {
+  gap: 1px !important;
+}
+.stripe-tier-btn.membership-card .m-title-row,
+.stripe-tier-btn.membership-card .tier-price-main,
+.stripe-tier-btn.membership-card .tier-balance {
+  line-height: 1 !important;
+  margin: 1px 0 !important;
+}
+.stripe-tiers > .stripe-tier-btn.stripe-custom-card {
+  padding: 6px 10px !important;
+  gap: 1px !important;
+}
+.stripe-custom-card .custom-header {
+  margin: 1px 0 !important;
+  line-height: 1 !important;
+}
+.stripe-custom-card .custom-subtitle {
+  margin: 1px 0 !important;
+  line-height: 1.15 !important;
+}
+.custom-input-row {
+  margin: 2px 0 !important;
+}
+.stripe-custom-card .custom-preview {
+  margin-top: 1px !important;
+  line-height: 1.15 !important;
+}
+
+
+/* ========== v5-ultra-tight: 极致紧凑 ========== */
+.stripe-tiers {
+  gap: 6px !important;
+}
+.stripe-tiers > .stripe-tier-btn {
+  padding: 2px 4px !important;
+}
+.stripe-tier-btn .tier-price-main {
+  margin: 0 !important;
+  line-height: 1;
+}
+.stripe-tier-btn .tier-balance {
+  margin: 0 !important;
+  line-height: 1;
+}
+.stripe-tier-btn .bonus-tag {
+  padding: 0 3px !important;
+  top: 3px !important;
+  right: 3px !important;
+}
+.stripe-tier-btn .hot-tag {
+  top: 3px !important;
+  left: 3px !important;
+}
+.stripe-tier-btn.membership-card .m-title-row {
+  margin: 0 !important;
+}
+.stripe-tier-btn.membership-card .m-title-row .m-icon,
+.stripe-tier-btn.membership-card .m-title-row .m-label {
+  line-height: 1 !important;
+}
+.stripe-tier-btn.membership-card .tier-price-main {
+  margin: 0 !important;
+}
+.stripe-tier-btn.membership-card .tier-balance {
+  margin: 0 !important;
+}
+.stripe-tiers > .stripe-tier-btn.stripe-custom-card {
+  padding: 4px 8px !important;
+}
+.stripe-custom-card .custom-header {
+  margin: 0 !important;
+}
+.stripe-custom-card .custom-subtitle {
+  margin: 0 !important;
+}
+.custom-input-row {
+  margin: 1px 0 !important;
+}
+.stripe-custom-card .custom-preview {
+  margin: 0 !important;
+}
+.custom-input-row .custom-input {
+  padding: 3px 8px !important;
+  height: 26px !important;
+}
+
+
+/* ========== v6-price-balance-swap: 金额缩小加粗, 到账放大, 行间距放大 ========== */
+.stripe-tier-btn .tier-price-main {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+  margin: 3px 0 !important;
+}
+.stripe-tier-btn .tier-balance {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  margin: 3px 0 !important;
+}
+/* 会员卡片同步 */
+.stripe-tier-btn.membership-card .tier-price-main {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.3 !important;
+  margin: 3px 0 !important;
+}
+.stripe-tier-btn.membership-card .tier-balance {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  margin: 3px 0 !important;
+}
+.stripe-tier-btn.membership-card .m-title-row {
+  margin: 2px 0 !important;
+}
+/* 卡片 padding 保持紧凑但要给上下留一点空间 */
+.stripe-tiers > .stripe-tier-btn {
+  padding: 6px 6px !important;
+}
+
+
+/* ========== v7-plan-price: 套餐介绍卡片略微放大 ========== */
+.plan-card .price-num {
+  font-size: 24px !important;
+}
+.plan-card .price-unit {
+  font-size: 12px !important;
+}
+.plan-card .plan-name {
+  font-size: 16px !important;
+}
+.plan-card .plan-icon {
+  font-size: 28px !important;
+}
+.plan-card .plan-bonus {
+  font-size: 13px !important;
+}
+
+
+/* ========== v8-custom-header-larger: 自定义卡标题+副标题字号放大 ========== */
+.stripe-custom-card .custom-header {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+.stripe-custom-card .custom-subtitle {
+  font-size: 12px !important;
+}
+
+
+/* ========== v9-tier-price-larger: 7 档卡片金额+到账字号放大 ========== */
+.stripe-tier-btn .tier-price-main {
+  font-size: 16px !important;
+}
+.stripe-tier-btn .tier-balance {
+  font-size: 14px !important;
+}
+.stripe-tier-btn.membership-card .tier-price-main {
+  font-size: 15px !important;
+}
+.stripe-tier-btn.membership-card .tier-balance {
+  font-size: 13px !important;
+}
+.stripe-tier-btn.membership-card .m-label {
+  font-size: 13px !important;
+}
+.stripe-tier-btn.membership-card .m-icon {
+  font-size: 17px !important;
 }
 
 </style>

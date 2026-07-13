@@ -332,3 +332,21 @@ Status          string     `gorm:"size:20;default:'pending'"`
 CreatedAt       time.Time
 PaidAt          *time.Time
 }
+
+// PaddleOrder 存储 Paddle 付款订单
+type PaddleOrder struct {
+	ID                  uuid.UUID  `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()"`
+	UserID              uuid.UUID  `gorm:"type:uuid;not null;index"`
+	OrderNo             string     `gorm:"type:varchar(64);not null;unique"`
+	PaddleTransactionID string     `gorm:"column:paddle_transaction_id;type:varchar(64);index"`
+	PaddleCustomerID    string     `gorm:"column:paddle_customer_id;type:varchar(64)"`
+	PriceID             string     `gorm:"column:price_id;type:varchar(64)"`
+	TierID              string     `gorm:"type:varchar(32)"`
+	AmountCNY           float64    `gorm:"column:amount_cny;type:decimal(10,2)"`
+	AmountUSDPaid       float64    `gorm:"column:amount_usd_paid;type:decimal(10,2)"`
+	Status              string     `gorm:"type:varchar(20);default:'pending'"`
+	CreatedAt           time.Time  `gorm:"type:timestamptz;default:now()"`
+	PaidAt              *time.Time `gorm:"type:timestamptz"`
+	RawPayload          *string    `gorm:"column:raw_payload;type:jsonb"`
+}
+

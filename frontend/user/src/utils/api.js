@@ -78,6 +78,7 @@ export const dashboardAPI = {
   stats() {
     return api.get('/user/dashboard')
   },
+  errorLogs: (limit = 5) => api.get(`/user/error-logs?limit=${limit}`),
   usage() {
     return api.get('/user/usage')
   },

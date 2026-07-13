@@ -28,7 +28,7 @@
         <div class="plan-icon">💼</div>
         <div class="plan-name">专业版</div>
         <div class="plan-price">
-          <span class="price-num">$99</span>
+          <span class="price-num">{{ previewedPrices['pro'] || 'CN¥99' }}</span>
           <span class="price-unit">/ 月</span>
         </div>
         <div class="plan-bonus">充 $99 → 到账 $120（送 $21）</div>
@@ -53,7 +53,7 @@
         <div class="plan-icon">👑</div>
         <div class="plan-name">企业版</div>
         <div class="plan-price">
-          <span class="price-num">$499</span>
+          <span class="price-num">{{ previewedPrices['enterprise'] || 'CN¥499' }}</span>
           <span class="price-unit">/ 月</span>
         </div>
         <div class="plan-bonus">充 $499 → 到账 $600（送 $101）</div>
@@ -91,10 +91,51 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { rechargeAPI, dashboardAPI } from '@/utils/api'
+import api from '@/utils/api'
+import { initializePaddle } from '@paddle/paddle-js'
 import dayjs from 'dayjs'
 
 const me = ref(null)
 const submitting = ref('')
+const previewedPrices = ref({})
+
+async function initPaddleLocalize() {
+  try {
+    const cfgRes = await api.get('/paddle/config')
+    .slice(0,15)}`)
+    const paddle = await initializePaddle({
+      environment: cfgRes.environment === 'live' ? 'production' : (cfgRes.environment || 'production'),
+      token: cfgRes.client_token,
+    })
+    if (!paddle) { ; return }
+    // 拿国家
+    let country = ''
+    try { const l = await api.get('/locale-detect'); country = l?.country || '' } catch {}
+    const items = [
+      { priceId: cfgRes.tier_map['pro'].price_id, quantity: 1 },
+      { priceId: cfgRes.tier_map['enterprise'].price_id, quantity: 1 },
+    ]
+    const req = { items }
+    if (country && country !== 'UNKNOWN' && country.length === 2) {
+      req.address = { countryCode: country }
+    }
+    const res = await paddle.PricePreview(req)
+    const code = res?.data?.currencyCode || 'USD'
+    const isoLabel = { USD:'US', GBP:'GB', EUR:'EU', AUD:'AU', CNY:'CN', HKD:'HK', JPY:'JP', KRW:'KR' }[code] || code
+    for (const detail of res?.data?.details?.lineItems || []) {
+      const priceId = detail.price?.id
+      const formatted = `${isoLabel}${detail.formattedTotals?.total || ''}`
+      if (priceId === cfgRes.tier_map['pro'].price_id) {
+        previewedPrices.value['pro'] = formatted
+      } else if (priceId === cfgRes.tier_map['enterprise'].price_id) {
+        previewedPrices.value['enterprise'] = formatted
+      }
+    }
+    } catch (e) {
+    )).slice(0, 200)}`)
+    console.error('[Membership Paddle init failed]', e)
+  }
+}
 
 function tierLabel(t) {
   const m = { free: '免费版', pro: '专业版', enterprise: '企业版' }
@@ -128,7 +169,10 @@ async function upgrade(intent, amount) {
   }
 }
 
-onMounted(loadMe)
+onMounted(() => {
+  loadMe()
+  initPaddleLocalize()
+})
 </script>
 
 <style scoped>

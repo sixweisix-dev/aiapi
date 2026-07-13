@@ -147,7 +147,9 @@
     "expireDate": "{date} 到期",
     "tierFree": "免费版",
     "tierPro": "专业版",
-    "tierEnterprise": "企业版"
+    "tierEnterprise": "企业版",
+    "recentErrorsTitle": "最近错误",
+    "noErrorsTip": "暂无错误记录"
   },
   "apiKeys": {
     "createTitle": "创建 API Key",
@@ -462,7 +464,7 @@
       "customBonusPreview": "→ 到账 ${balance} ({pct}% 赠送)",
       "customNoBonus": "→ 到账 ${balance} (无赠送, ≥¥100 起赠)",
       "customInvalid": "金额需在 ¥10-10000 之间",
-      "customPayBtn": "💳 支付 ¥{amount}",
+      "customPayBtn": "💳 支付 {amount}",
       "bonusTag": "送 {pct}%",
       "selectTier": "请先选择档位"
     }
