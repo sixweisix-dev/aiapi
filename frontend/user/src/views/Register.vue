@@ -202,7 +202,8 @@ async function handleRegister() {
 .auth-links { text-align: center; font-size: 13px; color: #9ca3af; }
 .auth-link { color: #667eea; text-decoration: none; font-weight: 600; margin-left: 4px; }
 .agree-row { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 14px; padding: 0 4px; }
-.agree-text { font-size: 12px; color: #6b7280; line-height: 1.6; flex: 1; }
+.agree-row :deep(.el-checkbox) { height: auto; margin-top: 2px; }
+.agree-text { font-size: 12px; color: #6b7280; line-height: 1.5; flex: 1; }
 .agree-link { color: #667eea; text-decoration: none; font-weight: 500; }
 
 .auth-lang-toggle {

@@ -190,10 +190,14 @@ async function handleLogin() {
   margin: 6px 0 14px;
   padding: 0 4px;
 }
+.agree-row :deep(.el-checkbox) {
+  height: auto;
+  margin-top: 2px;
+}
 .agree-text {
   font-size: 12px;
   color: #6b7280;
-  line-height: 1.6;
+  line-height: 1.5;
   flex: 1;
 }
 .agree-link {
