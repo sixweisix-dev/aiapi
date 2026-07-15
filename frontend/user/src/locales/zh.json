@@ -57,7 +57,10 @@
     "noAccount": "没有账号？",
     "signupNow": "立即注册",
     "forgotPwd": "忘记密码",
-    "signupLink": "注册账号"
+    "signupLink": "注册账号",
+    "orDivider": "或",
+    "githubBtn": "使用 GitHub 登录",
+    "googleBtn": "使用 Google 登录"
   },
   "register": {
     "title": "创建账号",

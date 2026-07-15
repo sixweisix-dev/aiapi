@@ -90,7 +90,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	user := UserModel{
 		Email:         req.Email,
-		PasswordHash:  string(hashedBytes),
+		PasswordHash:  ptrString(string(hashedBytes)),
 		Username:      &username,
 		Role:          "user",
 		Balance:       0,
@@ -165,7 +165,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(safeStr(user.PasswordHash)), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
@@ -244,8 +244,10 @@ func (h *AuthHandler) generateJWT(userID, email, role string) (string, error) {
 type UserModel struct {
 	ID            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
 	Email         string    `gorm:"type:varchar(255);uniqueIndex;not null"`
-	PasswordHash  string    `gorm:"type:varchar(255);not null"`
+	PasswordHash  *string   `gorm:"type:varchar(255)"`
 	Username      *string   `gorm:"type:varchar(100);uniqueIndex"`
+	GithubID      *string   `gorm:"type:varchar(64);uniqueIndex"`
+	GoogleID      *string   `gorm:"type:varchar(64);uniqueIndex"`
 	AvatarURL     *string   `gorm:"type:text"`
 	Role          string    `gorm:"type:varchar(50);not null;default:'user'"`
 	Balance       float64   `gorm:"type:decimal(20,8);not null;default:0"`
@@ -293,7 +295,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(safeStr(user.PasswordHash)), []byte(req.OldPassword)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
 		return
 	}
@@ -440,3 +442,23 @@ func formatTimePtr(t *time.Time) *string {
 	v := t.Format(time.RFC3339)
 	return &v
 }
+
+// ptrString 返回 string 的指针版本
+func ptrString(s string) *string {
+	return &s
+}
+
+// safeStr 从 *string 安全提取字符串, nil 返回空
+func safeStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// generateJWTWithSecret 供 oauth 等外部 handler 生成 JWT
+func generateJWTWithSecret(userID, email, role, secret string) (string, error) {
+	tmp := &AuthHandler{jwtSecret: secret}
+	return tmp.generateJWT(userID, email, role)
+}
+

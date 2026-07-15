@@ -20,6 +20,7 @@ const routes = [
     component: () => import('@/views/Login.vue'),
     meta: { noAuth: true },
   },
+  { path: '/oauth-callback', name: 'OAuthCallback', component: () => import('@/views/OAuthCallback.vue'), meta: { noAuth: true } },
   {
     path: '/reset-password',
     name: 'ResetPassword',

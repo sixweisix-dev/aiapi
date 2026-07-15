@@ -48,6 +48,8 @@
         </button>
       </el-form>
 
+      <SocialLoginButtons />
+
       <div class="auth-links">
         {{ t('register.haveAccount') }}<router-link to="/login" class="auth-link">{{ t('register.loginNow') }}</router-link>
       </div>
@@ -65,6 +67,7 @@ import { setLocale, currentLocale } from '@/i18n'
 import { useI18n } from 'vue-i18n'
 import api from '@/utils/api'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import SocialLoginButtons from '@/components/SocialLoginButtons.vue'
 
 const authPageLang = ref(currentLocale())
 function toggleAuthLang() {

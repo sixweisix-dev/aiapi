@@ -29,6 +29,8 @@
         </button>
       </el-form>
 
+      <SocialLoginButtons />
+
       <div class="auth-links">
         <router-link to="/register" class="auth-link">{{ t('login.signupLink') }}</router-link>
         <span class="link-divider">·</span>
@@ -40,6 +42,7 @@
 
 <script setup>
 import FloatingBubbles from '@/components/FloatingBubbles.vue'
+import SocialLoginButtons from '@/components/SocialLoginButtons.vue'
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'

@@ -11,8 +11,10 @@ import (
 type User struct {
 	ID            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
 	Email         string    `gorm:"type:varchar(255);uniqueIndex;not null"`
-	PasswordHash  string    `gorm:"type:varchar(255);not null"`
+	PasswordHash  *string   `gorm:"type:varchar(255)"`
 	Username      *string   `gorm:"type:varchar(100);uniqueIndex"`
+	GithubID      *string   `gorm:"type:varchar(64);uniqueIndex"`
+	GoogleID      *string   `gorm:"type:varchar(64);uniqueIndex"`
 	AvatarURL     *string   `gorm:"type:text"`
 	Role          string    `gorm:"type:varchar(50);not null;default:'user';check:role IN ('guest','user','vip','admin')"`
 	Balance       float64   `gorm:"type:decimal(20,8);not null;default:0"`

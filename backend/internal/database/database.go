@@ -137,7 +137,7 @@ func CreateAdminUser(db *gorm.DB, email, password string) error {
 
 	adminUser := &models.User{
 		Email:         email,
-		PasswordHash:  hashedPassword,
+		PasswordHash:  &hashedPassword,
 		Username:      &[]string{"admin"}[0],
 		Role:          "admin",
 		Balance:       1000000,

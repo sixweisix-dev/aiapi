@@ -57,7 +57,10 @@
     "noAccount": "Don't have an account?",
     "signupNow": "Sign Up",
     "forgotPwd": "Forgot password",
-    "signupLink": "Sign Up"
+    "signupLink": "Sign Up",
+    "orDivider": "OR",
+    "githubBtn": "Continue with GitHub",
+    "googleBtn": "Continue with Google"
   },
   "register": {
     "title": "Create Account",
