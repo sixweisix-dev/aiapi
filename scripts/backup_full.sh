@@ -8,7 +8,7 @@ set -uo pipefail
 PROJECT_DIR="/home/ubuntu/token-api"
 BACKUP_DIR="$PROJECT_DIR/backups"
 STAGING_DIR="$BACKUP_DIR/.staging"
-GDRIVE_REMOTE="gdrive:transitai-backups"
+GDRIVE_REMOTE="r2:transitai-backups"
 LOCAL_RETAIN_DAYS=7
 REMOTE_RETAIN_DAYS=30
 LOG_FILE="$BACKUP_DIR/backup.log"
@@ -76,7 +76,7 @@ log "===== 开始备份 ${TS} ====="
 # ---- 1. pg_dump ----
 log "1/4 pg_dump..."
 if ! docker compose -f "$PROJECT_DIR/docker-compose.yml" exec -T postgres \
-     pg_dump -U postgres --clean --if-exists --no-owner ai_gateway \
+     pg_dump -U postgres --clean --if-exists --create --no-owner ai_gateway \
      | gzip > "$STAGE/database.sql.gz"; then
   fail "pg_dump 失败"
 fi
@@ -120,8 +120,8 @@ log "  Enc $((ENC_SIZE/1024))KB → $ENC_OUT"
 # 清理 staging (含明文!)
 rm -rf "$STAGE" "$BUNDLE"
 
-# ---- 4. 上传 GD ----
-log "4/4 上传 GD..."
+# ---- 4. 上传 R2 ----
+log "4/4 上传 R2..."
 if ! rclone copy "$ENC_OUT" "$GDRIVE_REMOTE" \
      --timeout 300s --retries 3 --low-level-retries 5; then
   fail "rclone 上传失败"
@@ -137,4 +137,4 @@ rclone delete "$GDRIVE_REMOTE" --min-age ${REMOTE_RETAIN_DAYS}d --timeout 300s 2
 
 TOTAL_KB=$((ENC_SIZE/1024))
 log "===== 完成 ${TOTAL_KB}KB ====="
-bark_notify "TransitAI备份OK" "${TOTAL_KB}KB→GD"
+bark_notify "TransitAI备份OK" "${TOTAL_KB}KB→R2"
