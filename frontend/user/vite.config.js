@@ -31,5 +31,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'vue-i18n', 'pinia'],
+          'vendor-element': ['element-plus', '@element-plus/icons-vue'],
+          'vendor-echarts': ['echarts', 'vue-echarts'],
+          'vendor-utils': ['axios', 'dayjs', 'marked', 'highlight.js', '@paddle/paddle-js'],
+        },
+      },
+    },
   },
 })
