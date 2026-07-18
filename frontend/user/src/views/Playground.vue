@@ -88,25 +88,58 @@
 
       <div v-if="isImageModel" class="image-controls">
         <div class="ctrl-group">
-          <label>{{ t('playground.size') }}</label>
-          <select v-model="imageSize" class="native-select size-select">
-            <option value="1024x1024">📐 1024×1024 方形</option>
-            <option value="1024x1536">📱 1024×1536 竖屏</option>
-            <option value="1536x1024">🖥️ 1536×1024 横屏</option>
-            <option value="2048x2048" :disabled="!imageSizeAvailable('2048x2048')">📐 2K (2048×2048)</option>
-            <option value="3840x2160" :disabled="!imageSizeAvailable('3840x2160')">🖥️ 4K (3840×2160) 横</option>
-            <option value="2160x3840" :disabled="!imageSizeAvailable('2160x3840')">📱 4K (2160×3840) 竖</option>
+          <label>分辨率</label>
+          <select v-model="imageResolution" class="native-select">
+            <option value="1K">1K</option>
+            <option value="2K" :disabled="!resolutionAvailable('2K')">{{ resolutionAvailable('2K') ? '2K' : '2K 🔒' }}</option>
+            <option value="4K" :disabled="!resolutionAvailable('4K')">{{ resolutionAvailable('4K') ? '4K' : '4K 🔒' }}</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>比例</label>
+          <select v-model="imageAspect" class="native-select">
+            <option value="1:1">1:1 方</option>
+            <option value="3:2">3:2 横</option>
+            <option value="2:3">2:3 竖</option>
+            <option value="16:9">16:9 宽</option>
+            <option value="9:16">9:16 高</option>
+            <option value="4:3">4:3 横</option>
+            <option value="3:4">3:4 竖</option>
+            <option value="21:9">21:9 超宽</option>
           </select>
         </div>
         <div class="ctrl-group">
           <label>{{ t('playground.quality') }}</label>
-          <select v-model="imageQuality" class="native-select quality-select">
+          <select v-model="imageQuality" class="native-select">
             <option value="low">{{ t('playground.qualityLow') }}</option>
             <option value="medium">{{ t('playground.qualityMid') }}</option>
             <option value="high">{{ t('playground.qualityHigh') }}</option>
           </select>
         </div>
-        <div class="ctrl-meta" v-if="modelMeta">¥{{ (modelMeta.cost_per_call || 0).toFixed(3) }}/张</div>
+        <div class="ctrl-group">
+          <label>风格</label>
+          <select v-model="imageStyle" class="native-select">
+            <option value="">默认</option>
+            <option value="natural">自然</option>
+            <option value="vivid">生动</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>背景</label>
+          <select v-model="imageBackground" class="native-select">
+            <option value="">不透明</option>
+            <option value="transparent">透明</option>
+          </select>
+        </div>
+        <div class="ctrl-group">
+          <label>格式</label>
+          <select v-model="imageFormat" class="native-select">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+        <div class="ctrl-meta" v-if="modelMeta">{{ computedSize }} · ¥{{ (modelMeta.cost_per_call || 0).toFixed(3) }}/张</div>
       </div>
     </div>
 
@@ -137,8 +170,24 @@ const pendingReasoning = ref("")
 const reasoningScrollRef = ref(null)
 const pendingResponse = ref('')
 const pendingAttachments = ref([])
-const imageSize = ref('1024x1024')
+const imageResolution = ref('1K')
+const imageAspect = ref('1:1')
 const imageQuality = ref('high')
+const imageStyle = ref('')
+const imageBackground = ref('')
+const imageFormat = ref('png')
+
+// 分辨率 + 比例 -> 实际尺寸 (yyapi 侧长边: 1K=1024, 2K=2048, 4K=3840)
+const computedSize = computed(() => {
+  const longEdgeMap = { '1K': 1024, '2K': 2048, '4K': 3840 }
+  const long = longEdgeMap[imageResolution.value] || 1024
+  const [a, b] = imageAspect.value.split(':').map(Number)
+  if (a === b) return `${long}x${long}`
+  // 长宽比: 大的一边 = long, 小的一边按比例
+  const ratio = Math.min(a, b) / Math.max(a, b)
+  const shortSide = Math.round((long * ratio) / 16) * 16 // 16 的倍数
+  return a >= b ? `${long}x${shortSide}` : `${shortSide}x${long}`
+})
 const uploadMenuOpen = ref(false)
 
 const messagesRef = ref(null)
@@ -180,6 +229,21 @@ function computeMaxTokens() {
   return Math.min(Math.max(budget, 2048), 32768)
 }
 
+function buildImageBody(withImage, imageUrl, prompt) {
+  const body = {
+    model: selectedModel.value,
+    prompt,
+    size: computedSize.value,
+    quality: imageQuality.value,
+    n: 1,
+  }
+  if (imageStyle.value) body.style = imageStyle.value
+  if (imageBackground.value) body.background = imageBackground.value
+  if (imageFormat.value && imageFormat.value !== 'png') body.output_format = imageFormat.value
+  if (withImage) body.image = imageUrl
+  return body
+}
+
 function formatModelLabel(m) {
   if (m.cost_per_call > 0) {
     return `${m.display_name}  ¥${(m.cost_per_call).toFixed(2)}/张`
@@ -191,23 +255,20 @@ function formatModelLabel(m) {
   return m.display_name
 }
 
-function imageSizeAvailable(size) {
-  if (selectedModel.value === 'gpt-image-2') return true  // 官转支持全部
-  if (selectedModel.value === 'gpt-image-2-pro') {
-    // Pro 最大 2K, 不支持 4K
-    return !['3840x2160', '2160x3840'].includes(size)
-  }
-  if (selectedModel.value === 'gpt-image-2-1k') {
-    // 1K 经济版只 1024 方形
-    return size === '1024x1024'
-  }
+function resolutionAvailable(res) {
+  // 各模型能力: 便宜版只 1K; 原生最高 2K; 官方全部
+  const m = selectedModel.value
+  if (m === 'gpt-image-2-official') return true
+  if (m === 'gpt-image-2-native') return res !== '4K'
+  if (m === 'gpt-image-2') return res === '1K'
   return true
 }
 
 watch(selectedModel, (m) => {
-  if (m === 'gpt-image-2') imageSize.value = '3840x2160'
-  else if (m === 'gpt-image-2-pro') imageSize.value = '2048x2048'
-  else if (m === 'gpt-image-2-1k') imageSize.value = '1024x1024'
+  // 模型切换: 若当前分辨率超过该模型能力则自动降级
+  if (m === 'gpt-image-2') imageResolution.value = '1K'
+  else if (m === 'gpt-image-2-native' && imageResolution.value === '4K') imageResolution.value = '2K'
+  // official 全支持, 不动
 })
 
 watch(userMessage, async (val) => {
@@ -510,10 +571,10 @@ async function handleSend() {
       const imageAtt = userMsg.attachments.find(a => a.type && a.type.startsWith('image/'))
       const isEdit = !!imageAtt
       const action = isEdit ? '编辑' : '生成'
-      pendingResponse.value = `${action}图片中... (${imageSize.value}, ~30s)`
+      pendingResponse.value = `${action}图片中... (${computedSize.value}, ~30s)`
       const body = isEdit
-        ? { model: selectedModel.value, prompt: sentMessage, image: imageAtt.url, size: imageSize.value, quality: imageQuality.value, n: 1 }
-        : { model: selectedModel.value, prompt: sentMessage, size: imageSize.value, quality: imageQuality.value, n: 1 }
+        ? buildImageBody(true, imageAtt.url, sentMessage)
+        : buildImageBody(false, null, sentMessage)
       const res = await fetch(`/v1/user/playground/chat?api_key_id=${selectedKey.value}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -530,7 +591,7 @@ async function handleSend() {
       if (!imageUrl) throw new Error('No image data')
 
       const latency = Math.round(performance.now() - start)
-      messages.value.push({ role: 'assistant', imageUrl, meta: `${imageSize.value} · ¥${(modelMeta.value?.cost_per_call || 0).toFixed(2)} · ${latency}ms`, timestamp: Date.now() })
+      messages.value.push({ role: 'assistant', imageUrl, meta: `${computedSize.value} · ¥${(modelMeta.value?.cost_per_call || 0).toFixed(2)} · ${latency}ms`, timestamp: Date.now() })
       pendingResponse.value = ''
       window.dispatchEvent(new Event('balance-changed'))
       scrollToBottom()
@@ -742,7 +803,7 @@ onMounted(async () => {
 .native-select:focus { border-color: #667eea; }
 .size-select { width: 180px; }
 .quality-select { width: 90px; }
-.image-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding: 0 6px; font-size: 12px; }
+.image-controls { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 10px; padding: 0 6px; font-size: 12px; }
 .ctrl-group { display: flex; align-items: center; gap: 6px; color: #4b5563; }
 .ctrl-group label { font-weight: 500; }
 .ctrl-meta { font-size: 11px; color: #6b7280; margin-left: auto; }

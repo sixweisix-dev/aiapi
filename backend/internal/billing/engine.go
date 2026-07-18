@@ -275,6 +275,19 @@ func (e *Engine) RecordImageBilling(userID, modelName, requestID string, cost fl
 	if err := e.db.Create(record).Error; err != nil {
 		return nil, fmt.Errorf("failed to create image billing record: %w", err)
 	}
+
+	// 真正扣 users.balance (原来只写 billing_records, 导致 dashboard/前端读到的余额永不减)
+	if err := e.db.Model(&models.User{}).Where("id = ?", parsedUserID).
+		Update("balance", gorm.Expr("balance - ?", cost)).Error; err != nil {
+		return record, fmt.Errorf("failed to update user balance: %w", err)
+	}
+	// 同步扣 Redis 热余额, 但先重新读一次 DB 的最新值再写回, 避免 sync 用旧 Redis 值覆盖
+	if e.redis != nil {
+		var refreshed models.User
+		if err := e.db.Select("balance").First(&refreshed, "id = ?", parsedUserID).Error; err == nil {
+			e.redis.Set(context.Background(), balanceKey(userID), refreshed.Balance, 0)
+		}
+	}
 	return record, nil
 }
 

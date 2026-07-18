@@ -232,6 +232,15 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		if q, ok := jsonBody["quality"].(string); ok && q != "" {
 			mpWriter.WriteField("quality", q)
 		}
+		if v, ok := jsonBody["style"].(string); ok && v != "" {
+			mpWriter.WriteField("style", v)
+		}
+		if v, ok := jsonBody["background"].(string); ok && v != "" {
+			mpWriter.WriteField("background", v)
+		}
+		if v, ok := jsonBody["output_format"].(string); ok && v != "" {
+			mpWriter.WriteField("output_format", v)
+		}
 		if n, ok := jsonBody["n"].(float64); ok {
 			mpWriter.WriteField("n", fmt.Sprintf("%d", int(n)))
 		}
@@ -319,7 +328,7 @@ func (h *ImageHandler) handleImage(c *gin.Context, endpoint string, isMultipart 
 		upstreamReq.Header.Set("Content-Type", "application/json")
 	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{Timeout: 300 * time.Second}
 	upstreamResp, err = client.Do(upstreamReq)
 	if err != nil {
 		log.Printf("[image] upstream call error: %v", err)
