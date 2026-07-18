@@ -30,7 +30,7 @@
           <div class="model-head">
             <div class="model-name-block">
               <div class="model-name">{{ locale === 'en' && m.display_name_en ? m.display_name_en : m.display_name }}</div>
-              <code class="model-id">{{ m.name }}</code>
+              <code class="model-id" @click="copyName(m.name)" title="点击复制">{{ m.name }} <span class="copy-icon">⧉</span></code>
             </div>
             <span class="provider-tag">{{ m.provider }}</span>
           </div>
@@ -139,6 +139,22 @@ onMounted(async () => {
     if (groups.value.length > 0) activeGroup.value = groups.value[0].slug
   } catch {} finally { loading.value = false }
 })
+
+async function copyName(name) {
+  try {
+    await navigator.clipboard.writeText(name)
+    ElMessage.success(t('models.copied') || '已复制: ' + name)
+  } catch {
+    // fallback: 老浏览器
+    const ta = document.createElement('textarea')
+    ta.value = name
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    ElMessage.success(t('models.copied') || '已复制: ' + name)
+  }
+}
 </script>
 
 <style scoped>
@@ -332,4 +348,9 @@ onMounted(async () => {
   grid-template-columns: 1fr !important;
 }
 
+
+.model-id { cursor: pointer; transition: background 0.15s; }
+.model-id:hover { background: rgba(102, 126, 234, 0.12); }
+.copy-icon { color: #667eea; font-size: 14px; font-weight: 600; margin-left: 6px; }
+.model-id:hover .copy-icon { color: #4c56b8; }
 </style>
