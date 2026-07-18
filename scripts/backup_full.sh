@@ -37,7 +37,7 @@ if [ -f "$PROJECT_DIR/.env" ]; then
   done < <(grep -E '^(BARK_KEY|BACKUP_ENC_PASSWORD)=' "$PROJECT_DIR/.env")
 fi
 
-log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG_FILE"; }
+log() { echo "[$(date '+%F %T')] $*"; }
 
 bark_notify() {
   local title="$1"

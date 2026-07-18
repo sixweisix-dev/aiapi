@@ -39,6 +39,14 @@ transitai.cloud {
         reverse_proxy frontend_admin:80
     }
 
+    # 带 hash 的静态资源(assets/*.js/css/图片) 1年 immutable 缓存
+    @staticAssets path /assets/*
+    header @staticAssets Cache-Control "public, max-age=31536000, immutable"
+
+    # index.html 不缓存,保证新版立即生效
+    @indexHtml path / /index.html /admin /admin/
+    header @indexHtml Cache-Control "no-cache, must-revalidate"
+
     handle {
         reverse_proxy frontend_user:80
     }
