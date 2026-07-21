@@ -170,6 +170,9 @@ type UpstreamChannel struct {
 	// === 渠道分组 ===
 	GroupID *uint `gorm:"index" json:"group_id"`
 
+	// === 显式故障转移链 (逗号分隔 UUID; 空=按 weight 排序自动 failover) ===
+	FallbackChannelIDs string `gorm:"column:fallback_channel_ids;type:text;not null;default:''" json:"fallback_channel_ids"`
+
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
