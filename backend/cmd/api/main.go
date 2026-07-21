@@ -118,6 +118,7 @@ stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	paddleHandler := handlers.NewPaddleHandler(db, billingEngine)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db, billingEngine, pool, channelTracker)
+	backupHandler := handlers.NewBackupHandler(db)
 	goofishHandler := handlers.NewGoofishHandler(db)
 	goofishSupplierHandler := handlers.NewGoofishSupplierHandler(db)
 	userHandler := handlers.NewUserHandler(db)
@@ -306,6 +307,9 @@ r.GET("/v1/user/zhifux/order/:order_no", middleware.JWTAuth(cfg.JWTSecret), zhif
 		// Settings
 		admin.GET("/settings", adminHandler.GetSettings)
 		admin.PUT("/settings", adminHandler.UpdateSettings)
+		admin.POST("/backup/verify-password", backupHandler.VerifyPassword)
+		admin.POST("/backup/list", backupHandler.List)
+		admin.POST("/backup/decrypt", backupHandler.Decrypt)
 		admin.POST("/restock", cronHandler.AdminRestock)
 	}
 
