@@ -8,8 +8,8 @@
     <el-card shadow="hover" class="mb-4">
       <div class="toolbar">
         <el-radio-group v-model="filter" @change="fetchData">
-          <el-radio-button label="all">全部</el-radio-button>
-          <el-radio-button label="error">仅错误 (4xx/5xx)</el-radio-button>
+          <el-radio-button value="all">全部</el-radio-button>
+          <el-radio-button value="error">仅错误 (4xx/5xx)</el-radio-button>
         </el-radio-group>
         <el-select v-model="limit" @change="fetchData" style="width:120px">
           <el-option label="50 条" :value="50" />

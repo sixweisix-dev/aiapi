@@ -7,9 +7,9 @@
         <p class="page-subtitle">实时收入、成本、毛利分析</p>
       </div>
       <el-radio-group v-model="range" @change="loadData" size="default">
-        <el-radio-button label="today">今日</el-radio-button>
-        <el-radio-button label="month">本月</el-radio-button>
-        <el-radio-button label="year">本年</el-radio-button>
+        <el-radio-button value="today">今日</el-radio-button>
+        <el-radio-button value="month">本月</el-radio-button>
+        <el-radio-button value="year">本年</el-radio-button>
       </el-radio-group>
     </div>
 
