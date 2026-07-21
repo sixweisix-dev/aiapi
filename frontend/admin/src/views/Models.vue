@@ -80,6 +80,10 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="单次调用价 (¥)">
+          <el-input-number v-model="form.cost_per_call" :precision="4" :step="0.001" :min="0" />
+          <span class="ml-2 text-xs text-gray-400">图像等按张计费的模型填这里, > 0 时覆盖 token 计费</span>
+        </el-form-item>
         <el-form-item label="分组">
           <el-select v-model="form.group_id" placeholder="无分组" clearable style="width:280px">
             <el-option :value="null" label="— 无分组 —" />
@@ -142,6 +146,7 @@ const form = ref({
   context_length: 4096,
   input_price: 0,
   output_price: 0,
+  cost_per_call: 0,
   multiplier: 1.0,
   description: '',
   is_public: true,
@@ -169,7 +174,7 @@ async function fetchData() {
 function openCreate() {
   isEditing.value = false
   editingId.value = null
-  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
+  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, cost_per_call: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
   dialogVisible.value = true
 }
 
@@ -189,6 +194,7 @@ async function handleSave() {
       display_name: form.value.display_name,
       input_price: form.value.input_price,
       output_price: form.value.output_price,
+      cost_per_call: form.value.cost_per_call,
       multiplier: form.value.multiplier,
       group_id: form.value.group_id ? Number(form.value.group_id) : 0,
       upstream_name: form.value.upstream_name || null,
@@ -207,6 +213,7 @@ async function handleSave() {
         context_length: form.value.context_length,
         input_price: form.value.input_price,
         output_price: form.value.output_price,
+        cost_per_call: form.value.cost_per_call,
         multiplier: form.value.multiplier,
         group_id: form.value.group_id ? Number(form.value.group_id) : null,
         is_public: form.value.is_public,

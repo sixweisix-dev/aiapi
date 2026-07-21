@@ -693,6 +693,7 @@ type CreateModelRequest struct {
 	ContextLength *int     `json:"context_length,omitempty"`
 	InputPrice    float64  `json:"input_price" binding:"required,min=0"`
 	OutputPrice   float64  `json:"output_price" binding:"required,min=0"`
+	CostPerCall   *float64 `json:"cost_per_call,omitempty"`
 	Multiplier    *float64 `json:"multiplier,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
 	Description   *string  `json:"description,omitempty"`
@@ -704,6 +705,7 @@ type UpdateModelRequest struct {
 	DisplayName   *string  `json:"display_name,omitempty"`
 	InputPrice    *float64 `json:"input_price,omitempty"`
 	OutputPrice   *float64 `json:"output_price,omitempty"`
+	CostPerCall   *float64 `json:"cost_per_call,omitempty"`
 	Multiplier    *float64 `json:"multiplier,omitempty"`
 	IsEnabled     *bool    `json:"is_enabled,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
@@ -720,6 +722,7 @@ type ModelListItem struct {
 	ContextLength int      `json:"context_length"`
 	InputPrice    float64  `json:"input_price"`
 	OutputPrice   float64  `json:"output_price"`
+	CostPerCall   float64  `json:"cost_per_call"`
 	Multiplier    float64  `json:"multiplier"`
 	IsEnabled     bool     `json:"is_enabled"`
 	IsPublic      bool     `json:"is_public"`
@@ -752,6 +755,7 @@ func (h *AdminHandler) ListModels(c *gin.Context) {
 			ContextLength: r.ContextLength,
 			InputPrice:    r.InputPrice,
 			OutputPrice:   r.OutputPrice,
+			CostPerCall:   r.CostPerCall,
 			Multiplier:    r.Multiplier,
 			IsEnabled:     r.IsEnabled,
 			IsPublic:      r.IsPublic,
@@ -801,6 +805,9 @@ func (h *AdminHandler) CreateModel(c *gin.Context) {
 	if req.Description != nil {
 		model.Description = req.Description
 	}
+	if req.CostPerCall != nil {
+		model.CostPerCall = *req.CostPerCall
+	}
 
 	if err := h.db.Create(&model).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create model"})
@@ -843,6 +850,9 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 	}
 	if req.OutputPrice != nil {
 		updates["output_price"] = *req.OutputPrice
+	}
+	if req.CostPerCall != nil {
+		updates["cost_per_call"] = *req.CostPerCall
 	}
 	if req.Multiplier != nil {
 		updates["multiplier"] = *req.Multiplier
