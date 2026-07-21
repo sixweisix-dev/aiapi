@@ -200,6 +200,7 @@ type Model struct {
 	GroupID      *uint     `gorm:"index" json:"group_id"`
 	UpstreamName *string   `gorm:"type:varchar(100)" json:"upstream_name,omitempty"`
 	CostPerCall  float64   `gorm:"type:decimal(20,8);not null;default:0" json:"cost_per_call"` // >0 = 按调用计费 (覆盖 token 计费)
+	UpstreamChannelID *uuid.UUID `gorm:"type:uuid;index" json:"upstream_channel_id,omitempty"` // 绑定具体渠道 (nil=按组轮询)
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`

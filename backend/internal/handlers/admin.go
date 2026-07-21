@@ -344,6 +344,7 @@ type CreateChannelRequest struct {
 	BaseURL *string `json:"base_url,omitempty"`
 	Weight  *int    `json:"weight,omitempty"`
 	SupportedModels string `json:"supported_models,omitempty"`
+	FallbackChannelIDs string `json:"fallback_channel_ids,omitempty"`
 }
 
 type UpdateChannelRequest struct {
@@ -369,6 +370,7 @@ type UpdateChannelRequest struct {
 	SupportedModels     string   `json:"supported_models"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 	SupportedModelsP    *string    `json:"supported_models,omitempty"`
+	FallbackChannelIDs  *string    `json:"fallback_channel_ids,omitempty"`
 }
 
 type ChannelListItem struct {
@@ -420,6 +422,7 @@ type ChannelListItem struct {
 	GroupID             *uint      `json:"group_id,omitempty"`
 	GroupName           string     `json:"group_name,omitempty"`
 	SupportedModels     string     `json:"supported_models"`
+	FallbackChannelIDs  string     `json:"fallback_channel_ids"`
 	Errors1h            int64      `json:"errors_1h"`
 }
 
@@ -521,6 +524,9 @@ func (h *AdminHandler) CreateChannel(c *gin.Context) {
 	if req.Weight != nil {
 		channel.Weight = *req.Weight
 	}
+	if req.FallbackChannelIDs != "" {
+		channel.FallbackChannelIDs = req.FallbackChannelIDs
+	}
 
 	if err := h.db.Create(&channel).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create channel"})
@@ -617,6 +623,9 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	if req.SupportedModelsP != nil {
 		updates["supported_models"] = *req.SupportedModelsP
 	}
+	if req.FallbackChannelIDs != nil {
+		updates["fallback_channel_ids"] = *req.FallbackChannelIDs
+	}
 	if req.GroupID != nil {
 		if *req.GroupID == 0 {
 			updates["group_id"] = nil
@@ -694,6 +703,7 @@ type CreateModelRequest struct {
 	InputPrice    float64  `json:"input_price" binding:"required,min=0"`
 	OutputPrice   float64  `json:"output_price" binding:"required,min=0"`
 	CostPerCall   *float64 `json:"cost_per_call,omitempty"`
+	UpstreamChannelID *string `json:"upstream_channel_id,omitempty"`
 	Multiplier    *float64 `json:"multiplier,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
 	Description   *string  `json:"description,omitempty"`
@@ -706,6 +716,8 @@ type UpdateModelRequest struct {
 	InputPrice    *float64 `json:"input_price,omitempty"`
 	OutputPrice   *float64 `json:"output_price,omitempty"`
 	CostPerCall   *float64 `json:"cost_per_call,omitempty"`
+	UpstreamChannelID *string `json:"upstream_channel_id,omitempty"`
+	UpstreamChannelIDNull bool `json:"-"` // true = 前端传 null 清空绑定
 	Multiplier    *float64 `json:"multiplier,omitempty"`
 	IsEnabled     *bool    `json:"is_enabled,omitempty"`
 	IsPublic      *bool    `json:"is_public,omitempty"`
@@ -723,6 +735,8 @@ type ModelListItem struct {
 	InputPrice    float64  `json:"input_price"`
 	OutputPrice   float64  `json:"output_price"`
 	CostPerCall   float64  `json:"cost_per_call"`
+	UpstreamChannelID *string `json:"upstream_channel_id,omitempty"`
+	UpstreamChannelName string `json:"upstream_channel_name,omitempty"`
 	Multiplier    float64  `json:"multiplier"`
 	IsEnabled     bool     `json:"is_enabled"`
 	IsPublic      bool     `json:"is_public"`
@@ -808,6 +822,11 @@ func (h *AdminHandler) CreateModel(c *gin.Context) {
 	if req.CostPerCall != nil {
 		model.CostPerCall = *req.CostPerCall
 	}
+	if req.UpstreamChannelID != nil && *req.UpstreamChannelID != "" {
+		if uid, uerr := uuid.Parse(*req.UpstreamChannelID); uerr == nil {
+			model.UpstreamChannelID = &uid
+		}
+	}
 
 	if err := h.db.Create(&model).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create model"})
@@ -853,6 +872,13 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 	}
 	if req.CostPerCall != nil {
 		updates["cost_per_call"] = *req.CostPerCall
+	}
+	if req.UpstreamChannelID != nil {
+		if *req.UpstreamChannelID == "" {
+			updates["upstream_channel_id"] = nil
+		} else if uid, uerr := uuid.Parse(*req.UpstreamChannelID); uerr == nil {
+			updates["upstream_channel_id"] = uid
+		}
 	}
 	if req.Multiplier != nil {
 		updates["multiplier"] = *req.Multiplier
