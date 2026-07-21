@@ -121,6 +121,7 @@ const menuItems = [
   { path: '/recharge',    emoji: '💳', label: '充值记录' },
   { path: '/audit-logs',  emoji: '🔍', label: '操作日志' },
   { path: '/settings',    emoji: '⚙️', label: '系统设置' },
+  { path: '/backup-restore', emoji: '🗄️', label: '备份恢复' },
   { path: '/redeem-codes', emoji: '🎁', label: '兑换码管理' },
   { path: '/access-logs', emoji: '📡', label: '访问日志' },
 ]
