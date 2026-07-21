@@ -37,6 +37,7 @@ type Channel struct {
 	GroupSlug         string  // 分组 slug (economy/official)
 	GroupMultiplier   float64 // 分组倍率
 	SupportedModels   string  // 模型 whitelist (逗号分隔), 空=支持本组所有模型
+	FallbackChannelIDs string  // 显式故障转移链 (逗号分隔 UUID)
 	IsDedicated       bool
 	DedicatedUserIDs  string  // 逗号分隔
 	DedicatedUserIDsAuto string  // 自动隔离名单
@@ -53,6 +54,9 @@ type Pool struct {
 	client   *http.Client
 	rdb      *redis.Client // 错误指标滑动窗口
 	vertexTM *vertex.TokenManager
+	// modelBinding: model_name -> upstream_channel_id (为空表示无绑定)
+	// Refresh 时一次性加载, 避免热路径 DB 查询
+	modelBinding map[string]string
 }
 
 func NewPool(db *gorm.DB, rdb *redis.Client, vertexTM *vertex.TokenManager) *Pool {
@@ -163,13 +167,31 @@ func (p *Pool) Refresh() {
 			DedicatedUserIDs: r.DedicatedUserIDs,
 			DedicatedUserIDsAuto: r.DedicatedUserIDsAuto,
 			SupportedModels:    r.SupportedModels,
+			FallbackChannelIDs: r.FallbackChannelIDs,
 		})
+	}
+
+	// 加载模型绑定映射 (model_name -> upstream_channel_id)
+	type modelBindRow struct {
+		Name              string
+		UpstreamChannelID *string `gorm:"column:upstream_channel_id"`
+	}
+	var modelBindings []modelBindRow
+	if err := p.db.Table("models").Select("name, upstream_channel_id").Where("is_enabled = ? AND upstream_channel_id IS NOT NULL", true).Scan(&modelBindings).Error; err != nil {
+		log.Printf("Model bindings load failed: %v", err)
+	}
+	bindingMap := make(map[string]string, len(modelBindings))
+	for _, r := range modelBindings {
+		if r.UpstreamChannelID != nil && *r.UpstreamChannelID != "" {
+			bindingMap[r.Name] = *r.UpstreamChannelID
+		}
 	}
 
 	p.mu.Lock()
 	p.channels = channels
+	p.modelBinding = bindingMap
 	p.mu.Unlock()
-	log.Printf("Upstream pool refreshed: %d channels loaded", len(channels))
+	log.Printf("Upstream pool refreshed: %d channels loaded, %d model bindings", len(channels), len(bindingMap))
 }
 
 // Select picks a channel for the given provider using weighted random.
@@ -559,6 +581,68 @@ func (p *Pool) SelectAllHealthy(provider string, modelName ...string) []*Channel
 	return candidates
 }
 
+// SelectByChannelID 按 channel_id 直接查找 (不做过滤, 用于 model 绑定优先)
+func (p *Pool) SelectByChannelID(channelID string) *Channel {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, c := range p.channels {
+		if c.ID == channelID {
+			return c
+		}
+	}
+	return nil
+}
+
+// buildFailoverChain 构造 DoWithFailover 使用的候选链
+// - 如果模型有绑定渠道: 首位 = 绑定渠道, 后接 fallback 链, 兜底同 provider 健康渠道
+// - 无绑定: 完全走 SelectAllHealthy (weight 排序)
+// 全过程去重, 只保留健康渠道
+func (p *Pool) buildFailoverChain(provider, modelName string) []*Channel {
+	p.mu.RLock()
+	boundID := p.modelBinding[modelName]
+	p.mu.RUnlock()
+
+	// 无绑定 -> 走旧逻辑
+	if boundID == "" {
+		return p.SelectAllHealthy(provider, modelName)
+	}
+
+	seen := make(map[string]bool)
+	var chain []*Channel
+	add := func(c *Channel) {
+		if c == nil || seen[c.ID] {
+			return
+		}
+		if c.HealthStatus == "unhealthy" {
+			return
+		}
+		seen[c.ID] = true
+		chain = append(chain, c)
+	}
+
+	// 1. 绑定渠道置首位
+	bound := p.SelectByChannelID(boundID)
+	add(bound)
+
+	// 2. 追加绑定渠道的显式 fallback 链
+	if bound != nil && bound.FallbackChannelIDs != "" {
+		for _, fid := range strings.Split(bound.FallbackChannelIDs, ",") {
+			fid = strings.TrimSpace(fid)
+			if fid == "" {
+				continue
+			}
+			add(p.SelectByChannelID(fid))
+		}
+	}
+
+	// 3. 兜底: 同 provider 其他健康渠道 (按 weight)
+	for _, c := range p.SelectAllHealthy(provider, modelName) {
+		add(c)
+	}
+
+	return chain
+}
+
 // DoWithFailover 按权重顺序依次尝试通道，遇上游故障自动切到下一个。
 // 触发故障转移的条件：5xx 错误 / 网络错误 / 429 限流 / 401 认证失败
 // 返回值: (响应, 实际使用的 channel, 错误)
@@ -569,7 +653,7 @@ func (p *Pool) DoWithFailover(ctx context.Context, provider, method, path string
 	} else {
 		mName = extractModelFromBody(reqBody)
 	}
-	candidates := p.SelectAllHealthy(provider, mName)
+	candidates := p.buildFailoverChain(provider, mName)
 	if len(candidates) == 0 {
 		return nil, nil, fmt.Errorf("no healthy upstream channels for provider %s", provider)
 	}
