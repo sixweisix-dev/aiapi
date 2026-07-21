@@ -91,6 +91,13 @@
           </el-select>
           <span class="ml-2 text-xs text-gray-400">最终用户付费 = 输入/输出价 × multiplier × 分组倍率</span>
         </el-form-item>
+        <el-form-item label="绑定渠道">
+          <el-select v-model="form.upstream_channel_id" placeholder="不绑定 (按组轮询)" clearable style="width:280px" :disabled="!form.group_id">
+            <el-option :value="null" label="— 不绑定 (按组轮询) —" />
+            <el-option v-for="ch in bindableChannels" :key="ch.id" :label="`${ch.name} (${ch.provider})`" :value="ch.id" />
+          </el-select>
+          <span class="ml-2 text-xs text-gray-400">选定后调用该模型优先走此渠道 + 该渠道的 fallback 链</span>
+        </el-form-item>
         <el-form-item label="上游别名">
           <el-input v-model="form.upstream_name" placeholder="留空 = 同模型标识" />
           <span class="ml-2 text-xs text-gray-400">转发给上游时实际用的 model 名 (如 -pro 别名映射真实模型)</span>
@@ -123,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api, { modelsAPI } from '@/utils/api'
 
@@ -132,9 +139,17 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const channelGroups = ref([])
+const allChannels = ref([])
 async function loadGroups() {
   try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
 }
+async function loadChannels() {
+  try { const r = await api.get('/admin/channels'); allChannels.value = r?.items || [] } catch (e) {}
+}
+const bindableChannels = computed(() => {
+  if (!form.value.group_id) return []
+  return allChannels.value.filter(c => c.group_id === form.value.group_id && c.is_enabled)
+})
 const isEditing = ref(false)
 const formRef = ref(null)
 const editingId = ref(null)
@@ -147,6 +162,7 @@ const form = ref({
   input_price: 0,
   output_price: 0,
   cost_per_call: 0,
+  upstream_channel_id: null,
   multiplier: 1.0,
   description: '',
   is_public: true,
@@ -174,7 +190,7 @@ async function fetchData() {
 function openCreate() {
   isEditing.value = false
   editingId.value = null
-  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, cost_per_call: 0, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
+  form.value = { name: '', display_name: '', provider: 'openai', context_length: 4096, input_price: 0, output_price: 0, cost_per_call: 0, upstream_channel_id: null, multiplier: 1.0, description: '', is_public: true, is_enabled: true, group_id: null, upstream_name: '' }
   dialogVisible.value = true
 }
 
@@ -195,6 +211,7 @@ async function handleSave() {
       input_price: form.value.input_price,
       output_price: form.value.output_price,
       cost_per_call: form.value.cost_per_call,
+      upstream_channel_id: form.value.upstream_channel_id || '',
       multiplier: form.value.multiplier,
       group_id: form.value.group_id ? Number(form.value.group_id) : 0,
       upstream_name: form.value.upstream_name || null,
@@ -214,6 +231,7 @@ async function handleSave() {
         input_price: form.value.input_price,
         output_price: form.value.output_price,
         cost_per_call: form.value.cost_per_call,
+        upstream_channel_id: form.value.upstream_channel_id || '',
         multiplier: form.value.multiplier,
         group_id: form.value.group_id ? Number(form.value.group_id) : null,
         is_public: form.value.is_public,
@@ -237,5 +255,15 @@ async function handleDelete(row) {
   } catch { /* cancelled */ }
 }
 
-onMounted(() => { fetchData(); loadGroups() })
+onMounted(() => {
+  watch(() => form.value?.group_id, (newGid, oldGid) => {
+    if (newGid !== oldGid) {
+      const stillValid = allChannels.value.find(c => c.id === form.value.upstream_channel_id && c.group_id === newGid)
+      if (!stillValid) form.value.upstream_channel_id = null
+    }
+  })
+  fetchData()
+  loadGroups()
+  loadChannels()
+})
 </script>

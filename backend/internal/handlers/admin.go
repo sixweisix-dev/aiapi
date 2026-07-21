@@ -750,12 +750,14 @@ type ModelListItem struct {
 func (h *AdminHandler) ListModels(c *gin.Context) {
 	type rowType struct {
 		models.Model
-		GroupName string `gorm:"column:group_name"`
+		GroupName           string `gorm:"column:group_name"`
+		UpstreamChannelName string `gorm:"column:upstream_channel_name"`
 	}
 	var rows []rowType
 	h.db.Table("models AS m").
-		Select("m.*, COALESCE(cg.name,'') AS group_name").
+		Select("m.*, COALESCE(cg.name,'') AS group_name, COALESCE(uc.name,'') AS upstream_channel_name").
 		Joins("LEFT JOIN channel_groups AS cg ON cg.id = m.group_id AND cg.deleted_at IS NULL").
+		Joins("LEFT JOIN upstream_channels AS uc ON uc.id = m.upstream_channel_id AND uc.deleted_at IS NULL").
 		Where("m.deleted_at IS NULL").
 		Order("m.provider ASC, m.name ASC").
 		Scan(&rows)
@@ -782,6 +784,11 @@ func (h *AdminHandler) ListModels(c *gin.Context) {
 		}
 		if r.UpstreamName != nil {
 			item.UpstreamName = r.UpstreamName
+		}
+		if r.UpstreamChannelID != nil {
+			idStr := r.UpstreamChannelID.String()
+			item.UpstreamChannelID = &idStr
+			item.UpstreamChannelName = r.UpstreamChannelName
 		}
 		items = append(items, item)
 	}
