@@ -208,6 +208,20 @@
           <span class="ml-2 text-xs text-gray-400">逗号分隔模型名, 空白=承接分组所有模型</span>
         </el-form-item>
 
+        <el-form-item label="故障转移优先级">
+          <el-select v-model="fallbackList" multiple filterable placeholder="不设置=按 weight 兜底" style="width:480px">
+            <el-option
+              v-for="ch in fallbackCandidates"
+              :key="ch.id"
+              :label="`${ch.name} (${ch.provider})`"
+              :value="ch.id"
+            />
+          </el-select>
+          <div class="ml-2 text-xs text-gray-400" style="margin-top:4px;">
+            该渠道 fail 后按选中顺序尝试。留空则回退到按 weight 排序的组内轮询。
+          </div>
+        </el-form-item>
+
         <el-divider>额度管理</el-divider>
 
         <el-form-item label="额度模式">
@@ -389,7 +403,7 @@ const form = reactive({
   name: '', provider: 'anthropic', api_key: '', base_url: '', weight: 1, is_enabled: true,
   quota_type: 'unlimited', daily_quota_usd: 0, total_quota_usd: 0,
   subscription_start: '', subscription_end: '',
-  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0, enable_cache_1h_beta: false, auto_inject_cache: false, group_id: null
+  is_dedicated: false, dedicated_user_ids: '', reconcile_multiplier: 1.0, billing_mode: 'pay_as_you_go', monthly_fee_cny: 0, enable_cache_1h_beta: false, auto_inject_cache: false, group_id: null, fallback_channel_ids: ''
 })
 
 const rules = {
@@ -402,6 +416,20 @@ const groupFilter = ref(null)
 async function loadGroups() {
   try { const r = await api.get('/admin/channel-groups'); channelGroups.value = r?.items || [] } catch (e) {}
 }
+
+// 故障转移优先级: 排除当前编辑的渠道 + 只显示 enabled 渠道
+const fallbackCandidates = computed(() => {
+  return channels.value.filter(c => c.is_enabled && c.id !== editingId.value)
+})
+// fallback_channel_ids 存储用逗号分隔字符串, UI 用数组
+const fallbackList = computed({
+  get() {
+    return form.fallback_channel_ids ? form.fallback_channel_ids.split(',').filter(Boolean) : []
+  },
+  set(val) {
+    form.fallback_channel_ids = Array.isArray(val) ? val.join(',') : ''
+  }
+})
 
 const modelsList = ref([])
 async function loadModels() {
