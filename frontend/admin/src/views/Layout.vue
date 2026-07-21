@@ -115,6 +115,7 @@ const menuItems = [
   { path: '/profit',      emoji: '💰', label: '利润看板' },
   { path: '/users',       emoji: '👥', label: '用户管理' },
   { path: '/channels',    emoji: '🔌', label: '上游渠道' },
+  { path: '/models',      emoji: '🤖', label: '模型管理' },
   { path: '/goofish', emoji: '🐟', label: '闲鱼集成' },
   { path: '/logs',        emoji: '📝', label: '请求日志' },
   { path: '/recharge',    emoji: '💳', label: '充值记录' },

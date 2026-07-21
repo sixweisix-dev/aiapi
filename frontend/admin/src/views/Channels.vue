@@ -38,6 +38,7 @@
                 <span class="text-xs text-gray-400">{{ data.children?.length || 0 }} 模型</span>
               </template>
               <template v-if="data.type === 'model'">
+                <el-tag v-if="data.meta.bound" size="small" type="warning">🔒 已绑定</el-tag>
                 <el-tag size="small" type="info">${{ Number(data.meta.input).toFixed(3) }}/M in</el-tag>
                 <el-tag size="small" type="info">${{ Number(data.meta.output).toFixed(3) }}/M out</el-tag>
                 <el-tag v-if="!data.meta.enabled" size="small" type="danger">已禁用</el-tag>
@@ -460,6 +461,7 @@ const treeData = computed(() => {
         input: (Number(m.input_price) || 0) * 1000 * (Number(m.multiplier) || 1) * (Number(g.multiplier) || 1),
         output: (Number(m.output_price) || 0) * 1000 * (Number(m.multiplier) || 1) * (Number(g.multiplier) || 1),
         enabled: m.is_enabled,
+        bound: !!m.upstream_channel_id && c && m.upstream_channel_id === c.id,
       },
       raw: m,
     })
@@ -477,8 +479,10 @@ const treeData = computed(() => {
             meta: { provider: c.provider, health: c.health_status, weight: c.weight },
             raw: c,
             children: gModels.filter(m => {
+              // 若模型绑定了具体渠道: 只挂在绑定渠道下
+              if (m.upstream_channel_id) return m.upstream_channel_id === c.id
+              // 否则按 provider 兼容 + supported_models 白名单过滤
               if (!isProviderCompatible(c.provider, m.provider)) return false
-              // supported_models whitelist 过滤: 空表示支持本组所有
               if (c.supported_models && c.supported_models.trim() !== '') {
                 const allowed = c.supported_models.split(',').map(s => s.trim()).filter(Boolean)
                 return allowed.includes(m.name)
