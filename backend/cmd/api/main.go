@@ -316,6 +316,7 @@ r.GET("/v1/user/zhifux/order/:order_no", middleware.JWTAuth(cfg.JWTSecret), zhif
 		admin.POST("/backup/maintenance/enter", backupHandler.EnterMaintenance)
 		admin.POST("/backup/maintenance/exit", backupHandler.ExitMaintenance)
 		admin.GET("/backup/maintenance/status", backupHandler.MaintenanceStatus)
+		admin.POST("/backup/restore", backupHandler.Restore)
 		admin.POST("/restock", cronHandler.AdminRestock)
 	}
 

@@ -11,6 +11,7 @@ import (
 	cryptoRand "crypto/rand"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -774,5 +775,230 @@ func (h *BackupHandler) MaintenanceStatus(c *gin.Context) {
 		"maintenance_mode": active,
 		"ttl_seconds":      ttl,
 	})
+}
+
+// ===== 正式恢复 (Commit 4 of B' - 破坏性!) =====
+
+type restoreReq struct {
+	BackupToken       string `json:"backup_token" binding:"required"`
+	Key               string `json:"key" binding:"required"`
+	Password          string `json:"password" binding:"required"`
+	ConfirmText       string `json:"confirm_text" binding:"required"`
+	SkipEmergencyBackup bool `json:"skip_emergency_backup"`
+}
+
+type restoreResult struct {
+	EmergencyBackupKey string `json:"emergency_backup_key"`
+	RestoredFromKey    string `json:"restored_from_key"`
+	DBSizeBytes        int    `json:"db_size_bytes"`
+	DurationMs         int64  `json:"duration_ms"`
+	MaintenanceExpired bool   `json:"maintenance_expired"`
+}
+
+const confirmString = "我确认覆盖生产"
+
+// POST /admin/backup/restore - 正式将备份写入生产 DB
+// 二次确认: confirm_text 必须 == "我确认覆盖生产"
+// 流程: 1) 校验 → 2) 开维护模式 → 3) 紧急备份 → 4) 拉备份+解密 → 5) psql 灌 → 6) 关维护模式
+func (h *BackupHandler) Restore(c *gin.Context) {
+	t0 := time.Now()
+	var req restoreReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// === 1. 校验 ===
+	if !validateBackupToken(req.BackupToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "备份操作令牌无效或已过期"})
+		return
+	}
+	if req.ConfirmText != confirmString {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "确认字符串错误, 必须精确输入: " + confirmString})
+		return
+	}
+	if !strings.HasPrefix(req.Key, "full_") && !strings.HasPrefix(req.Key, "emergency_") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup key"})
+		return
+	}
+	if !strings.HasSuffix(req.Key, ".tar.enc") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid backup key extension"})
+		return
+	}
+	adminID := c.GetString("user_id")
+	log.Printf("[Restore] START admin=%s key=%s skip_emergency=%v", adminID, req.Key, req.SkipEmergencyBackup)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Minute)
+	defer cancel()
+
+	result := restoreResult{RestoredFromKey: req.Key}
+
+	// === 2. 开维护模式 (30min TTL) ===
+	if h.rdb == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "redis unavailable, 无法开启维护模式"})
+		return
+	}
+	if err := h.rdb.Set(ctx, maintenanceRedisKey, "1", 30*time.Minute).Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "开启维护模式失败: " + err.Error()})
+		return
+	}
+	log.Printf("[Restore] 维护模式已开启")
+
+	// 无论后续成败, 都尝试关闭维护模式
+	defer func() {
+		if delErr := h.rdb.Del(context.Background(), maintenanceRedisKey).Err(); delErr != nil {
+			log.Printf("[Restore] WARN 关闭维护模式失败: %v", delErr)
+			result.MaintenanceExpired = false
+		} else {
+			result.MaintenanceExpired = true
+			log.Printf("[Restore] 维护模式已关闭")
+		}
+	}()
+
+	// === 3. 紧急备份 (除非用户明确 skip) ===
+	if !req.SkipEmergencyBackup {
+		log.Printf("[Restore] 开始紧急备份当前状态...")
+		key, err := h.runEmergencyBackup(ctx, req.Password, "pre-restore emergency by "+adminID+" before "+req.Key)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "紧急备份失败, 恢复已 abort: " + err.Error()})
+			return
+		}
+		result.EmergencyBackupKey = key
+		log.Printf("[Restore] 紧急备份完成: %s", key)
+	}
+
+	// === 4. 从 R2 拉目标备份 + 解密 + 抽 dump ===
+	log.Printf("[Restore] 拉取 R2 备份 %s...", req.Key)
+	client, err := newR2Client(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	obj, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r2Bucket), Key: aws.String(req.Key),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "R2 get failed: " + err.Error()})
+		return
+	}
+	defer obj.Body.Close()
+	enc, err := io.ReadAll(io.LimitReader(obj.Body, 500*1024*1024))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "read backup: " + err.Error()})
+		return
+	}
+	plain, err := decryptOpenSSL(enc, req.Password)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解密失败 (密码错?): " + err.Error()})
+		return
+	}
+	dumpSQL, err := extractDatabaseDump(plain)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "extract dump: " + err.Error()})
+		return
+	}
+	result.DBSizeBytes = len(dumpSQL)
+	log.Printf("[Restore] 备份解密完成: dump %d 字节", len(dumpSQL))
+
+	// === 5. psql 灌到主库 (破坏性!!!) ===
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DATABASE_URL not set"})
+		return
+	}
+	log.Printf("[Restore] 🔥 开始灌 dump 到主库...")
+	loadCmd := exec.CommandContext(ctx, "psql", dsn, "-v", "ON_ERROR_STOP=0", "-q")
+	loadCmd.Stdin = bytes.NewReader(dumpSQL)
+	var loadErr bytes.Buffer
+	loadCmd.Stderr = &loadErr
+	if err := loadCmd.Run(); err != nil {
+		errTail := loadErr.String()
+		if len(errTail) > 800 {
+			errTail = errTail[len(errTail)-800:]
+		}
+		log.Printf("[Restore] 🚨 灌 dump 失败: %v, stderr tail: %s", err, errTail)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "灌 dump 失败, 主库可能处于不一致状态! 立即用 emergency_backup_key 恢复: " + err.Error(),
+			"emergency_backup_key": result.EmergencyBackupKey,
+			"stderr_tail": errTail,
+		})
+		return
+	}
+	result.DurationMs = time.Since(t0).Milliseconds()
+	log.Printf("[Restore] ✅ 主库恢复完成, 耗时 %dms", result.DurationMs)
+
+	c.JSON(http.StatusOK, result)
+}
+
+// runEmergencyBackup: 复用 Emergency handler 的逻辑, 但作为函数调用而不是 HTTP handler
+func (h *BackupHandler) runEmergencyBackup(ctx context.Context, password, reason string) (string, error) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return "", fmt.Errorf("DATABASE_URL not set")
+	}
+
+	// pg_dump
+	dumpCmd := exec.CommandContext(ctx, "pg_dump", dsn, "--clean", "--if-exists", "--no-owner", "--no-privileges")
+	var dumpBuf, dumpErr bytes.Buffer
+	dumpCmd.Stdout = &dumpBuf
+	dumpCmd.Stderr = &dumpErr
+	if err := dumpCmd.Run(); err != nil {
+		return "", fmt.Errorf("pg_dump: %v / %s", err, dumpErr.String())
+	}
+
+	// gzip
+	var gzBuf bytes.Buffer
+	gzWriter := gzip.NewWriter(&gzBuf)
+	if _, err := gzWriter.Write(dumpBuf.Bytes()); err != nil {
+		return "", fmt.Errorf("gzip: %v", err)
+	}
+	gzWriter.Close()
+
+	// tar + metadata
+	tsStr := time.Now().Format("20060102_150405")
+	dirName := "emergency_" + tsStr
+	metadata := fmt.Sprintf(`{"type":"emergency","triggered_at":"%s","reason":%q,"db_size_bytes":%d}`,
+		time.Now().UTC().Format(time.RFC3339), reason, gzBuf.Len())
+
+	var tarBuf bytes.Buffer
+	tw := tar.NewWriter(&tarBuf)
+	for _, entry := range []struct {
+		name    string
+		content []byte
+	}{
+		{dirName + "/database.sql.gz", gzBuf.Bytes()},
+		{dirName + "/metadata.json", []byte(metadata)},
+	} {
+		hdr := &tar.Header{Name: entry.name, Mode: 0644, Size: int64(len(entry.content)), ModTime: time.Now()}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return "", fmt.Errorf("tar header: %v", err)
+		}
+		if _, err := tw.Write(entry.content); err != nil {
+			return "", fmt.Errorf("tar write: %v", err)
+		}
+	}
+	tw.Close()
+
+	// AES 加密
+	encrypted, err := encryptOpenSSL(tarBuf.Bytes(), password)
+	if err != nil {
+		return "", fmt.Errorf("encrypt: %v", err)
+	}
+
+	// 上传 R2
+	client, err := newR2Client(ctx)
+	if err != nil {
+		return "", err
+	}
+	key := "emergency_" + tsStr + ".tar.enc"
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(r2Bucket), Key: aws.String(key),
+		Body:   bytes.NewReader(encrypted),
+		ContentType: aws.String("application/octet-stream"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("R2 upload: %v", err)
+	}
+	return key, nil
 }
 
