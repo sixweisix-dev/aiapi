@@ -699,8 +699,8 @@ type CreateModelRequest struct {
 	DisplayName   string   `json:"display_name" binding:"required"`
 	Provider      string   `json:"provider" binding:"required,oneof=openai anthropic google qwen deepseek"`
 	ContextLength *int     `json:"context_length,omitempty"`
-	InputPrice    float64  `json:"input_price" binding:"required,min=0"`
-	OutputPrice   float64  `json:"output_price" binding:"required,min=0"`
+	InputPrice    float64  `json:"input_price" binding:"gte=0"`
+	OutputPrice   float64  `json:"output_price" binding:"gte=0"`
 	CostPerCall   *float64 `json:"cost_per_call,omitempty"`
 	UpstreamChannelID *string `json:"upstream_channel_id,omitempty"`
 	Multiplier    *float64 `json:"multiplier,omitempty"`
@@ -835,7 +835,12 @@ func (h *AdminHandler) CreateModel(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&model).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create model"})
+		msg := err.Error()
+		if strings.Contains(msg, "duplicate key") && strings.Contains(msg, "idx_models_name") {
+			c.JSON(http.StatusConflict, gin.H{"error": "模型名已存在 (可能被软删除, 请到 DB 直接恢复或换名字)"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create model: " + msg})
 		return
 	}
 
