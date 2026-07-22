@@ -349,6 +349,7 @@ type CreateChannelRequest struct {
 
 type UpdateChannelRequest struct {
 	Name              *string  `json:"name,omitempty"`
+	Provider          *string  `json:"provider,omitempty" binding:"omitempty,oneof=openai anthropic google multi_aggregator vertex_ai"`
 	APIKey            *string  `json:"api_key,omitempty"`
 	BaseURL           *string  `json:"base_url,omitempty"`
 	Weight            *int     `json:"weight,omitempty"`
@@ -562,6 +563,9 @@ func (h *AdminHandler) UpdateChannel(c *gin.Context) {
 	updates := map[string]interface{}{}
 	if req.Name != nil {
 		updates["name"] = *req.Name
+	}
+	if req.Provider != nil {
+		updates["provider"] = *req.Provider
 	}
 	if req.APIKey != nil {
 		updates["api_key_encrypted"] = *req.APIKey
@@ -889,6 +893,13 @@ func (h *AdminHandler) UpdateModel(c *gin.Context) {
 			updates["upstream_channel_id"] = nil
 		} else if uid, uerr := uuid.Parse(*req.UpstreamChannelID); uerr == nil {
 			updates["upstream_channel_id"] = uid
+		}
+	}
+	if req.UpstreamName != nil {
+		if *req.UpstreamName == "" {
+			updates["upstream_name"] = nil
+		} else {
+			updates["upstream_name"] = *req.UpstreamName
 		}
 	}
 	if req.Multiplier != nil {
