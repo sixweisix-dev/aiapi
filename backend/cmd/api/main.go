@@ -118,7 +118,7 @@ stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	paddleHandler := handlers.NewPaddleHandler(db, billingEngine)
 	apiKeyHandler := handlers.NewAPIKeyHandler(db)
 	adminHandler := handlers.NewAdminHandler(db, billingEngine, pool, channelTracker)
-	backupHandler := handlers.NewBackupHandler(db)
+	backupHandler := handlers.NewBackupHandler(db, redisClient)
 	goofishHandler := handlers.NewGoofishHandler(db)
 	goofishSupplierHandler := handlers.NewGoofishSupplierHandler(db)
 	userHandler := handlers.NewUserHandler(db)
@@ -134,6 +134,7 @@ stripeHandler := handlers.NewStripeHandler(db, billingEngine)
 	// Gin engine
 	r := gin.Default()
 	r.Use(middleware.CORS())
+	r.Use(middleware.MaintenanceMode(redisClient))
 
 	// Health check (deep: pings DB and Redis)
 	r.GET("/health", func(c *gin.Context) {
@@ -312,6 +313,9 @@ r.GET("/v1/user/zhifux/order/:order_no", middleware.JWTAuth(cfg.JWTSecret), zhif
 		admin.POST("/backup/decrypt", backupHandler.Decrypt)
 		admin.POST("/backup/dry-run", backupHandler.DryRun)
 		admin.POST("/backup/emergency", backupHandler.Emergency)
+		admin.POST("/backup/maintenance/enter", backupHandler.EnterMaintenance)
+		admin.POST("/backup/maintenance/exit", backupHandler.ExitMaintenance)
+		admin.GET("/backup/maintenance/status", backupHandler.MaintenanceStatus)
 		admin.POST("/restock", cronHandler.AdminRestock)
 	}
 

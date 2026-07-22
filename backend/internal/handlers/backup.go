@@ -25,6 +25,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/pbkdf2"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -37,11 +38,12 @@ const (
 )
 
 type BackupHandler struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
-func NewBackupHandler(db *gorm.DB) *BackupHandler {
-	return &BackupHandler{db: db}
+func NewBackupHandler(db *gorm.DB, rdb *redis.Client) *BackupHandler {
+	return &BackupHandler{db: db, rdb: rdb}
 }
 
 // ===== R2 =====
@@ -691,6 +693,86 @@ func (h *BackupHandler) Emergency(c *gin.Context) {
 		SizeBytes:   len(encrypted),
 		DurationMs:  time.Since(t0).Milliseconds(),
 		DBSizeBytes: len(gzippedDump),
+	})
+}
+
+// ===== 维护模式管理 (Commit 3 of B') =====
+
+// 复用 middleware 里的常量
+const maintenanceRedisKey = "maintenance:mode"
+
+// POST /admin/backup/maintenance/enter - 开启维护模式
+func (h *BackupHandler) EnterMaintenance(c *gin.Context) {
+	var req struct {
+		BackupToken string `json:"backup_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !validateBackupToken(req.BackupToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "备份操作令牌无效或已过期"})
+		return
+	}
+	if h.rdb == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "redis not available"})
+		return
+	}
+	ctx := context.Background()
+	if err := h.rdb.Set(ctx, maintenanceRedisKey, "1", 30*time.Minute).Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "maintenance_on",
+		"expires_at_seconds": 30 * 60,
+		"note":    "非 admin 请求将收到 503, 30 分钟后自动解锁",
+	})
+}
+
+// POST /admin/backup/maintenance/exit - 关闭维护模式
+func (h *BackupHandler) ExitMaintenance(c *gin.Context) {
+	var req struct {
+		BackupToken string `json:"backup_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !validateBackupToken(req.BackupToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "备份操作令牌无效或已过期"})
+		return
+	}
+	if h.rdb == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "redis not available"})
+		return
+	}
+	ctx := context.Background()
+	if err := h.rdb.Del(ctx, maintenanceRedisKey).Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "maintenance_off"})
+}
+
+// GET /admin/backup/maintenance/status - 查看当前维护模式状态 (不需要 backup_token, 供健康监控)
+func (h *BackupHandler) MaintenanceStatus(c *gin.Context) {
+	if h.rdb == nil {
+		c.JSON(http.StatusOK, gin.H{"maintenance_mode": false, "note": "redis unavailable"})
+		return
+	}
+	ctx := context.Background()
+	val, err := h.rdb.Get(ctx, maintenanceRedisKey).Result()
+	active := (err == nil && val == "1")
+	ttl := int64(0)
+	if active {
+		if d, e := h.rdb.TTL(ctx, maintenanceRedisKey).Result(); e == nil {
+			ttl = int64(d.Seconds())
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"maintenance_mode": active,
+		"ttl_seconds":      ttl,
 	})
 }
 
