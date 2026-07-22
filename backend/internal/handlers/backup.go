@@ -8,6 +8,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	cryptoRand "crypto/rand"
 	"fmt"
 	"io"
 	"net/http"
@@ -518,3 +519,178 @@ func (h *BackupHandler) Decrypt(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, result)
 }
+
+// ===== 紧急备份 (对称版 backup_full.sh 的 Go 实现) =====
+
+// encryptOpenSSL 兼容 `openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt`
+// 输出格式: "Salted__" (8B) + salt (8B) + ciphertext
+func encryptOpenSSL(plaintext []byte, password string) ([]byte, error) {
+	// 生成 8 字节随机 salt
+	salt := make([]byte, 8)
+	if _, err := cryptoRand.Read(salt); err != nil {
+		return nil, err
+	}
+	// PBKDF2 派生 key(32) + iv(16)
+	dk := pbkdf2.Key([]byte(password), salt, pbkdf2Iter, 48, sha256.New)
+	key := dk[:32]
+	iv := dk[32:48]
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	// PKCS#7 padding
+	blockSize := aes.BlockSize
+	padLen := blockSize - (len(plaintext) % blockSize)
+	padded := make([]byte, len(plaintext)+padLen)
+	copy(padded, plaintext)
+	for i := len(plaintext); i < len(padded); i++ {
+		padded[i] = byte(padLen)
+	}
+
+	ciphertext := make([]byte, len(padded))
+	mode := cipher.NewCBCEncrypter(block, iv)
+	mode.CryptBlocks(ciphertext, padded)
+
+	// 拼装: Salted__ + salt + ciphertext
+	out := make([]byte, 0, 16+len(ciphertext))
+	out = append(out, []byte(openSSLMagic)...)
+	out = append(out, salt...)
+	out = append(out, ciphertext...)
+	return out, nil
+}
+
+type emergencyReq struct {
+	BackupToken string `json:"backup_token" binding:"required"`
+	Password    string `json:"password" binding:"required"`     // BACKUP_ENC_PASSWORD
+	Reason      string `json:"reason,omitempty"`                  // 触发原因(可选,写入 metadata)
+}
+
+type emergencyResult struct {
+	Key           string `json:"key"`             // R2 里的文件名
+	SizeBytes     int    `json:"size_bytes"`      // 加密后大小
+	DurationMs    int64  `json:"duration_ms"`     // 耗时
+	DBSizeBytes   int    `json:"db_size_bytes"`   // gzip 后 dump 大小
+}
+
+// POST /admin/backup/emergency - 触发紧急备份到 R2 (正式恢复前用)
+func (h *BackupHandler) Emergency(c *gin.Context) {
+	t0 := time.Now()
+	var req emergencyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !validateBackupToken(req.BackupToken) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "备份操作令牌无效或已过期"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
+	defer cancel()
+
+	// 1. pg_dump 到内存, 加 gzip 压缩
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DATABASE_URL not set"})
+		return
+	}
+	dumpCmd := exec.CommandContext(ctx, "pg_dump", dsn, "--clean", "--if-exists", "--no-owner", "--no-privileges")
+	var dumpBuf bytes.Buffer
+	var dumpErr bytes.Buffer
+	dumpCmd.Stdout = &dumpBuf
+	dumpCmd.Stderr = &dumpErr
+	if err := dumpCmd.Run(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "pg_dump failed: " + err.Error() + " / " + dumpErr.String()})
+		return
+	}
+	rawDump := dumpBuf.Bytes()
+
+	// 2. gzip 压缩 dump
+	var gzBuf bytes.Buffer
+	gzWriter := gzip.NewWriter(&gzBuf)
+	if _, err := gzWriter.Write(rawDump); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "gzip write: " + err.Error()})
+		return
+	}
+	if err := gzWriter.Close(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "gzip close: " + err.Error()})
+		return
+	}
+	gzippedDump := gzBuf.Bytes()
+
+	// 3. 打 tar 包 (跟 backup_full.sh 结构一致: emergency_TS/database.sql.gz + metadata.json)
+	tsStr := time.Now().Format("20060102_150405")
+	dirName := "emergency_" + tsStr
+	adminID := c.GetString("user_id")
+	metadata := fmt.Sprintf(`{
+  "type": "emergency",
+  "triggered_at": "%s",
+  "triggered_by_user_id": "%s",
+  "reason": %q,
+  "db_size_bytes": %d
+}
+`, time.Now().UTC().Format(time.RFC3339), adminID, req.Reason, len(gzippedDump))
+
+	var tarBuf bytes.Buffer
+	tw := tar.NewWriter(&tarBuf)
+	for _, entry := range []struct {
+		name    string
+		content []byte
+	}{
+		{dirName + "/database.sql.gz", gzippedDump},
+		{dirName + "/metadata.json", []byte(metadata)},
+	} {
+		hdr := &tar.Header{
+			Name:    entry.name,
+			Mode:    0644,
+			Size:    int64(len(entry.content)),
+			ModTime: time.Now(),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "tar header: " + err.Error()})
+			return
+		}
+		if _, err := tw.Write(entry.content); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "tar write: " + err.Error()})
+			return
+		}
+	}
+	if err := tw.Close(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "tar close: " + err.Error()})
+		return
+	}
+
+	// 4. openssl-兼容 AES-256-CBC 加密
+	encrypted, err := encryptOpenSSL(tarBuf.Bytes(), req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "encrypt: " + err.Error()})
+		return
+	}
+
+	// 5. 上传 R2
+	client, err := newR2Client(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	key := "emergency_" + tsStr + ".tar.enc"
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(r2Bucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(encrypted),
+		ContentType: aws.String("application/octet-stream"),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "R2 upload: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, emergencyResult{
+		Key:         key,
+		SizeBytes:   len(encrypted),
+		DurationMs:  time.Since(t0).Milliseconds(),
+		DBSizeBytes: len(gzippedDump),
+	})
+}
+
