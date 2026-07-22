@@ -367,7 +367,6 @@ type UpdateChannelRequest struct {
 	AutoInjectCache     *bool    `json:"auto_inject_cache,omitempty"`
 	GroupID             *uint    `json:"group_id,omitempty"`
 	GroupIDNull         bool     `json:"-"` // true = 前端传了 null，清空分组
-	SupportedModels     string   `json:"supported_models"`
 	ResetQuota        *bool    `json:"reset_quota,omitempty"` // 手动重置今日额度
 	SupportedModelsP    *string    `json:"supported_models,omitempty"`
 	FallbackChannelIDs  *string    `json:"fallback_channel_ids,omitempty"`
