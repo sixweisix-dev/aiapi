@@ -156,6 +156,65 @@
         </div>
       </div>
     </div>
+    <!-- Step 6: 正式恢复 (破坏性!) -->
+    <div class="card danger-card" v-if="dryRunResult">
+      <div class="step-title">☢️ 第 6 步 · 正式恢复到生产 (破坏性)</div>
+      <div class="hint">
+        此操作会将当前选中的备份 <code>{{ selectedBackup?.key }}</code> 覆盖到主库。<br>
+        <strong style="color:#dc2626">主库当前数据会被替换成备份里的数据。</strong>
+        建议先仔细看 Step 5 dry-run 结果。
+      </div>
+
+      <div style="margin-top:20px">
+        <el-checkbox v-model="ackDryRun">我已查看 Step 5 dry-run 结果, 确认差异可接受</el-checkbox>
+      </div>
+      <div>
+        <el-checkbox v-model="autoEmergency">允许在恢复前自动创建紧急备份 (强烈推荐)</el-checkbox>
+      </div>
+
+      <el-input
+        v-model="confirmText"
+        placeholder="精确输入: 我确认覆盖生产"
+        size="large"
+        style="margin-top:16px;max-width:400px"
+      />
+
+      <el-input
+        v-model="restorePassword"
+        type="password"
+        placeholder="再次输入 BACKUP_ENC_PASSWORD"
+        size="large"
+        show-password
+        style="margin-top:12px;max-width:400px"
+      />
+
+      <div style="margin-top:20px">
+        <el-button
+          type="danger"
+          size="large"
+          :loading="restoreLoading"
+          :disabled="!canRestore"
+          @click="doRestore"
+        >
+          ☢️ 开始恢复到生产
+        </el-button>
+        <span v-if="restoreLoading" style="margin-left:12px;color:#dc2626">
+          恢复中 · 请勿关闭页面 · 预计 5-30 秒
+        </span>
+      </div>
+
+      <div v-if="restoreResult" class="sop-notice" style="margin-top:20px;background:#f0fdf4;border-left-color:#16a34a">
+        <div style="font-weight:600;margin-bottom:8px;color:#166534">✅ 恢复成功</div>
+        <div style="font-size:13px;color:#166534;line-height:1.8">
+          从: <code>{{ restoreResult.restored_from_key }}</code><br>
+          耗时: {{ restoreResult.duration_ms }}ms<br>
+          DB 大小: {{ formatSize(restoreResult.db_size_bytes) }}<br>
+          <strong>紧急备份 key: <code>{{ restoreResult.emergency_backup_key }}</code></strong> (万一发现问题可从此恢复)<br>
+          维护模式已解锁: {{ restoreResult.maintenance_expired ? '是' : '否 (需手动清 Redis key: maintenance:mode)' }}
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -168,6 +227,12 @@ const step = ref(1)
 const loading = ref(false)
 const dryRunLoading = ref(false)
 const dryRunResult = ref(null)
+const ackDryRun = ref(false)
+const autoEmergency = ref(true)
+const confirmText = ref('')
+const restorePassword = ref('')
+const restoreLoading = ref(false)
+const restoreResult = ref(null)
 const loginPassword = ref('')
 const backupToken = ref('')
 const backupList = ref([])
@@ -267,6 +332,43 @@ function reset() {
   result.value = null
 }
 
+const canRestore = computed(() =>
+  ackDryRun.value &&
+  confirmText.value === '我确认覆盖生产' &&
+  !!restorePassword.value &&
+  !!selectedBackup.value
+)
+
+async function doRestore() {
+  restoreLoading.value = true
+  restoreResult.value = null
+  try {
+    const r = await api.post('/admin/backup/restore', {
+      backup_token: backupToken.value,
+      key: selectedBackup.value.key,
+      password: restorePassword.value,
+      confirm_text: confirmText.value,
+      skip_emergency_backup: !autoEmergency.value,
+    })
+    restorePassword.value = ''
+    confirmText.value = ''
+    restoreResult.value = r
+    ElMessage.success('生产恢复完成')
+  } catch (e) {
+    // 显示 emergency_backup_key 供用户回滚
+    const errData = e?.response?.data
+    if (errData?.emergency_backup_key) {
+      ElMessageBox.alert(
+        `恢复失败但紧急备份已创建, 可从中回滚:\n\n${errData.emergency_backup_key}\n\n错误: ${errData.error}`,
+        '⚠️ 恢复失败',
+        { type: 'error', confirmButtonText: '知道了' }
+      )
+    }
+  } finally {
+    restoreLoading.value = false
+  }
+}
+
 function formatDate(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleString('zh-CN', { hour12: false })
@@ -309,6 +411,11 @@ function formatSize(bytes) {
   font-family: 'Menlo', monospace; font-size: 12px; line-height: 1.5;
   white-space: pre-wrap; word-break: break-all;
 }
+.danger-card {
+  background: #fff1f2;
+  border: 2px solid #fecaca;
+}
+.danger-card .step-title { color: #dc2626; }
 .sop-notice {
   margin-top: 24px; padding: 16px 20px;
   background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 8px;
