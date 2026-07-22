@@ -120,6 +120,40 @@
 
       <div style="margin-top:24px">
         <el-button @click="reset">↺ 从头开始</el-button>
+        <el-button type="warning" :loading="dryRunLoading" @click="doDryRun">🧪 运行 Dry-Run 对比</el-button>
+      </div>
+    </div>
+
+    <!-- Step 5: Dry-run 结果 -->
+    <div class="card" v-if="dryRunResult">
+      <div class="step-title">🧪 Dry-Run 对比结果</div>
+      <div class="hint">
+        备份已恢复到临时 database <code>{{ dryRunResult.test_db_name }}</code>, 对比完成后自动销毁 (未改主库)。<br>
+        耗时 {{ dryRunResult.duration_ms }}ms · 共 {{ dryRunResult.tables.length }} 张表。
+      </div>
+      <el-table :data="dryRunResult.tables" style="margin-top:16px" size="small" max-height="500">
+        <el-table-column prop="name" label="表名" min-width="200" />
+        <el-table-column prop="current_count" label="当前主库" width="120" align="right">
+          <template #default="{ row }">{{ row.current_count.toLocaleString() }}</template>
+        </el-table-column>
+        <el-table-column prop="restored_count" label="备份恢复后" width="120" align="right">
+          <template #default="{ row }">{{ row.restored_count.toLocaleString() }}</template>
+        </el-table-column>
+        <el-table-column label="变化 (delta)" width="140" align="right">
+          <template #default="{ row }">
+            <el-tag v-if="row.delta > 0" type="danger" size="small">+{{ row.delta.toLocaleString() }} (数据倒退)</el-tag>
+            <el-tag v-else-if="row.delta < 0" type="warning" size="small">{{ row.delta.toLocaleString() }} (数据新增)</el-tag>
+            <el-tag v-else type="info" size="small">0 (无变化)</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="sop-notice" style="margin-top:20px">
+        <div style="font-weight:600;margin-bottom:8px">📊 如何解读</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.8">
+          <strong>delta 为正 (红)</strong>: 备份里比主库多 = 恢复后会"倒退"(比如 users 从 100 -> 80)<br>
+          <strong>delta 为负 (黄)</strong>: 备份里比主库少 = 恢复后会"扩展"(通常是备份后新写入的数据)<br>
+          <strong>delta 为 0 (灰)</strong>: 表数据完全一致
+        </div>
       </div>
     </div>
   </div>
@@ -132,6 +166,8 @@ import api from '@/utils/api'
 
 const step = ref(1)
 const loading = ref(false)
+const dryRunLoading = ref(false)
+const dryRunResult = ref(null)
 const loginPassword = ref('')
 const backupToken = ref('')
 const backupList = ref([])
@@ -186,6 +222,38 @@ async function doDecrypt() {
     ElMessage.success('解密成功')
   } finally {
     loading.value = false
+  }
+}
+
+async function doDryRun() {
+  // 弹窗重新输入解密密码 (安全考虑不复用 Step 3 的密码)
+  let dryPwd
+  try {
+    const { value } = await ElMessageBox.prompt('请再次输入备份解密密码 (仅本次 dry-run 使用)', 'Dry-Run 密码确认', {
+      confirmButtonText: '开始 Dry-Run',
+      cancelButtonText: '取消',
+      inputType: 'password',
+      inputPlaceholder: 'BACKUP_ENC_PASSWORD',
+    })
+    dryPwd = value
+  } catch {
+    return  // 用户取消
+  }
+  if (!dryPwd) return ElMessage.warning('密码不能为空')
+
+  dryRunLoading.value = true
+  dryRunResult.value = null
+  try {
+    const r = await api.post('/admin/backup/dry-run', {
+      backup_token: backupToken.value,
+      key: selectedBackup.value.key,
+      password: dryPwd,
+    })
+    dryRunResult.value = r
+    ElMessage.success(`Dry-Run 完成, 对比了 ${r.tables.length} 张表, 主库未受影响`)
+  } finally {
+    dryRunLoading.value = false
+    dryPwd = ''  // 清掉 (GC 会回收)
   }
 }
 
