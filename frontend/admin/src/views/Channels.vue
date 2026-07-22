@@ -704,6 +704,7 @@ async function handleSave() {
     auto_inject_cache: !!form.auto_inject_cache,
     group_id: form.group_id ? Number(form.group_id) : 0,
     supported_models: form.supported_models || '',
+    fallback_channel_ids: form.fallback_channel_ids || '',
   }
   if (form.api_key) payload.api_key = form.api_key
   if (form.base_url) payload.base_url = form.base_url
