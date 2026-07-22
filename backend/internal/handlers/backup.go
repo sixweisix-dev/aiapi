@@ -26,6 +26,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/pbkdf2"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -689,12 +690,15 @@ func (h *BackupHandler) Emergency(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, emergencyResult{
+	result := emergencyResult{
 		Key:         key,
 		SizeBytes:   len(encrypted),
 		DurationMs:  time.Since(t0).Milliseconds(),
 		DBSizeBytes: len(gzippedDump),
-	})
+	}
+	h.createBackupAudit(adminID, "emergency_backup", key, nil)
+	go barkNotify("TransitAI紧急备份OK", fmt.Sprintf("%dKB→R2 %s", len(encrypted)/1024, key))
+	c.JSON(http.StatusOK, result)
 }
 
 // ===== 维护模式管理 (Commit 3 of B') =====
@@ -724,6 +728,9 @@ func (h *BackupHandler) EnterMaintenance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	adminID := c.GetString("user_id")
+	h.createBackupAudit(adminID, "maintenance_enter", "", nil)
+	go barkNotify("TransitAI维护模式开启", "30 分钟内非 admin 请求返回 503")
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "maintenance_on",
 		"expires_at_seconds": 30 * 60,
@@ -753,6 +760,8 @@ func (h *BackupHandler) ExitMaintenance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	adminID := c.GetString("user_id")
+	h.createBackupAudit(adminID, "maintenance_exit", "", nil)
 	c.JSON(http.StatusOK, gin.H{"status": "maintenance_off"})
 }
 
@@ -917,6 +926,11 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 			errTail = errTail[len(errTail)-800:]
 		}
 		log.Printf("[Restore] 🚨 灌 dump 失败: %v, stderr tail: %s", err, errTail)
+		h.createBackupAudit(adminID, "restore_production_failed", req.Key, map[string]interface{}{
+			"emergency_backup_key": result.EmergencyBackupKey,
+			"error":                err.Error(),
+		})
+		go barkNotify("🚨TransitAI恢复失败", fmt.Sprintf("使用 %s 立即回滚! %s", result.EmergencyBackupKey, err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "灌 dump 失败, 主库可能处于不一致状态! 立即用 emergency_backup_key 恢复: " + err.Error(),
 			"emergency_backup_key": result.EmergencyBackupKey,
@@ -927,6 +941,12 @@ func (h *BackupHandler) Restore(c *gin.Context) {
 	result.DurationMs = time.Since(t0).Milliseconds()
 	log.Printf("[Restore] ✅ 主库恢复完成, 耗时 %dms", result.DurationMs)
 
+	h.createBackupAudit(adminID, "restore_production", req.Key, map[string]interface{}{
+		"emergency_backup_key": result.EmergencyBackupKey,
+		"db_size_bytes":        result.DBSizeBytes,
+		"duration_ms":          result.DurationMs,
+	})
+	go barkNotify("TransitAI生产恢复完成", fmt.Sprintf("从 %s 恢复 %dms", req.Key, result.DurationMs))
 	c.JSON(http.StatusOK, result)
 }
 
@@ -1000,5 +1020,58 @@ func (h *BackupHandler) runEmergencyBackup(ctx context.Context, password, reason
 		return "", fmt.Errorf("R2 upload: %v", err)
 	}
 	return key, nil
+}
+
+// ===== Commit 5 of B': audit + Bark 通知 =====
+
+// createBackupAudit: 类比 AdminHandler.createAuditLog
+func (h *BackupHandler) createBackupAudit(adminID, action, resourceID string, extra map[string]interface{}) {
+	if h.db == nil {
+		return
+	}
+	parsedID, err := uuid.Parse(adminID)
+	if err != nil {
+		return
+	}
+	resourceType := "backup"
+	al := struct {
+		UserID       *uuid.UUID `gorm:"column:user_id"`
+		Action       string     `gorm:"column:action"`
+		ResourceType *string    `gorm:"column:resource_type"`
+		ResourceID   *string    `gorm:"column:resource_id"`
+	}{
+		UserID:       &parsedID,
+		Action:       action,
+		ResourceType: &resourceType,
+		ResourceID:   &resourceID,
+	}
+	h.db.Table("audit_logs").Create(&al)
+	_ = extra // 未来若表加 details JSONB 可扩展
+}
+
+// barkNotify: 发送 Bark 推送 (静默失败, 不影响主流程)
+func barkNotify(title, body string) {
+	key := os.Getenv("BARK_KEY")
+	if key == "" {
+		return
+	}
+	url := fmt.Sprintf("https://api.day.app/%s/%s/%s?group=TransitAI&sound=alarm",
+		key, urlPathEscape(title), urlPathEscape(body))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("[Bark] send failed (non-fatal): %v", err)
+		return
+	}
+	resp.Body.Close()
+}
+
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, " ", "%20"), "/", "%2F")
 }
 
