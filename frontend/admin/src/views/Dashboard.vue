@@ -26,6 +26,44 @@
         <div class="stat-value">{{ stats.online_channels || 0 }}/{{ stats.total_channels || 0 }}</div>
         <div class="stat-sub">模型 {{ stats.total_models || 0 }}</div>
       </div>
+      <div class="stat-card stat-tokens">
+        <div class="stat-icon">🧠</div>
+        <div class="stat-label">Token 消耗</div>
+        <div class="stat-value">{{ fmtNum(stats.total_tokens) }}</div>
+        <div class="stat-sub">今日 {{ fmtNum(stats.today_tokens) }}</div>
+      </div>
+      <div class="stat-card stat-cache">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-label">缓存节省</div>
+        <div class="stat-value">¥{{ Number(stats.cache_saved_cny || 0).toFixed(2) }}</div>
+        <div class="stat-sub">命中 {{ fmtNum(stats.cache_hit_tokens) }} tokens</div>
+      </div>
+      <div class="stat-card stat-latency">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-label">平均延迟</div>
+        <div class="stat-value">{{ Math.round(stats.avg_latency_ms || 0) }} ms</div>
+        <div class="stat-sub">P95: {{ Math.round(stats.p95_latency_ms || 0) }} ms</div>
+      </div>
+    </div>
+
+    <!-- 24h 请求趋势迷你图 -->
+    <div class="data-card" v-if="stats.requests_last_24h">
+      <div class="card-header">
+        <span class="card-title">📈 近 24 小时请求趋势</span>
+        <span class="card-sub">共 {{ fmtNum(stats.requests_last_24h.reduce((a,b)=>a+b,0)) }} 次 · 每格 1 小时</span>
+      </div>
+      <svg :viewBox="`0 0 240 60`" preserveAspectRatio="none" style="width:100%;height:80px">
+        <polyline
+          :points="sparklinePoints"
+          fill="none" stroke="#3b82f6" stroke-width="1.5"
+        />
+        <polygon :points="sparklinePolygon" fill="#3b82f6" opacity="0.15" />
+      </svg>
+      <div class="hour-labels">
+        <span>24h前</span>
+        <span>12h前</span>
+        <span>现在</span>
+      </div>
     </div>
 
     <!-- 系统状态 -->
@@ -99,10 +137,24 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { dashboardAPI } from '@/utils/api'
 
 const stats = ref({})
+
+const sparklinePoints = computed(() => {
+  const data = stats.value.requests_last_24h || []
+  if (!data.length) return ''
+  const max = Math.max(...data, 1)
+  const w = 240 / (data.length - 1 || 1)
+  return data.map((v, i) => `${i * w},${60 - (v / max * 55)}`).join(' ')
+})
+
+const sparklinePolygon = computed(() => {
+  const pts = sparklinePoints.value
+  if (!pts) return ''
+  return `${pts} 240,60 0,60`
+})
 
 const fmtNum = (n) => {
   if (!n) return '0'
@@ -120,6 +172,13 @@ onMounted(async () => {
 
 <style scoped>
 .dashboard { padding-bottom: 20px; }
+
+/* === KPI 卡片新色 === */
+.stat-tokens { background: linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%); color: #fff; }
+.stat-cache { background: linear-gradient(135deg,#fbbf24 0%,#d97706 100%); color: #fff; }
+.stat-latency { background: linear-gradient(135deg,#38bdf8 0%,#0369a1 100%); color: #fff; }
+.hour-labels { display:flex; justify-content:space-between; font-size:11px; color:#9ca3af; margin-top:4px; padding:0 4px; }
+.card-sub { font-size:12px; color:#9ca3af; margin-left:8px; }
 
 /* === 统计卡片网格（响应式） === */
 .stats-grid {

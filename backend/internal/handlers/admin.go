@@ -46,6 +46,14 @@ func (h *AdminHandler) DashboardStats(c *gin.Context) {
 		OnlineChannels  int64   `json:"online_channels"`
 		TotalModels     int64   `json:"total_models"`
 		PendingOrders   int64   `json:"pending_orders"`
+		TotalTokens     int64   `json:"total_tokens"`
+		TodayTokens     int64   `json:"today_tokens"`
+		AvgLatencyMs    int64   `json:"avg_latency_ms"`
+		P95LatencyMs    int64   `json:"p95_latency_ms"`
+		CacheHitTokens  int64   `json:"cache_hit_tokens"`
+		CacheTotalTokens int64  `json:"cache_total_tokens"`
+		CacheSavedCNY   float64 `json:"cache_saved_cny"`
+		RequestsLast24h []int64 `json:"requests_last_24h"`
 	}
 
 	var r result
@@ -61,6 +69,33 @@ func (h *AdminHandler) DashboardStats(c *gin.Context) {
 	h.db.Model(&models.UpstreamChannel{}).Where("health_status = ? AND is_enabled = ?", "healthy", true).Count(&r.OnlineChannels)
 	h.db.Model(&models.Model{}).Count(&r.TotalModels)
 	h.db.Model(&models.RechargeOrder{}).Where("payment_status = ?", "pending").Count(&r.PendingOrders)
+
+	// 新增: token / latency / cache 聚合
+	h.db.Model(&models.Request{}).Select("COALESCE(SUM(total_tokens),0)").Scan(&r.TotalTokens)
+	h.db.Model(&models.Request{}).Where("created_at >= ?", today).Select("COALESCE(SUM(total_tokens),0)").Scan(&r.TodayTokens)
+	// 平均和 P95 延迟 (近 24h 内 status=200 请求)
+	twentyFourHoursAgo := time.Now().Add(-24 * time.Hour)
+	h.db.Raw("SELECT COALESCE(AVG(duration_ms)::bigint, 0) FROM requests WHERE created_at >= ? AND status_code = 200", twentyFourHoursAgo).Scan(&r.AvgLatencyMs)
+	h.db.Raw("SELECT COALESCE(percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms)::bigint, 0) FROM requests WHERE created_at >= ? AND status_code = 200", twentyFourHoursAgo).Scan(&r.P95LatencyMs)
+	// 缓存命中: 按渠道汇总
+	h.db.Model(&models.UpstreamChannel{}).Select("COALESCE(SUM(cache_hit_tokens),0)").Scan(&r.CacheHitTokens)
+	h.db.Model(&models.UpstreamChannel{}).Select("COALESCE(SUM(cache_total_tokens),0)").Scan(&r.CacheTotalTokens)
+	// 缓存节省 ¥: 假设 cache_hit_tokens 均价 ¥0.005/1K token, 命中省 90% = ¥0.0045/1K
+	r.CacheSavedCNY = float64(r.CacheHitTokens) * 0.0045 / 1000.0
+
+	// 24 小时切片: 每小时的请求数
+	r.RequestsLast24h = make([]int64, 24)
+	type hourBucket struct {
+		H int
+		C int64
+	}
+	var buckets []hourBucket
+	h.db.Raw("SELECT EXTRACT(HOUR FROM (NOW() - created_at))::int AS h, COUNT(*) AS c FROM requests WHERE created_at >= ? GROUP BY h", twentyFourHoursAgo).Scan(&buckets)
+	for _, b := range buckets {
+		if b.H >= 0 && b.H < 24 {
+			r.RequestsLast24h[23-b.H] = b.C
+		}
+	}
 
 	c.JSON(http.StatusOK, r)
 }
